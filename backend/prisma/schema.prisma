@@ -15,6 +15,7 @@ model User {
   ra           String?       @unique // Opcional, pois admin pode não ter RA
   password     String
   role         String        @default("ALUNO") // Pode ser "ALUNO", "PROFESSOR" ou "ADMIN"
+  trainings    String        @default("") // Módulos de treinamento concluídos
   appointments Appointment[] // Relação: Um usuário pode ter vários agendamentos
 }
 

@@ -21,7 +21,7 @@
   font-size: 3.5rem;
   font-weight: 900;
   margin: 0 0 15px 0;
-  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  background: linear-gradient(90deg, #0080C0, #6e7bee);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -1px;
@@ -56,14 +56,26 @@
   transition: all 0.3s ease;
 }
 
-.tab-button:hover, .tab-button.active {
-  background: linear-gradient(135deg, #0ea5e9, #4f46e5);
+.tab-button.active {
+  background: linear-gradient(135deg, #0080C0, #6e7bee);
   border-color: transparent;
   transform: translateY(-2px);
   box-shadow: 0 10px 20px rgba(14, 165, 233, 0.3);
 }
 
-/* Painéis de Conteúdo (Glassmorphism) */
+.tab-button.admin-tab {
+  background: linear-gradient(135deg, #0080C0, #6e7bee);
+  border-color: transparent;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(14, 165, 233, 0.3);
+}
+
+.tab-button:hover, .tab-button.admin-tab:hover {
+  background: linear-gradient(135deg, #14b1ff, #7c86e2);
+  box-shadow: 0 10px 24px rgba(123, 134, 236, 0.35);
+  transform: translateY(-2px);
+}
+
 .content-box {
   width: 100%;
   background: rgba(255, 255, 255, 0.03);
@@ -151,7 +163,7 @@
   font-size: 1.5rem;
   font-weight: 800;
   margin-top: 20px;
-  background: linear-gradient(90deg, #f87171, #facc15);
+  background: linear-gradient(90deg, #6e7bee, #08a1ee);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }

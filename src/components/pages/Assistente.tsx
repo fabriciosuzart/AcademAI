@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import './Assistente.css';
 
 interface Message {
-  id: string | number; 
+  id: string | number;
   sender: 'user' | 'ai';
   text: string;
 }
@@ -17,12 +17,12 @@ const Assistente: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     { id: 1, sender: 'ai', text: 'Olá! 👋 Sou o assistente do Laboratório Inteligente. Como posso ajudar?' }
   ]);
-  
+
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeechEnabled, setIsSpeechEnabled] = useState(false);
-  
+
   const abortControllerRef = useRef<AbortController | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -44,7 +44,7 @@ const Assistente: React.FC = () => {
   const handleStop = () => {
     // 1. Para a fala imediatamente
     if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
+      window.speechSynthesis.cancel();
     }
 
     // 2. Cancela a requisição para o servidor
@@ -59,10 +59,10 @@ const Assistente: React.FC = () => {
     if (lastMessage?.sender === 'ai' && lastMessage?.text === '') {
       messages.pop();
     }
-    setMessages(prev => [...prev, { 
-      id: Date.now(), 
-      sender: 'ai', 
-      text: "🛑 Geração interrompida pelo usuário." 
+    setMessages(prev => [...prev, {
+      id: Date.now(),
+      sender: 'ai',
+      text: "🛑 Geração interrompida pelo usuário."
     }]);
   };
 
@@ -72,27 +72,31 @@ const Assistente: React.FC = () => {
 
     if (!textToSend || !textToSend.trim()) return;
 
-    // Gera IDs únicos baseados no tempo + texto aleatório para evitar conflitos
     const timestamp = Date.now();
     const userMsgId = `user-${timestamp}`;
     const aiMsgId = `ai-${timestamp}`;
 
-    // 1. Adiciona mensagem do usuário
     setMessages(prev => [...prev, { id: userMsgId, sender: 'user', text: textToSend }]);
-    
-    // 2. Adiciona IMEDIATAMENTE o balão da IA (vazio)
     setMessages(prev => [...prev, { id: aiMsgId, sender: 'ai', text: '' }]);
-    
+
     setInput('');
     setIsLoading(true);
 
     try {
       abortControllerRef.current = new AbortController();
 
+      // Pegando o ID do usuário logado do cache do navegador 
+      const idLogado = localStorage.getItem('userId');
+
+      console.log("ID enviado:", idLogado);
       const response = await fetch('http://localhost:3000/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: textToSend }),
+        // 👇 Agora enviamos a mensagem E o userId 👇
+        body: JSON.stringify({
+          message: textToSend,
+          userId: idLogado ? parseInt(idLogado) : null
+        }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -110,8 +114,8 @@ const Assistente: React.FC = () => {
         fullText += chunk;
 
         // Atualiza APENAS o balão com o ID da IA
-        setMessages(prev => prev.map(msg => 
-            msg.id === aiMsgId ? { ...msg, text: fullText } : msg
+        setMessages(prev => prev.map(msg =>
+          msg.id === aiMsgId ? { ...msg, text: fullText } : msg
         ));
       }
 
@@ -123,7 +127,7 @@ const Assistente: React.FC = () => {
       if (error.name === "AbortError") return;
 
       console.error(error);
-      setMessages(prev => prev.map(msg => 
+      setMessages(prev => prev.map(msg =>
         msg.id === aiMsgId ? { ...msg, text: "Erro na conexão." } : msg
       ));
     } finally {
@@ -140,19 +144,19 @@ const Assistente: React.FC = () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recognition = new (window as any).webkitSpeechRecognition();
     recognition.lang = 'pt-BR';
-    recognition.continuous = false; 
-    recognition.interimResults = true; 
+    recognition.continuous = false;
+    recognition.interimResults = true;
 
     recognition.onstart = () => setIsListening(true);
-    
+
     // Garante que o estado visual do microfone desligue
     recognition.onend = () => setIsListening(false);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
-      setInput(transcript); 
-      
+      setInput(transcript);
+
       if (event.results[0].isFinal) {
         recognition.stop(); // <--- FORÇA O MICROFONE A PARAR
         setIsListening(false);
@@ -175,32 +179,32 @@ const Assistente: React.FC = () => {
         <div className="chat-history">
           {messages.map((msg) => (
             <div key={msg.id} className={`message ${msg.sender}`}>
-            <div className="avatar">{msg.sender === 'ai' ? '🤖' : '👤'}</div>
-            <div className="message-content">
-              {/* Se for IA e o texto estiver vazio, mostra o indicador, senão mostra o texto */}
-              <p>
-                {msg.sender === 'ai' && msg.text === '' ? (
+              <div className="avatar">{msg.sender === 'ai' ? '🤖' : '👤'}</div>
+              <div className="message-content">
+                {/* Se for IA e o texto estiver vazio, mostra o indicador, senão mostra o texto */}
+                <p>
+                  {msg.sender === 'ai' && msg.text === '' ? (
                     <span className="blinking-cursor">Pensando... 🧠</span>
-                ) : (
+                  ) : (
                     msg.text
+                  )}
+                </p>
+
+                {msg.sender === 'ai' && msg.text !== '' && (
+                  <button type="button" className="speak-btn" onClick={() => speak(msg.text)} title="Ouvir">🔊</button>
                 )}
-              </p>
-              
-              {msg.sender === 'ai' && msg.text !== '' && (
-                <button type="button" className="speak-btn" onClick={() => speak(msg.text)} title="Ouvir">🔊</button>
-              )}
+              </div>
             </div>
-          </div>
-        ))}
-          
+          ))}
+
           <div ref={chatEndRef} />
         </div>
 
         <div className="chat-input-area">
           <div className="input-container-limit">
             <div className="input-wrapper">
-              
-              <button 
+
+              <button
                 type="button"
                 className={`icon-button speech-toggle ${isSpeechEnabled ? 'active' : ''}`}
                 onClick={() => setIsSpeechEnabled(!isSpeechEnabled)}
@@ -209,9 +213,9 @@ const Assistente: React.FC = () => {
                 {isSpeechEnabled ? '🔊' : '🔇'}
               </button>
 
-              <button 
+              <button
                 type="button"
-                className={`icon-button mic-button ${isListening ? 'listening' : ''}`} 
+                className={`icon-button mic-button ${isListening ? 'listening' : ''}`}
                 onClick={startListening}
                 disabled={isLoading}
                 title="Falar"
@@ -219,30 +223,30 @@ const Assistente: React.FC = () => {
                 {isListening ? '🛑' : '🎙️'}
               </button>
 
-              <textarea 
+              <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Digite sua dúvida ou use o microfone..." 
+                placeholder="Digite sua dúvida ou use o microfone..."
                 rows={1}
-                disabled={isLoading} 
+                disabled={isLoading}
               />
-              
+
               {isLoading ? (
-                <button 
-                    type="button" 
-                    className="send-btn stop-btn" 
-                    onClick={handleStop} 
-                    title="Parar resposta"
+                <button
+                  type="button"
+                  className="send-btn stop-btn"
+                  onClick={handleStop}
+                  title="Parar resposta"
                 >
                   ⏹️
                 </button>
               ) : (
-                <button 
-                    type="button" 
-                    className="send-btn" 
-                    onClick={() => handleSend()} 
-                    disabled={!input.trim()}
+                <button
+                  type="button"
+                  className="send-btn"
+                  onClick={() => handleSend()}
+                  disabled={!input.trim()}
                 >
                   ➤
                 </button>

@@ -9,7 +9,6 @@ const Navbar: React.FC = () => {
 
   // Recupera os dados do usuário salvos no login
   const userName = localStorage.getItem('userName');
-  const userRole = localStorage.getItem('userRole');
 
   const closeMobileMenu = () => setIsMenuOpen(false);
 
@@ -24,8 +23,8 @@ const Navbar: React.FC = () => {
     <nav className="navbar">
       <div className="navbar-container">
         <Link to="/" className="navbar-logo" onClick={closeMobileMenu}>
-          <img src={logoImage} alt="InovFabLab Logo" className="logo-image" />
-          <span>InovFabLab</span>
+          <img src={logoImage} alt="AcademAI Logo" className="logo-image" />
+          <span>AcademAI</span>
         </Link>
 
         <ul className={isMenuOpen ? "nav-menu active" : "nav-menu"}>
@@ -44,20 +43,6 @@ const Navbar: React.FC = () => {
           <li className="nav-item">
             <Link to="/contato" className="nav-link" onClick={closeMobileMenu}>Contato</Link>
           </li>
-
-          {/* ITEM EXCLUSIVO PARA ADMINISTRADOR 👇 */}
-          {userRole === 'ADMIN' && (
-            <li className="nav-item">
-              <Link 
-                to="/admin" 
-                className="nav-link" 
-                style={{ color: '#ffcc00', fontWeight: 'bold' }} 
-                onClick={closeMobileMenu}
-              >
-                ⚙️ Painel Admin
-              </Link>
-            </li>
-          )}
 
           {/* LÓGICA DE LOGIN / LOGOUT 👇 */}
           <li className="nav-item">

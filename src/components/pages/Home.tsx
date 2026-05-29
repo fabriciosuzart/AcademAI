@@ -3,23 +3,25 @@ import { Link } from 'react-router-dom';
 import './Home.css';
 
 const Home: React.FC = () => {
+    const userRole = localStorage.getItem('userRole');
+
     return (
         <div className="home-container">
             <main className="home-main">
-                <h1>Bem-vindo ao INOVFABLAB!</h1>
-                <p className="subtitle">O seu espaço para criar, inovar e construir o futuro.</p>
+                <h1>Bem-vindo ao AcademAI!</h1>
+                <p className="subtitle">Um futuro de oportunidades para você criar e inovar.</p>
 
                 <div className="tabs">
                     <Link to="/assistente" className="tab-button active">Interagir com IA</Link>
-                    <Link to="/equipamentos" className="tab-button active">Ver Equipamentos</Link>
-
-                    {/* CORREÇÃO AQUI: Trocamos 'a href' por 'Link to' */}
                     <Link to="/cadastro" className="tab-button active">Cadastre-se Agora</Link>
+                    {userRole === 'ADMIN' && (
+                        <Link to="/admin" className="tab-button admin-tab">Painel Admin</Link>
+                    )}
                 </div>
 
                 <div className="content-box">
-                    <h3>O que é o INOVFABLAB?</h3>
-                    <p>Somos um laboratório de fabricação digital (FabLab) onde a criatividade encontra as ferramentas para se transformar em realidade. Aqui, estudantes, pesquisadores e entusiastas podem desenvolver projetos, prototipar ideias e aprender na prática.</p>
+                    <h3>O que é o AcademAI?</h3>
+                    <p>AcademAI é um hub de inovação e produção digital que ajuda a tirar ideias do papel. Nosso espaço é feito para quem quer criar, prototipar e aprender com equipamentos e orientação especializada</p>
                 </div>
 
                 <h2>Sua Jornada para Criar</h2>
@@ -40,16 +42,6 @@ const Home: React.FC = () => {
                     </div>
                 </div>
 
-                <h2>Conheça o Espaço</h2>
-                <div className="video-container">
-                    <iframe
-                        src="https://www.youtube.com/embed/KLfAyKi_aK4"
-                        title="YouTube video player"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen>
-                    </iframe>
-                </div>
-
                 <h2>Aviso Importante</h2>
                 <div className="content-box">
                     <ul className="rules-list">
@@ -57,11 +49,10 @@ const Home: React.FC = () => {
                         <li>Chegue com no mínimo 10 minutos de antecedência para preparar seu material e fazer o login.</li>
                         <li>Reservas possuem tolerância de 10 minutos de atraso. Após esse período, o horário será disponibilizado para outros usuários presentes no laboratório.</li>
                         <li>É estritamente proibida a entrada com bermuda, chinelos, saias, vestidos ou regatas, visando a sua segurança.</li>
-                        <li>O INOVFABLAB não se responsabiliza por objetos ou materiais pessoais deixados no laboratório.</li>
                     </ul>
                 </div>
 
-                <p className="slogan">Somos todos INOVFABLAB, Somos todos UNISANTA!</p>
+                <p className="slogan">Tecnologia e acessibilidade se combinam em um espaço de fabricação digital.</p>
 
             </main>
         </div>

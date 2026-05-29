@@ -1,4 +1,4 @@
-/* backend/server.js - VERSÃO OTIMIZADA PARA DOCUMENTOS GRANDES */
+/* backend/server.js - FUSÃO: MCP + RAG + WHISPER */
 import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
@@ -11,11 +11,14 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
-import ollama from 'ollama';
 import multer from 'multer';
-import pkg from 'wavefile';
+import pkg from 'wavefile'; // ADICIONADO PELA JULIANA
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import {
+    toolConsultarEquipamentos, executarConsultaEquipamentos,
+    toolSolicitarReserva, executarSolicitacaoReserva
+} from './mcp_tools.js';
 
 const { WaveFile } = pkg;
 const execPromise = promisify(exec);
@@ -37,14 +40,12 @@ const JWT_SECRET = 'sua_chave_secreta_super_segura';
 app.use(cors());
 app.use(express.json());
 
-// --- CONFIGURAÇÃO DE UPLOAD DE IMAGENS (MULTER) ---
-// Define onde as imagens serão salvas e o nome delas
+// --- CONFIGURAÇÃO DE UPLOAD DE IMAGENS/ÁUDIOS (MULTER) ---
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'uploads/'); // Pasta que criamos dentro da pasta backend
+        cb(null, 'uploads/');
     },
     filename: (req, file, cb) => {
-        // Renomeia o arquivo para não ter nomes duplicados (ex: 1698123456-impressora.jpg)
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, uniqueSuffix + path.extname(file.originalname));
     }
@@ -52,24 +53,17 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// Torna a pasta 'uploads' pública para o Frontend conseguir acessar as imagens depois
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// --- BANCO DE DADOS ---
 // --- BANCO DE DADOS (PRISMA) ---
 const prisma = new PrismaClient();
 console.log('✅ Prisma ORM conectado ao banco SQLite.');
 
-// --- BASE DE CONHECIMENTO ---
-let knowledgeBase = [
-    // Mantenha seus dados fixos aqui se quiser, ou deixe vazio para usar só arquivos
-    { source: "Regras Gerais", text: "O horário de funcionamento do INOVFABLAB é de segunda a sexta, das 08h às 22h." },
-];
-
+// --- BASE DE CONHECIMENTO (RAG) ---
+let knowledgeBase = [];
 let vectorStore = [];
 let embedder = null;
 
-// --- FUNÇÃO MELHORADA: LER ARQUIVOS ---
 async function loadDocuments() {
     if (!fs.existsSync(DOCUMENTS_PATH)) {
         fs.mkdirSync(DOCUMENTS_PATH);
@@ -93,20 +87,12 @@ async function loadDocuments() {
             } else if (ext === '.docx') {
                 const result = await mammoth.extractRawText({ path: filePath });
                 textContent = result.value;
-            } else if (ext === '.txt') {
-                textContent = fs.readFileSync(filePath, 'utf-8');
             } else if (ext === '.md' || ext === '.txt') {
                 textContent = fs.readFileSync(filePath, 'utf-8');
             }
 
-
             if (textContent) {
-                // CÓDIGO NOVO (MANTÉM AS QUEBRAS DE LINHA)
-                // Remove apenas excesso de espaços, mas respeita o \n
                 const cleanText = textContent.replace(/\r/g, '').replace(/\n\s*\n/g, '\n').trim();
-
-                // --- MELHORIA 1: CHUNKS MAIORES (2000 caracteres) ---
-                // Isso garante que listas longas fiquem juntas no mesmo contexto
                 const chunkSize = 2000;
                 for (let i = 0; i < cleanText.length; i += chunkSize) {
                     const chunk = cleanText.substring(i, i + chunkSize);
@@ -127,7 +113,6 @@ async function initAI() {
     await loadDocuments();
     console.log("\n🧠 Inicializando Motor de IA...");
 
-    // Carrega o modelo de embeddings (Xenova)
     try {
         embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
         console.log("✅ Modelo de Embeddings carregado na memória.");
@@ -136,16 +121,13 @@ async function initAI() {
         return;
     }
 
-    // --- DEBUG: Vamos ver se a base de conhecimento existe ---
     console.log(`🧐 Verificando base de conhecimento: ${knowledgeBase.length} itens.`);
     if (knowledgeBase.length === 0) {
-        console.error("❌ ERRO: A base de conhecimento está vazia! O RAG não vai funcionar.");
-        return;
+        console.warn("⚠️ Base de conhecimento vazia! O RAG não usará arquivos.");
     }
 
-    // --- FORÇA O PROCESSAMENTO (Ignorando cache por enquanto para testar) ---
     console.log(`📊 Iniciando vetorização de ${knowledgeBase.length} blocos...`);
-    vectorStore = []; // Reseta o store
+    vectorStore = [];
 
     for (let i = 0; i < knowledgeBase.length; i++) {
         const item = knowledgeBase[i];
@@ -157,7 +139,7 @@ async function initAI() {
                 source: item.source,
                 vector: output.data
             });
-            process.stdout.write(`.`); // Pontinho de progresso
+            process.stdout.write(`.`);
         } catch (e) {
             console.error(`\n❌ Erro ao processar bloco ${i}:`, e);
         }
@@ -165,12 +147,11 @@ async function initAI() {
 
     console.log(`\n✅ Vetorização concluída! Temos ${vectorStore.length} vetores prontos.`);
 
-    // Salva o cache
     try {
         fs.writeFileSync(VECTOR_CACHE_PATH, JSON.stringify(vectorStore));
         console.log("💾 Cache salvo no disco.");
     } catch (e) {
-        console.error("Erro ao salvar cache (não crítico):", e);
+        console.error("Erro ao salvar cache:", e);
     }
 
     console.log("🚀 IA RAG Pronta para perguntas!\n");
@@ -187,6 +168,7 @@ function cosineSimilarity(vecA, vecB) {
     return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+<<<<<<< HEAD
 // --- ROTAS ---
 
 // --- ROTA DE TREINAMENTO (ADMIN) ---
@@ -304,16 +286,17 @@ app.put('/api/equipment/:id', upload.single('image'), async (req, res) => {
         res.status(500).json({ error: "Erro interno." });
     }
 });
+=======
+// --- ROTAS TRANSCACIONAIS (PRISMA) ---
+>>>>>>> c206ab6b1b265cbd6fadad52c5d4a6aab9d72963
 
 app.post('/api/register', async (req, res) => {
     try {
         const { fullName, email, ra, password } = req.body;
         const hashedPassword = await bcrypt.hash(password, 8);
-
         await prisma.user.create({
             data: { name: fullName, email, ra, password: hashedPassword }
         });
-
         res.json({ message: "Sucesso!" });
     } catch (error) {
         res.status(400).json({ error: "Erro ao cadastrar. E-mail ou RA já existem." });
@@ -323,19 +306,18 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
-
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user) return res.status(404).json({ error: "Usuário não encontrado." });
-
         if (!(await bcrypt.compare(password, user.password))) return res.status(401).json({ error: "Senha inválida." });
 
         const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: 86400 });
-        res.json({ auth: true, token, name: user.name, id: user.id, role: user.role });
+        res.json({ auth: true, token, name: user.name, id: user.id, role: user.role, email: user.email, ra: user.ra });
     } catch (error) {
         res.status(500).json({ error: "Erro interno no login." });
     }
 });
 
+<<<<<<< HEAD
 // --- ROTAS DE AGENDAMENTO (RESERVAS) ---
 
 // 1. Criar Reserva (Aluno)
@@ -451,94 +433,417 @@ app.post('/api/chat', async (req, res) => {
         ollama.abort();
     });*/
 
+=======
+app.get('/api/users', async (req, res) => {
+>>>>>>> c206ab6b1b265cbd6fadad52c5d4a6aab9d72963
     try {
-        // ... (parte do RAG/Embeddings continua igual) ...
-        const output = await embedder(message, { pooling: 'mean', normalize: true });
-        const queryVector = output.data;
-        const results = vectorStore.map(item => ({ item, score: cosineSimilarity(queryVector, item.vector) }));
-        const topResults = results.sort((a, b) => b.score - a.score).slice(0, 4); // Contexto reduzido
-        const contextText = topResults.map(r => r.item.text).join("\n\n---\n\n");
-
-        // --- ADICIONE ESTE LOG ---
-        console.log("--------------------------------------------------");
-        console.log("🔍 O QUE A IA RECEBEU DE CONTEXTO:");
-        console.log(contextText);
-        console.log("--------------------------------------------------");
-
-        const prompt = `
-            <role>
-            Você é o assistente virtual oficial do INOVFABLAB da Universidade Santa Cecília.
-            Sua função é responder dúvidas dos alunos com precisão, baseando-se EXCLUSIVAMENTE nos documentos fornecidos.
-            </role>
-
-            <constraints>
-            1. USE APENAS O CONTEXTO: Nunca invente informações, não use seu conhecimento externo e não invente categorias que não existem no texto.
-            2. SEJA COMPLETO: Se perguntarem "quais equipamentos", liste TODOS os equipamentos encontrados no contexto. Não resuma.
-            3. SEM CONVERSA FIADA: Não comece com "Claro, posso ajudar", "Aqui está", ou "É importante notar". Vá direto ao ponto.
-            4. FIDELIDADE: Use os nomes exatos dos equipamentos conforme aparecem no contexto.
-            5. FORMATAÇÃO:
-            - Use uma lista com marcadores (•) para equipamentos.
-            - Não use numeração (1., 2.) a menos que seja um passo-a-passo.
-            - Se a lista for longa, não a divida em categorias a menos que o texto original o faça.
-            </constraints>
-
-            <context>
-            ${contextText}
-            </context>
-
-            <user_question>
-            ${message}
-            </user_question>
-
-            <response_guideline>
-            Responda em Português do Brasil.
-            Se a pergunta for sobre equipamentos, comece a lista imediatamente ou com uma frase curta como "Os equipamentos disponíveis são:".
-            </response_guideline>
-        `;
-
-        const response = await fetch('http://127.0.0.1:11434/api/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: "llama3.2", prompt: prompt, stream: true })
-        });
-
-        // Prepara headers para stream
-        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-        res.setHeader('Transfer-Encoding', 'chunked');
-
-        // LÊ O FLUXO E REPASSA
-        for await (const chunk of response.body) {
-            const lines = chunk.toString().split('\n');
-            for (const line of lines) {
-                if (!line) continue;
-                try {
-                    const json = JSON.parse(line);
-
-                    // Se tiver pedaço de texto, envia
-                    if (json.response) {
-                        res.write(json.response);
-                    }
-
-                    // Se o Ollama disser que acabou, ENCERRA a conexão
-                    if (json.done) {
-                        res.end(); // <--- O PULO DO GATO PARA NÃO TRAVAR
-                        return; // Sai da função
-                    }
-                } catch (e) {
-                    // Ignora erros de JSON quebrado
-                }
+        const users = await prisma.user.findMany({
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                ra: true,
+                role: true,
+                trainings: true
             }
-        }
-        res.end(); // Garante fechamento se sair do loop
-
+        });
+        res.json(users);
     } catch (error) {
-        console.error(error);
-        res.status(500).end("Erro na IA.");
+        res.status(500).json({ error: "Erro ao buscar usuários." });
     }
 });
 
-// --- ROTA DE TRANSCRIÇÃO (WHISPER) ---
+app.put('/api/users/:id', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id);
+        const { name, email, ra, trainings } = req.body;
 
+        const existingUser = await prisma.user.findUnique({ where: { id: userId } });
+        if (!existingUser) {
+            return res.status(404).json({ error: "Usuário não encontrado." });
+        }
+        if (existingUser.role === 'ADMIN') {
+            return res.status(403).json({ error: "Perfis de administrador não podem ser editados." });
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                name,
+                email,
+                ra: ra || null,
+                trainings: trainings !== undefined ? trainings : existingUser.trainings
+            }
+        });
+        res.json({ message: "Usuário atualizado com sucesso!", user: updatedUser });
+    } catch (error) {
+        res.status(500).json({ error: "Erro ao atualizar usuário." });
+    }
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id);
+        
+        const existingUser = await prisma.user.findUnique({ where: { id: userId } });
+        if (!existingUser) {
+            return res.status(404).json({ error: "Usuário não encontrado." });
+        }
+        if (existingUser.role === 'ADMIN') {
+            return res.status(403).json({ error: "Perfis de administrador não podem ser excluídos." });
+        }
+
+        // Excluir agendamentos relacionados se necessário (se o Prisma onDelete não for cascade)
+        await prisma.appointment.deleteMany({ where: { userId } });
+        
+        await prisma.user.delete({ where: { id: userId } });
+        
+        res.json({ message: "Usuário excluído com sucesso!" });
+    } catch (error) {
+        res.status(500).json({ error: "Erro ao excluir usuário." });
+    }
+});
+
+app.get('/api/equipment', async (req, res) => {
+    try {
+        const equipment = await prisma.equipment.findMany();
+        res.json(equipment);
+    } catch (error) {
+        res.status(500).json({ error: "Erro ao buscar equipamentos." });
+    }
+});
+
+app.post('/api/equipment', upload.single('image'), async (req, res) => {
+    try {
+        const { name, description, status, specs, quantity, requiresTraining } = req.body;
+        const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
+
+        // Serialize to JSON like the PUT endpoint
+        const fullDescription = JSON.stringify({
+            specs: specs || '',
+            description: description || '',
+            requiresTraining: requiresTraining === true || requiresTraining === 'true'
+        });
+
+        const newQuantity = parseInt(quantity) || 1;
+        const baseName = name ? name.replace(/\s*(0\d|A\d|\d+)$/i, '').trim() : name;
+
+        const getUnitName = (base, index, total) => {
+            if (total === 1) return base;
+            const suffix = String(index + 1).padStart(2, '0');
+            return `${base} ${suffix}`;
+        };
+
+        const created = [];
+        for (let i = 0; i < newQuantity; i++) {
+            const unit = await prisma.equipment.create({
+                data: {
+                    name: getUnitName(baseName, i, newQuantity),
+                    description: fullDescription,
+                    imagePath,
+                    status: status || 'available'
+                }
+            });
+            created.push(unit);
+        }
+
+        res.status(201).json({ message: "Equipamento(s) salvo(s)!", equipment: created });
+    } catch (error) {
+        console.error("Erro ao criar equipamento:", error);
+        res.status(500).json({ error: "Erro interno." });
+    }
+});
+
+app.put('/api/equipment/:id', upload.single('image'), async (req, res) => {
+    try {
+        const equipmentId = parseInt(req.params.id);
+        const { name, description, status, specs, quantity, requiresTraining } = req.body;
+        
+        // 1. Encontrar o equipamento alvo para obter o nome original
+        const target = await prisma.equipment.findUnique({ where: { id: equipmentId } });
+        if (!target) {
+            return res.status(404).json({ error: "Equipamento não encontrado." });
+        }
+        
+        // 2. Identificar o nome base do grupo
+        const originalBaseName = target.name.replace(/\s*(0\d|A\d|\d+)$/i, '').trim();
+        
+        // 3. Encontrar todos os equipamentos que pertencem a este grupo
+        const allEquipment = await prisma.equipment.findMany();
+        const groupItems = allEquipment.filter(item => {
+            const itemBaseName = item.name.replace(/\s*(0\d|A\d|\d+)$/i, '').trim();
+            return itemBaseName.toLowerCase() === originalBaseName.toLowerCase();
+        });
+        
+        // Ordenar os itens por id para manter consistência
+        groupItems.sort((a, b) => a.id - b.id);
+        
+        // 4. Construir o JSON de descrição para armazenamento estruturado
+        const fullDescription = JSON.stringify({
+            specs: specs || '',
+            description: description || '',
+            requiresTraining: requiresTraining === true || requiresTraining === 'true'
+        });
+        
+        let newImagePath = target.imagePath;
+        if (req.file) {
+            newImagePath = `/uploads/${req.file.filename}`;
+        }
+        
+        const newQuantity = parseInt(quantity) || groupItems.length || 1;
+        const newBaseName = name ? name.replace(/\s*(0\d|A\d|\d+)$/i, '').trim() : originalBaseName;
+        
+        const getUnitName = (base, index, total) => {
+            if (total === 1) return base;
+            const suffix = String(index + 1).padStart(2, '0');
+            return `${base} ${suffix}`;
+        };
+        
+        // Atualizar, criar ou remover unidades de acordo com a quantidade informada
+        if (newQuantity === groupItems.length) {
+            // Apenas atualiza todos
+            for (let i = 0; i < groupItems.length; i++) {
+                await prisma.equipment.update({
+                    where: { id: groupItems[i].id },
+                    data: {
+                        name: getUnitName(newBaseName, i, newQuantity),
+                        description: fullDescription,
+                        status: status || groupItems[i].status,
+                        imagePath: newImagePath
+                    }
+                });
+            }
+        } else if (newQuantity > groupItems.length) {
+            // Atualiza os existentes
+            for (let i = 0; i < groupItems.length; i++) {
+                await prisma.equipment.update({
+                    where: { id: groupItems[i].id },
+                    data: {
+                        name: getUnitName(newBaseName, i, newQuantity),
+                        description: fullDescription,
+                        status: status || groupItems[i].status,
+                        imagePath: newImagePath
+                    }
+                });
+            }
+            // Cria os adicionais
+            for (let i = groupItems.length; i < newQuantity; i++) {
+                await prisma.equipment.create({
+                    data: {
+                        name: getUnitName(newBaseName, i, newQuantity),
+                        description: fullDescription,
+                        status: status || 'available',
+                        imagePath: newImagePath
+                    }
+                });
+            }
+        } else {
+            // newQuantity < groupItems.length
+            // Atualiza o subconjunto que continua existindo
+            for (let i = 0; i < newQuantity; i++) {
+                await prisma.equipment.update({
+                    where: { id: groupItems[i].id },
+                    data: {
+                        name: getUnitName(newBaseName, i, newQuantity),
+                        description: fullDescription,
+                        status: status || groupItems[i].status,
+                        imagePath: newImagePath
+                    }
+                });
+            }
+            // Remove o excedente (primeiro os agendamentos, depois os equipamentos para evitar violação de FK)
+            const idsToDelete = groupItems.slice(newQuantity).map(item => item.id);
+            await prisma.appointment.deleteMany({
+                where: {
+                    equipmentId: { in: idsToDelete }
+                }
+            });
+            await prisma.equipment.deleteMany({
+                where: {
+                    id: { in: idsToDelete }
+                }
+            });
+        }
+        
+        res.json({ message: "Equipamento atualizado com sucesso!" });
+    } catch (error) {
+        console.error("Erro ao atualizar equipamento:", error);
+        res.status(500).json({ error: "Erro interno no servidor." });
+    }
+});
+
+// --- ROTA DE TREINAMENTO (ADMIN/DOCLING) ---
+app.post('/api/train', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado." });
+
+        const inputPath = req.file.path;
+        const mdFileName = `${req.file.filename}.md`;
+        const outputPath = path.join(DOCUMENTS_PATH, mdFileName);
+
+        console.log(`\n🔄 Iniciando conversão: ${req.file.originalname} -> Markdown`);
+        // Descobre se está no Windows ('win32') ou no Mac/Linux e escolhe o comando certo
+        const cmdPython = process.platform === 'win32' ? 'python' : 'python3';
+        // Monta o comando usando a variável dinâmica
+        const pythonCommand = `${cmdPython} converter.py "${inputPath}" "${outputPath}"`;
+        const { stdout } = await execPromise(pythonCommand);
+
+        if (stdout.includes("SUCESSO")) {
+            console.log("✅ Conversão concluída pelo Docling.");
+            knowledgeBase = [];
+            await initAI();
+            res.json({ message: "IA Treinada com sucesso!", file: mdFileName });
+        } else {
+            throw new Error(stdout);
+        }
+    } catch (error) {
+        console.error("❌ Erro no treinamento:", error);
+        res.status(500).json({ error: "Falha ao processar documento." });
+    }
+});
+
+
+// --- ROTA DE CHAT (MCP + RAG + RESERVAS) ---
+app.post('/api/chat', async (req, res) => {
+    // 👇 AGORA RECEBEMOS O USER ID AQUI 👇
+    const { message, userId } = req.body;
+    console.log(`💬 Pergunta do Usuário (ID: ${userId || 'Visitante'}):`, message);
+
+    try {
+        // --- 1. RAG (Busca nos PDFs) ---
+        let contextText = "";
+        if (vectorStore.length > 0) {
+            const output = await embedder(message, { pooling: 'mean', normalize: true });
+            const queryVector = output.data;
+            const results = vectorStore.map(item => ({ item, score: cosineSimilarity(queryVector, item.vector) }));
+            const topResults = results.sort((a, b) => b.score - a.score).slice(0, 3);
+            contextText = topResults.map(r => r.item.text).join("\n\n");
+        }
+
+        // --- A NOVA MÁQUINHA DE ESTADOS (PROMPT) ---
+        const statusLogin = userId
+            ? `Você está falando com um usuário LOGADO no sistema (ID do usuário: ${userId}). Ele tem permissão para agendar.`
+            : `Você está falando com um VISITANTE NÃO LOGADO. Se ele tentar agendar algo, você deve recusar educadamente e pedir para ele fazer login ou se cadastrar no site.`;
+
+        const systemPromptBase = `Você é o assistente virtual do INOVFABLAB.
+
+        INFORMAÇÃO DO USUÁRIO ATUAL: ${statusLogin}
+
+        PROTOCOLO DE RESERVA (SIGA RIGOROSAMENTE):
+        1. Se o usuário quiser reservar mas não disse qual equipamento ou você não sabe o ID, chame 'consultar_equipamentos' IMEDIATAMENTE.
+        2. Ao receber a lista do banco, apresente-a assim:
+        "Encontrei estes equipamentos:
+        [ID] Nome do Equipamento - Status
+        Qual destes você deseja reservar?"
+        3. NUNCA tente adivinhar um ID. Só use IDs que você acabou de ler na ferramenta 'consultar_equipamentos'.
+        4. Após o usuário escolher o número (ID), peça a Data (AAAA-MM-DD) e Hora (HH:MM) se ele ainda não informou.
+        5. Somente com o ID confirmado e os dados de tempo, chame 'solicitar_reserva'.
+
+        REGRAS DE FORMATAÇÃO:
+        - Seja direto. Não explique que está acessando o banco de dados.
+        - Não use termos técnicos como "ID 1 criado no SQLite". Diga apenas "Reserva solicitada com sucesso!".`;
+
+        // --- 2. PRIMEIRA CHAMADA (A IA Pensa) ---
+        const response1 = await fetch('http://127.0.0.1:11434/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: "llama3.2",
+                messages: [
+                    { role: "system", content: systemPromptBase },
+                    { role: "user", content: message }
+                ],
+                // 👇 ADICIONAMOS A NOVA FERRAMENTA AQUI 👇
+                tools: [toolConsultarEquipamentos, toolSolicitarReserva],
+                stream: false
+            })
+        });
+
+        const data1 = await response1.json();
+        const messageResponse = data1.message;
+
+        // --- 3. MCP (A IA decidiu usar a ferramenta) ---
+        if (messageResponse.tool_calls) {
+            const toolCall = messageResponse.tool_calls[0];
+            console.log("⚙️ Ferramenta solicitada pela IA:", toolCall.function.name);
+
+            let resultadoBanco = "";
+
+            // O ROTEADOR DE FERRAMENTAS
+            if (toolCall.function.name === "consultar_equipamentos") {
+                resultadoBanco = await executarConsultaEquipamentos();
+            }
+            else if (toolCall.function.name === "solicitar_reserva") {
+                // Passamos os argumentos que a IA montou E o userId que veio do frontend
+                resultadoBanco = await executarSolicitacaoReserva(toolCall.function.arguments, userId);
+            }
+
+            console.log("📦 RETORNO DA FERRAMENTA:");
+            console.log(resultadoBanco);
+            console.log("--------------------------------------------------");
+
+            // --- 4. SEGUNDA CHAMADA (Injeção Forçada) ---
+            const promptInjetado = `Você acabou de consultar o sistema interno silenciosamente e obteve esta resposta:
+            ${resultadoBanco}
+            
+            Com base nesse resultado, responda ao usuário de forma natural, educada e direta. 
+            REGRA ABSOLUTA: NUNCA mencione palavras técnicas como "banco de dados", "SQLite", "sistema interno" ou "ferramentas". Apenas repasse a informação ou confirme a ação.`;
+
+            const finalResponse = await fetch('http://127.0.0.1:11434/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: "llama3.2",
+                    messages: [
+                        { role: "user", content: promptInjetado }
+                    ],
+                    stream: true
+                })
+            });
+
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            for await (const chunk of finalResponse.body) {
+                const line = chunk.toString();
+                try {
+                    const json = JSON.parse(line);
+                    if (json.message?.content) res.write(json.message.content);
+                    if (json.done) res.end();
+                } catch (e) { }
+            }
+            return; // Sai da função aqui se usou ferramenta
+        }
+
+        // --- 5. RAG DIRETO (Continua dentro do TRY) ---
+        const responseDirect = await fetch('http://127.0.0.1:11434/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: "llama3.2",
+                messages: [
+                    { role: "system", content: systemPromptBase },
+                    { role: "user", content: message }
+                ],
+                stream: true
+            })
+        });
+
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        for await (const chunk of responseDirect.body) {
+            const line = chunk.toString();
+            try {
+                const json = JSON.parse(line);
+                if (json.message?.content) res.write(json.message.content);
+                if (json.done) res.end();
+            } catch (e) { }
+        }
+
+    } catch (error) { // <-- Agora o CATCH encontra o TRY corretamente
+        console.error("❌ Erro na Rota Chat:", error);
+        res.status(500).end("Erro ao processar consulta.");
+    }
+});
+
+// --- ROTA DE TRANSCRIÇÃO (WHISPER) - ADICIONADA PELA JULIANA ---
 let transcriber = null;
 
 app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
@@ -547,28 +852,22 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
 
         console.log(`🎙️ Novo áudio recebido para transcrição: ${req.file.filename}`);
 
-        // 1. Inicializa o Whisper (baixa o modelo na primeira vez)
         if (!transcriber) {
             console.log("⚙️ Carregando modelo Whisper-Base na memória (melhor custo-benefício para PT-BR)...");
             transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-base');
             console.log("✅ Whisper-Base carregado!");
         }
 
-        // 2. Lê o arquivo de áudio WAV gerado pelo frontend
         let buffer = fs.readFileSync(req.file.path);
-
-        // 3. Converte o WAV para o formato exigido pelo Whisper (16kHz Float32Array)
         let wav = new WaveFile(buffer);
         wav.toBitDepth('32f');
         wav.toSampleRate(16000);
 
         let audioData = wav.getSamples();
         if (Array.isArray(audioData)) {
-            // Pega apenas o primeiro canal se for estéreo
             audioData = audioData[0];
         }
 
-        // 4. Executa a transcrição FORÇANDO PORTUGUÊS
         console.log("🧠 Transcrevendo em Português...");
         let output = await transcriber(audioData, {
             language: 'portuguese',
@@ -576,10 +875,7 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
         });
 
         console.log(`✅ Texto transcrito: "${output.text}"`);
-
-        // Deleta o arquivo temporário
         fs.unlinkSync(req.file.path);
-
         res.json({ text: output.text });
 
     } catch (error) {
