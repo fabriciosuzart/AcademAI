@@ -477,7 +477,7 @@
 
 .equipment-meta-row {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
@@ -587,6 +587,76 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.add-equipment-button:hover {
+  color: #7dd3fc;
+}
+
+/* Status radio pill selector for Add Equipment modal */
+.status-radio-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.status-radio-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+}
+
+.status-radio-pill .status-radio-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+
+/* Selected states */
+.status-radio-pill.selected-available {
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.5);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.status-radio-pill.selected-available .status-radio-dot {
+  opacity: 1;
+}
+
+.status-radio-pill.selected-in-use {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.5);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.status-radio-pill.selected-in-use .status-radio-dot {
+  opacity: 1;
+}
+
+.status-radio-pill.selected-maintenance {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.5);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.status-radio-pill.selected-maintenance .status-radio-dot {
+  opacity: 1;
 }
 
 @media (max-width: 980px) {

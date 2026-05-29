@@ -276,13 +276,41 @@ app.get('/api/equipment', async (req, res) => {
 
 app.post('/api/equipment', upload.single('image'), async (req, res) => {
     try {
-        const { name, description, status } = req.body;
+        const { name, description, status, specs, quantity, requiresTraining } = req.body;
         const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
-        const newEquipment = await prisma.equipment.create({
-            data: { name, description, imagePath, status: status || "DISPONIVEL" }
+
+        // Serialize to JSON like the PUT endpoint
+        const fullDescription = JSON.stringify({
+            specs: specs || '',
+            description: description || '',
+            requiresTraining: requiresTraining === true || requiresTraining === 'true'
         });
-        res.status(201).json({ message: "Equipamento salvo!", equipment: newEquipment });
+
+        const newQuantity = parseInt(quantity) || 1;
+        const baseName = name ? name.replace(/\s*(0\d|A\d|\d+)$/i, '').trim() : name;
+
+        const getUnitName = (base, index, total) => {
+            if (total === 1) return base;
+            const suffix = String(index + 1).padStart(2, '0');
+            return `${base} ${suffix}`;
+        };
+
+        const created = [];
+        for (let i = 0; i < newQuantity; i++) {
+            const unit = await prisma.equipment.create({
+                data: {
+                    name: getUnitName(baseName, i, newQuantity),
+                    description: fullDescription,
+                    imagePath,
+                    status: status || 'available'
+                }
+            });
+            created.push(unit);
+        }
+
+        res.status(201).json({ message: "Equipamento(s) salvo(s)!", equipment: created });
     } catch (error) {
+        console.error("Erro ao criar equipamento:", error);
         res.status(500).json({ error: "Erro interno." });
     }
 });
@@ -291,35 +319,117 @@ app.put('/api/equipment/:id', upload.single('image'), async (req, res) => {
     try {
         const equipmentId = parseInt(req.params.id);
         const { name, description, status, specs, quantity, requiresTraining } = req.body;
-        let updateData = { name, status };
         
-        // Construir a descrição completa
-        let fullDescription = description || '';
-        
-        // Se houver especificações, adicionar no início
-        if (specs) {
-            fullDescription = `${specs}\n${fullDescription}`.trim();
+        // 1. Encontrar o equipamento alvo para obter o nome original
+        const target = await prisma.equipment.findUnique({ where: { id: equipmentId } });
+        if (!target) {
+            return res.status(404).json({ error: "Equipamento não encontrado." });
         }
         
-        // Limpar descrição de tags de treinamento anteriores
-        fullDescription = fullDescription.replace(/\n?TREINO OBRIGATÓRIO/gi, '').trim();
+        // 2. Identificar o nome base do grupo
+        const originalBaseName = target.name.replace(/\s*(0\d|A\d|\d+)$/i, '').trim();
         
-        // Adicionar tag de treinamento se necessário
-        if (requiresTraining === true || requiresTraining === 'true') {
-            fullDescription = `${fullDescription}\nTREINO OBRIGATÓRIO`.trim();
-        }
-        
-        updateData.description = fullDescription;
-        
-        if (req.file) updateData.imagePath = `/uploads/${req.file.filename}`;
-
-        const updatedEquipment = await prisma.equipment.update({
-            where: { id: equipmentId },
-            data: updateData
+        // 3. Encontrar todos os equipamentos que pertencem a este grupo
+        const allEquipment = await prisma.equipment.findMany();
+        const groupItems = allEquipment.filter(item => {
+            const itemBaseName = item.name.replace(/\s*(0\d|A\d|\d+)$/i, '').trim();
+            return itemBaseName.toLowerCase() === originalBaseName.toLowerCase();
         });
-        res.json({ message: "Equipamento atualizado!", equipment: updatedEquipment });
+        
+        // Ordenar os itens por id para manter consistência
+        groupItems.sort((a, b) => a.id - b.id);
+        
+        // 4. Construir o JSON de descrição para armazenamento estruturado
+        const fullDescription = JSON.stringify({
+            specs: specs || '',
+            description: description || '',
+            requiresTraining: requiresTraining === true || requiresTraining === 'true'
+        });
+        
+        let newImagePath = target.imagePath;
+        if (req.file) {
+            newImagePath = `/uploads/${req.file.filename}`;
+        }
+        
+        const newQuantity = parseInt(quantity) || groupItems.length || 1;
+        const newBaseName = name ? name.replace(/\s*(0\d|A\d|\d+)$/i, '').trim() : originalBaseName;
+        
+        const getUnitName = (base, index, total) => {
+            if (total === 1) return base;
+            const suffix = String(index + 1).padStart(2, '0');
+            return `${base} ${suffix}`;
+        };
+        
+        // Atualizar, criar ou remover unidades de acordo com a quantidade informada
+        if (newQuantity === groupItems.length) {
+            // Apenas atualiza todos
+            for (let i = 0; i < groupItems.length; i++) {
+                await prisma.equipment.update({
+                    where: { id: groupItems[i].id },
+                    data: {
+                        name: getUnitName(newBaseName, i, newQuantity),
+                        description: fullDescription,
+                        status: status || groupItems[i].status,
+                        imagePath: newImagePath
+                    }
+                });
+            }
+        } else if (newQuantity > groupItems.length) {
+            // Atualiza os existentes
+            for (let i = 0; i < groupItems.length; i++) {
+                await prisma.equipment.update({
+                    where: { id: groupItems[i].id },
+                    data: {
+                        name: getUnitName(newBaseName, i, newQuantity),
+                        description: fullDescription,
+                        status: status || groupItems[i].status,
+                        imagePath: newImagePath
+                    }
+                });
+            }
+            // Cria os adicionais
+            for (let i = groupItems.length; i < newQuantity; i++) {
+                await prisma.equipment.create({
+                    data: {
+                        name: getUnitName(newBaseName, i, newQuantity),
+                        description: fullDescription,
+                        status: status || 'available',
+                        imagePath: newImagePath
+                    }
+                });
+            }
+        } else {
+            // newQuantity < groupItems.length
+            // Atualiza o subconjunto que continua existindo
+            for (let i = 0; i < newQuantity; i++) {
+                await prisma.equipment.update({
+                    where: { id: groupItems[i].id },
+                    data: {
+                        name: getUnitName(newBaseName, i, newQuantity),
+                        description: fullDescription,
+                        status: status || groupItems[i].status,
+                        imagePath: newImagePath
+                    }
+                });
+            }
+            // Remove o excedente (primeiro os agendamentos, depois os equipamentos para evitar violação de FK)
+            const idsToDelete = groupItems.slice(newQuantity).map(item => item.id);
+            await prisma.appointment.deleteMany({
+                where: {
+                    equipmentId: { in: idsToDelete }
+                }
+            });
+            await prisma.equipment.deleteMany({
+                where: {
+                    id: { in: idsToDelete }
+                }
+            });
+        }
+        
+        res.json({ message: "Equipamento atualizado com sucesso!" });
     } catch (error) {
-        res.status(500).json({ error: "Erro interno." });
+        console.error("Erro ao atualizar equipamento:", error);
+        res.status(500).json({ error: "Erro interno no servidor." });
     }
 });
 

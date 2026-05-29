@@ -17,7 +17,12 @@ const Equipamentos: React.FC = () => {
   }, []);
 
   const filteredItems = equipamentos
-    .filter(item => filterStatus === 'all' ? true : item.status === filterStatus)
+    .filter(item => {
+      if (filterStatus === 'all') return true;
+      if (filterStatus === 'available') return item.status === 'available';
+      if (filterStatus === 'in-use') return item.status === 'in-use' || item.status === 'maintenance';
+      return item.status === filterStatus;
+    })
     .sort((a, b) => {
       if (sortOrder === 'alphabetical') return a.name.localeCompare(b.name);
       return a.id - b.id;
@@ -53,10 +58,10 @@ const Equipamentos: React.FC = () => {
           <div key={item.id} className="card">
             
             <div className="card-image">
-                <img src={`/${item.img}`} alt={item.name} onError={(e) => e.currentTarget.src = 'https://via.placeholder.com/300x200?text=S/IMAGEM'} />
+                <img src={item.imagePath || item.img ? `http://localhost:3000${item.imagePath || item.img}` : 'https://via.placeholder.com/300x200?text=S/IMAGEM'} alt={item.name} onError={(e) => e.currentTarget.src = 'https://via.placeholder.com/300x200?text=S/IMAGEM'} />
                 
                 <span className={`status-badge ${item.status}`}>
-                    {item.status === 'available' ? '● Disponível' : '● Em Uso'}
+                    {item.status === 'available' ? '● Disponível' : item.status === 'maintenance' ? '● Em Manutenção' : '● Em Uso'}
                 </span>
             </div>
             
