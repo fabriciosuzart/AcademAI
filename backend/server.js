@@ -290,8 +290,27 @@ app.post('/api/equipment', upload.single('image'), async (req, res) => {
 app.put('/api/equipment/:id', upload.single('image'), async (req, res) => {
     try {
         const equipmentId = parseInt(req.params.id);
-        const { name, description, status } = req.body;
-        let updateData = { name, description, status };
+        const { name, description, status, specs, quantity, requiresTraining } = req.body;
+        let updateData = { name, status };
+        
+        // Construir a descrição completa
+        let fullDescription = description || '';
+        
+        // Se houver especificações, adicionar no início
+        if (specs) {
+            fullDescription = `${specs}\n${fullDescription}`.trim();
+        }
+        
+        // Limpar descrição de tags de treinamento anteriores
+        fullDescription = fullDescription.replace(/\n?TREINO OBRIGATÓRIO/gi, '').trim();
+        
+        // Adicionar tag de treinamento se necessário
+        if (requiresTraining === true || requiresTraining === 'true') {
+            fullDescription = `${fullDescription}\nTREINO OBRIGATÓRIO`.trim();
+        }
+        
+        updateData.description = fullDescription;
+        
         if (req.file) updateData.imagePath = `/uploads/${req.file.filename}`;
 
         const updatedEquipment = await prisma.equipment.update({

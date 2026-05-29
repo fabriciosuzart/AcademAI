@@ -51,6 +51,16 @@ const Perfil: React.FC = () => {
     const [editEmail, setEditEmail] = useState('');
     const [editRa, setEditRa] = useState('');
     const [editTrainings, setEditTrainings] = useState<string[]>([]);
+    
+    // Estados para edição de equipamentos
+    const [editingEquipment, setEditingEquipment] = useState<any>(null);
+    const [isEditEquipmentModalOpen, setIsEditEquipmentModalOpen] = useState(false);
+    const [editEquipmentName, setEditEquipmentName] = useState('');
+    const [editEquipmentSpecs, setEditEquipmentSpecs] = useState('');
+    const [editEquipmentDescription, setEditEquipmentDescription] = useState('');
+    const [editEquipmentQuantity, setEditEquipmentQuantity] = useState(1);
+    const [editEquipmentStatus, setEditEquipmentStatus] = useState('available');
+    const [editEquipmentRequiresTraining, setEditEquipmentRequiresTraining] = useState(false);
 
     const openEditUser = (user: AdminUser) => {
         setEditingUser(user);
@@ -319,6 +329,67 @@ const Perfil: React.FC = () => {
         }
     };
 
+    const openEditEquipment = (item: EquipmentItem) => {
+        setEditingEquipment(item);
+        setEditEquipmentName(item.name);
+        
+        // Extrair especificações e descrição da descrição completa
+        const fullDescription = item.description || '';
+        const lines = fullDescription.split('\n');
+        const specs = lines[0] || ''; // Primeira linha é specs
+        const description = lines.slice(1).join('\n').trim() || ''; // Resto é descrição
+        
+        setEditEquipmentSpecs(specs);
+        setEditEquipmentDescription(description);
+        setEditEquipmentQuantity(item.quantity || 1);
+        setEditEquipmentStatus(item.status);
+        setEditEquipmentRequiresTraining(needsTraining(item));
+        setIsEditEquipmentModalOpen(true);
+    };
+
+    const closeEditEquipmentModal = () => {
+        setIsEditEquipmentModalOpen(false);
+        setEditingEquipment(null);
+        setEditEquipmentName('');
+        setEditEquipmentSpecs('');
+        setEditEquipmentDescription('');
+        setEditEquipmentQuantity(1);
+        setEditEquipmentStatus('available');
+        setEditEquipmentRequiresTraining(false);
+    };
+
+    const handleEditEquipmentSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingEquipment || !editingEquipment.items?.[0]) return;
+
+        try {
+            const equipmentId = editingEquipment.items[0].id;
+            const res = await fetch(`http://localhost:3000/api/equipment/${equipmentId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: editEquipmentName,
+                    specs: editEquipmentSpecs,
+                    description: editEquipmentDescription,
+                    quantity: editEquipmentQuantity,
+                    status: editEquipmentStatus,
+                    requiresTraining: editEquipmentRequiresTraining
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert('Erro ao salvar equipamento: ' + (data.error || 'Falha no servidor'));
+                return;
+            }
+            await fetchEquipment();
+            closeEditEquipmentModal();
+            alert('Equipamento atualizado com sucesso.');
+        } catch (error) {
+            console.error('Erro ao atualizar equipamento:', error);
+            alert('Erro de conexão ao salvar equipamento.');
+        }
+    };
+
     return (
         <div className="profile-container">
             <div className="profile-grid">
@@ -578,7 +649,11 @@ const Perfil: React.FC = () => {
                                                 {needsTraining(item) && <span className="equipment-tag training">TREINO</span>}
                                             </div>
                                             <div className="equipment-actions-row">
-                                                <button type="button" className="ghost-btn small flex-1">
+                                                <button 
+                                                    type="button" 
+                                                    className="ghost-btn small flex-1"
+                                                    onClick={() => openEditEquipment(item)}
+                                                >
                                                     <span className="button-icon" aria-hidden="true">
                                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                             <path d="M4 17.25V21h3.75L17.81 10.94l-3.75-3.75L4 17.25Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -726,6 +801,113 @@ const Perfil: React.FC = () => {
                                 </button>
                                 <div className="right-actions">
                                     <button type="button" className="ghost-btn" onClick={closeEditModal}>Cancelar</button>
+                                    <button type="submit" className="secondary-btn" style={{ padding: '8px 16px' }}>Salvar</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {isEditEquipmentModalOpen && editingEquipment && (
+                <div className="modal-overlay" onClick={closeEditEquipmentModal}>
+                    <div className="modal-card edit-user-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+                        <div className="modal-header">
+                            <div>
+                                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                    Editar equipamento
+                                </h3>
+                            </div>
+                            <button type="button" className="modal-close" onClick={closeEditEquipmentModal}>×</button>
+                        </div>
+                        <form className="edit-user-form" onSubmit={handleEditEquipmentSubmit}>
+                            <div className="form-group">
+                                <label className="sleek-label">NOME DO EQUIPAMENTO</label>
+                                <input 
+                                    type="text" 
+                                    className="sleek-input" 
+                                    value={editEquipmentName} 
+                                    onChange={e => setEditEquipmentName(e.target.value)} 
+                                    required 
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label className="sleek-label">ESPECIFICAÇÕES</label>
+                                <input 
+                                    type="text" 
+                                    className="sleek-input" 
+                                    value={editEquipmentSpecs} 
+                                    onChange={e => setEditEquipmentSpecs(e.target.value)} 
+                                    placeholder="Ex: 40W CO₂ - área 600x300mm"
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label className="sleek-label">DESCRIÇÃO</label>
+                                <textarea 
+                                    className="sleek-input" 
+                                    value={editEquipmentDescription} 
+                                    onChange={e => setEditEquipmentDescription(e.target.value)} 
+                                    placeholder="Descrição do equipamento"
+                                    style={{ minHeight: '80px', fontFamily: 'inherit' }}
+                                />
+                            </div>
+
+                            <div className="form-row">
+                                <div className="form-group flex-1">
+                                    <label className="sleek-label">QUANTIDADE DISPONÍVEL</label>
+                                    <input 
+                                        type="number" 
+                                        className="sleek-input" 
+                                        value={editEquipmentQuantity} 
+                                        onChange={e => setEditEquipmentQuantity(parseInt(e.target.value) || 1)} 
+                                        min="1"
+                                    />
+                                </div>
+                                <div className="form-group flex-1">
+                                    <label className="sleek-label">STATUS ATUAL</label>
+                                    <select 
+                                        className="sleek-input" 
+                                        value={editEquipmentStatus} 
+                                        onChange={e => setEditEquipmentStatus(e.target.value)}
+                                        style={{ cursor: 'pointer' }}
+                                    >
+                                        <option value="available">Disponível</option>
+                                        <option value="in-use">Em uso</option>
+                                        <option value="maintenance">Em manutenção</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label className="sleek-label">TREINAMENTO OBRIGATÓRIO</label>
+                                <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                        <input 
+                                            type="radio" 
+                                            checked={editEquipmentRequiresTraining}
+                                            onChange={() => setEditEquipmentRequiresTraining(true)}
+                                        />
+                                        <span>Sim</span>
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                        <input 
+                                            type="radio" 
+                                            checked={!editEquipmentRequiresTraining}
+                                            onChange={() => setEditEquipmentRequiresTraining(false)}
+                                        />
+                                        <span>Não</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <hr className="divider" style={{ margin: '20px 0' }} />
+
+                            <div className="modal-actions-footer">
+                                <div className="right-actions">
+                                    <button type="button" className="ghost-btn" onClick={closeEditEquipmentModal}>Cancelar</button>
                                     <button type="submit" className="secondary-btn" style={{ padding: '8px 16px' }}>Salvar</button>
                                 </div>
                             </div>

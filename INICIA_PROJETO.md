@@ -1,4 +1,4 @@
-# Como Executar o InovFabLab
+# Como Executar o projeto
 
 Para iniciar o projeto e testar tudo localmente, você precisará abrir **dois terminais** (um para o servidor/backend e outro para a interface/frontend).
 
@@ -25,9 +25,9 @@ O Backend gerencia os agendamentos, usuários e a conexão com a Inteligência A
 O Frontend é a interface visual onde você irá navegar, acessar o perfil e falar com a IA.
 
 1. Abra um **segundo terminal** (mantenha o primeiro aberto rodando o servidor).
-2. Garanta que você está na pasta raiz do projeto (`InovFabLab`):
+2. Garanta que você está na pasta raiz do projeto:
    ```bash
-   cd InovFabLab
+   cd (pasta raiz)
    ```
    *(ou apenas certifique-se de não estar dentro da pasta backend)*
 3. Instale as dependências (se for a primeira vez):
@@ -38,7 +38,7 @@ O Frontend é a interface visual onde você irá navegar, acessar o perfil e fal
    ```bash
    npm run dev
    ```
-*O sistema vai gerar um link (como `http://localhost:5173/`). Clique nele ou cole no navegador para acessar o InovFabLab.*
+*O sistema vai gerar um link (como `http://localhost:5173/`). Clique nele ou cole no navegador para acessar o site.*
 
 ---
 

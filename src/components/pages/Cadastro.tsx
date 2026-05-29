@@ -54,7 +54,7 @@ const Cadastro: React.FC = () => {
                 <div className="signup-content">
                     <div className="signup-header">
                         <h1 className="signup-title">Criar Conta</h1>
-                        <p>Junte-se ao InovFabLab e comece a inovar hoje mesmo.</p>
+                        <p>Junte-se a nós e comece a inovar hoje mesmo.</p>
                     </div>
 
                     <form className="signup-form" onSubmit={handleRegister}>

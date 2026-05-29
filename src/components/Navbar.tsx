@@ -24,8 +24,8 @@ const Navbar: React.FC = () => {
     <nav className="navbar">
       <div className="navbar-container">
         <Link to="/" className="navbar-logo" onClick={closeMobileMenu}>
-          <img src={logoImage} alt="InovFabLab Logo" className="logo-image" />
-          <span>INOVFABLAB</span>
+          <img src={logoImage} alt="AcademAI Logo" className="logo-image" />
+          <span>AcademAI</span>
         </Link>
 
         <ul className={isMenuOpen ? "nav-menu active" : "nav-menu"}>

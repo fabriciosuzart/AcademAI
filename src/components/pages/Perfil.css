@@ -1077,6 +1077,7 @@
   color: #f8fafc;
   font-size: 0.95rem;
   transition: all 0.2s ease;
+  font-family: inherit;
 }
 
 .sleek-input:focus {
@@ -1138,3 +1139,42 @@
   border-color: #f87171;
 }
 
+/* Estilos para textarea e select na modal */
+.edit-user-form textarea {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background-color: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  font-size: 0.95rem;
+  font-family: inherit;
+  resize: vertical;
+  transition: all 0.2s ease;
+}
+
+.edit-user-form textarea:focus,
+.edit-user-form select:focus {
+  outline: none;
+  border-color: rgba(56, 189, 248, 0.5);
+  background-color: rgba(15, 23, 42, 0.8);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+}
+
+.edit-user-form select {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background-color: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  font-size: 0.95rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.edit-user-form select option {
+  background-color: #1e293b;
+  color: #f8fafc;
+}
