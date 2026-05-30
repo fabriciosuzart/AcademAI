@@ -15,7 +15,7 @@ body {
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
   background-attachment: fixed;
   
-  color: #333;
+  color: #f8fafc; /* Contraste melhorado para o fundo escuro (RF29) */
   min-height: 100vh; /* Garante que o fundo cubra tudo */
 }
 
@@ -25,4 +25,43 @@ body {
   margin: 0 auto;
   padding: 20px;
   width: 100%;
+}
+
+/* Acessibilidade: Navegação por Teclado (RF25) */
+*:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Transições Globais Suaves */
+a, button {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Scrollbar Customizada (Pente fino premium) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.8);
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.3);
+  border-radius: 6px;
+  border: 2px solid rgba(15, 23, 42, 0.8);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.6);
+}
+
+/* Seleção de Texto Premium */
+::selection {
+  background: rgba(56, 189, 248, 0.3);
+  color: #fff;
 }

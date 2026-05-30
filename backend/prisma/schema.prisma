@@ -4,44 +4,85 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./inovfablab.db" // Nome do novo arquivo de banco
+  url      = "file:./inovfablab.db"
 }
 
 // 1. Tabela de Usuários
 model User {
-  id           Int           @id @default(autoincrement())
-  name         String
-  email        String        @unique
-  ra           String?       @unique // Opcional, pois admin pode não ter RA
-  password     String
-  role         String        @default("ALUNO") // Pode ser "ALUNO", "PROFESSOR" ou "ADMIN"
-  trainings    String        @default("") // Módulos de treinamento concluídos
-  appointments Appointment[] // Relação: Um usuário pode ter vários agendamentos
+  id             Int            @id @default(autoincrement())
+  name           String
+  email          String         @unique
+  ra             String?        @unique
+  password       String
+  role           String         @default("ALUNO") // "ALUNO", "PROFESSOR", "ADMIN"
+  isActive       Boolean        @default(true)
+  isTempPassword Int            @default(0) // 1 = senha temporária, exige troca no login
+  trainings      String         @default("")
+  appointments   Appointment[]
+  notifications  Notification[]
+  refreshTokens  RefreshToken[]
 }
 
-// 2. Tabela de Equipamentos 
+// 2. Tabela de Refresh Tokens (RNF04)
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+// 2. Tabela de Equipamentos
 model Equipment {
   id           Int           @id @default(autoincrement())
   name         String
   description  String?
-  imagePath    String?       // Aqui vai o caminho da foto (ex: /uploads/bambu.jpg)
-  status       String        @default("DISPONÍVEL") // "DISPONÍVEL", "MANUTENÇÃO", etc.
-  appointments Appointment[] // Relação: Um equipamento pode ter vários agendamentos
+  imagePath    String?
+  status       String        @default("DISPONÍVEL")
+  appointments Appointment[]
+  blockedDates BlockedDate[]
 }
 
-// 3. Tabela de Agendamentos (Atualizada com a regra de aprovação)
+// 3. Tabela de Agendamentos (Reservas)
 model Appointment {
-  id          Int       @id @default(autoincrement())
-  date        String    // Ex: "2026-04-20"
-  time          String    // Ex: "14:00"
-  justification String?   // Ex: "Projeto de TCC"
-  status        String    @default("PENDENTE") // "PENDENTE", "APROVADO", "RECUSADO"
-  
-  // Relacionando com Usuário
+  id              Int      @id @default(autoincrement())
+  date            String   // Ex: "2026-04-20"
+  time            String   // Horário de início. Ex: "14:00"
+  endTime         String?  // Horário de término. Ex: "16:00"
+  justification   String?  // Motivo da reserva
+  status          String   @default("PENDENTE") // "PENDENTE", "APROVADO", "RECUSADO", "CANCELADA"
+  rejectionReason String?  // Justificativa de rejeição (professor/admin)
+  approvedById    Int?     // ID de quem aprovou/rejeitou
+  createdAt       DateTime @default(now())
+
   userId      Int
   user        User      @relation(fields: [userId], references: [id])
-  
-  // Relacionando com Equipamento
+
   equipmentId Int
   equipment   Equipment @relation(fields: [equipmentId], references: [id])
+}
+
+// 4. Tabela de Notificações
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  type      String   // "RESERVA_APROVADA", "RESERVA_REJEITADA", "NOVA_PENDENTE", "RESERVA_CANCELADA"
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  relatedId Int?     // ID da reserva relacionada
+}
+
+// 5. Tabela de Bloqueio de Datas (Feriados/Recessos ou Bloqueio Específico de Equipamento)
+model BlockedDate {
+  id          Int      @id @default(autoincrement())
+  date        String   // Ex: "2026-04-20"
+  reason      String?  // Ex: "Feriado Nacional"
+  equipmentId Int?     // Se null, bloqueio é global para todos.
+  equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  
+  @@unique([date, equipmentId])
 }

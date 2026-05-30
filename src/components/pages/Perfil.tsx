@@ -1,116 +1,5 @@
-<<<<<<< HEAD
-import React, { useState, useEffect } from 'react';
-import api from '../../api/axios';
-import './Perfil.css';
-
-const Perfil: React.FC = () => {
-    const [userData, setUserData] = useState({ name: '', email: '', ra: '' });
-    const [appointments, setAppointments] = useState<any[]>([]);
-    
-    const [newPass, setNewPass] = useState('');
-    const [confirmPass, setConfirmPass] = useState('');
-
-    useEffect(() => {
-        const name = localStorage.getItem('userName') || 'Usuário';
-        const email = localStorage.getItem('userEmail') || 'Não informado';
-        const ra = localStorage.getItem('userRA') || 'Não informado';
-        const userId = localStorage.getItem('userId');
-        
-        setUserData({ name, email, ra });
-
-        if (userId) {
-            fetchAppointments(userId);
-        }
-    }, []);
-
-    const fetchAppointments = async (id: string) => {
-        try {
-            const res = await api.get(`/appointments/${id}`);
-            setAppointments(res.data);
-        } catch (e) {
-            console.error("Erro ao buscar histórico:", e);
-        }
-    };
-
-    const handleChangePassword = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (newPass.length < 6) return alert("A senha deve ter no mínimo 6 caracteres.");
-        if (newPass !== confirmPass) return alert("As senhas não coincidem.");
-        
-        const userId = localStorage.getItem('userId');
-        
-        try {
-            const res = await api.post('/change-password', { userId, newPassword: newPass });
-            if (res.status === 200) {
-                alert("✅ Senha atualizada!");
-                setNewPass(''); 
-                setConfirmPass('');
-            }
-        } catch (e: any) { 
-            alert(e.response?.data?.error || "Erro ao trocar senha."); 
-        }
-    };
-
-    const getStatusColor = (status: string) => {
-        if (status === 'APROVADO') return '#10b981'; // green
-        if (status === 'RECUSADO') return '#ef4444'; // red
-        return '#fbbf24'; // yellow
-    };
-
-    return (
-        <div className="profile-container">
-            <div className="profile-grid">
-                
-                <div className="profile-card info-card">
-                    <div className="avatar-circle">
-                        {userData.name.charAt(0).toUpperCase()}
-                    </div>
-                    <h2>{userData.name}</h2>
-                    <div className="info-row"><span>📧 E-mail:</span> <strong>{userData.email}</strong></div>
-                    <div className="info-row"><span>🆔 R.A.:</span> <strong>{userData.ra}</strong></div>
-                    
-                    <hr className="divider"/>
-                    
-                    <h3>🔐 Trocar Senha</h3>
-                    <form onSubmit={handleChangePassword}>
-                        <input className="profile-input" type="password" placeholder="Nova Senha" value={newPass} onChange={e => setNewPass(e.target.value)} required />
-                        <input className="profile-input" type="password" placeholder="Confirmar Nova Senha" value={confirmPass} onChange={e => setConfirmPass(e.target.value)} required />
-                        <button type="submit" className="save-btn">Atualizar Senha</button>
-                    </form>
-                </div>
-
-                <div className="profile-card history-card" style={{ flex: 2 }}>
-                    <h3>📅 Minhas Reservas</h3>
-                    
-                    {appointments.length === 0 ? (
-                        <p style={{color: '#666', fontStyle: 'italic'}}>Nenhum agendamento encontrado.</p>
-                    ) : (
-                        <ul className="history-list" style={{ padding: 0 }}>
-                            {appointments.map((appt) => (
-                                <li key={appt.id} className="history-item" style={{ borderLeft: `4px solid ${getStatusColor(appt.status)}`, marginBottom: '15px', padding: '15px', background: '#1e293b', borderRadius: '8px', listStyle: 'none' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                        <strong style={{ fontSize: '1.2rem', color: 'white' }}>{appt.equipment}</strong>
-                                        <span style={{ padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold', backgroundColor: getStatusColor(appt.status), color: appt.status === 'PENDENTE' ? 'black' : 'white' }}>
-                                            {appt.status}
-                                        </span>
-                                    </div>
-                                    <div style={{ color: '#cbd5e1', fontSize: '0.95rem', marginBottom: '8px' }}>
-                                        📅 {appt.date.split('-').reverse().join('/')} ⏰ {appt.startTime}
-                                    </div>
-                                    {appt.justification && (
-                                        <div style={{ fontSize: '0.9rem', color: '#94a3b8', fontStyle: 'italic', background: 'rgba(0,0,0,0.2)', padding: '8px', borderRadius: '4px' }}>
-                                            "{appt.justification}"
-                                        </div>
-                                    )}
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
-            </div>
-        </div>
-=======
 import React, { useState, useEffect } from "react";
+import api from "../../api/axios";
 import "./Perfil.css";
 
 const trainingModules = [
@@ -153,6 +42,7 @@ interface AdminUser {
   ra?: string | null;
   role?: string;
   trainings?: string;
+  isActive?: boolean;
 }
 
 interface EquipmentItem {
@@ -172,6 +62,7 @@ const Perfil: React.FC = () => {
 
   // Estado para guardar o histórico de agendamentos
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [viewAllAppointments, setViewAllAppointments] = useState(false);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [equipmentItems, setEquipmentItems] = useState<EquipmentItem[]>([]);
   const [activeTab, setActiveTab] = useState<
@@ -225,6 +116,15 @@ const Perfil: React.FC = () => {
     string | null
   >(null);
 
+  // Estado para visualização de detalhes de agendamento
+  const [selectedAppointment, setSelectedAppointment] = useState<any | null>(null);
+
+  // Estados para gerenciar bloqueios de datas
+  const [blockedDates, setBlockedDates] = useState<any[]>([]);
+  const [blockDateStr, setBlockDateStr] = useState("");
+  const [blockReason, setBlockReason] = useState("");
+  const [blockEquipmentId, setBlockEquipmentId] = useState("");
+
   const openEditUser = (user: AdminUser) => {
     setEditingUser(user);
     setEditName(user.name);
@@ -271,34 +171,63 @@ const Perfil: React.FC = () => {
     }
   };
 
-  const handleDeleteUser = async () => {
-    if (!editingUser) return;
+  const handleDeleteUser = async (userToDelete?: AdminUser) => {
+    const target = userToDelete || editingUser;
+    if (!target) return;
     if (
       !window.confirm(
-        `Tem certeza que deseja excluir o usuário ${editingUser.name}? Esta ação é irreversível.`,
+        `Tem certeza que deseja excluir o usuário ${target.name}? Esta ação apagará também os agendamentos dele e é irreversível.`,
       )
     )
       return;
 
     try {
-      const res = await fetch(
-        `http://localhost:3000/api/users/${editingUser.id}`,
-        {
-          method: "DELETE",
-        },
-      );
-
-      if (res.ok) {
+      const res = await api.delete(`/users/${target.id}`);
+      if (res.status === 200) {
         alert("Usuário excluído com sucesso!");
-        closeEditModal();
+        if (editingUser?.id === target.id) closeEditModal();
+        fetchAdminUsers();
+      }
+    } catch (error: any) {
+      console.error("Erro ao excluir usuário", error);
+      alert("Erro ao excluir: " + (error.response?.data?.error || "Erro de conexão com o servidor."));
+    }
+  };
+
+  const handleToggleActive = async (user: any) => {
+    const action = user.isActive ? "desativar" : "ativar";
+    if (!window.confirm(`Tem certeza que deseja ${action} a conta de ${user.name}?`)) return;
+
+    try {
+      const token = localStorage.getItem("userToken");
+      const res = await fetch(`http://localhost:3000/api/users/${user.id}/toggle-active`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        alert(`Conta ${action}da com sucesso!`);
         fetchAdminUsers();
       } else {
         const data = await res.json();
-        alert("Erro ao excluir: " + data.error);
+        alert("Erro: " + data.error);
       }
     } catch (error) {
-      console.error("Erro ao excluir usuário", error);
-      alert("Erro de conexão com o servidor.");
+      alert("Erro de conexão ao alterar status.");
+    }
+  };
+
+  const handleDeleteEquipment = async (id: number, name: string) => {
+    if (!window.confirm(`Tem certeza que deseja excluir o equipamento "${name}"?\nEsta ação apagará também os agendamentos associados a ele e é irreversível.`)) return;
+
+    try {
+      const res = await api.delete(`/equipment/${id}`);
+      if (res.status === 200) {
+        alert("Equipamento excluído com sucesso!");
+        fetchEquipment();
+      }
+    } catch (error: any) {
+      console.error("Erro ao excluir equipamento", error);
+      alert("Erro ao excluir: " + (error.response?.data?.error || "Erro de conexão com o servidor."));
     }
   };
 
@@ -322,25 +251,49 @@ const Perfil: React.FC = () => {
 
     // Se tiver ID, busca os agendamentos no banco
     if (userId) {
-      fetchAppointments(userId);
+      fetchAppointments(userId, false);
     }
   }, []);
 
+  // Recarrega agendamentos ao mudar o toggle
+  useEffect(() => {
+    const userId = localStorage.getItem("userId");
+    if (userId) {
+      fetchAppointments(userId, viewAllAppointments);
+    }
+  }, [viewAllAppointments]);
+
   // Função para buscar agendamentos no servidor
-  const fetchAppointments = async (id: string) => {
+  const fetchAppointments = async (id: string, all: boolean) => {
     try {
-      const res = await fetch(`http://localhost:3000/api/appointments/${id}`);
-      const data = await res.json();
-      setAppointments(Array.isArray(data) ? data : []);
+      const url = all ? '/appointments/all-history' : `/appointments/${id}`;
+      const res = await api.get(url);
+      setAppointments(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
       console.error("Erro ao buscar histórico:", e);
     }
   };
 
+  const handleCancelAppointment = async (apptId: number) => {
+    if (!window.confirm("Tem certeza que deseja cancelar esta reserva?")) return;
+
+    const userId = localStorage.getItem("userId");
+    try {
+      const res = await api.put(`/appointments/${apptId}/cancel`);
+      if (res.status === 200) {
+        alert("Reserva cancelada com sucesso!");
+        if (userId) fetchAppointments(userId, viewAllAppointments);
+      }
+    } catch (error: any) {
+      console.error("Erro ao cancelar reserva:", error);
+      alert("Erro ao cancelar: " + (error.response?.data?.error || "Erro de conexão"));
+    }
+  };
+
   const fetchAdminUsers = async () => {
     try {
-      const res = await fetch("http://localhost:3000/api/users");
-      const data = await res.json();
+      const res = await api.get("/users");
+      const data = res.data;
       setAdminUsers(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error("Erro ao buscar usuários do admin:", e);
@@ -381,12 +334,51 @@ const Perfil: React.FC = () => {
     }
   };
 
+  const fetchBlockedDates = async () => {
+    try {
+      const res = await api.get('/blocked-dates');
+      setBlockedDates(res.data);
+    } catch (e) {
+      console.error("Erro ao buscar datas bloqueadas", e);
+    }
+  };
+
+  const handleAddBlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if(!blockDateStr) return;
+    try {
+      await api.post('/blocked-dates', {
+        date: blockDateStr,
+        reason: blockReason,
+        equipmentId: blockEquipmentId || null
+      });
+      alert("Data bloqueada com sucesso!");
+      fetchBlockedDates();
+      setBlockDateStr('');
+      setBlockReason('');
+      setBlockEquipmentId('');
+    } catch (error: any) {
+      alert("Erro ao bloquear data: " + (error.response?.data?.error || "Verifique se a data já está bloqueada."));
+    }
+  };
+
+  const handleRemoveBlock = async (id: number) => {
+    if(!window.confirm("Deseja remover este bloqueio?")) return;
+    try {
+      await api.delete(`/blocked-dates/${id}`);
+      fetchBlockedDates();
+    } catch(e) {
+      alert("Erro ao remover bloqueio.");
+    }
+  };
+
   const isAdmin = userRole === "ADMIN";
 
   useEffect(() => {
     if (isAdmin) {
       fetchAdminUsers();
       fetchEquipment();
+      fetchBlockedDates();
     }
   }, [isAdmin]);
 
@@ -404,9 +396,16 @@ const Perfil: React.FC = () => {
   const filteredAppointments =
     appointmentFilter === "todos"
       ? appointments
-      : appointments.filter(
-          (appt) => appt.status?.toLowerCase() === appointmentFilter,
-        );
+      : appointments.filter((appt) => {
+        if (!appt.status) return false;
+        const s = appt.status.toLowerCase();
+        if (appointmentFilter === "cancelado") return s === "cancelada" || s === "cancelado";
+        if (appointmentFilter === "aprovado") return s === "aprovada" || s === "aprovado";
+        if (appointmentFilter === "concluido") return s === "concluida" || s === "concluido";
+        if (appointmentFilter === "pendente") return s === "pendente";
+        if (appointmentFilter === "rejeitado") return s === "rejeitada" || s === "rejeitado";
+        return s === appointmentFilter;
+      });
 
   const filteredUsers = adminUsers.filter((user) => {
     const term = userSearch.trim().toLowerCase();
@@ -420,7 +419,6 @@ const Perfil: React.FC = () => {
       user.name.toLowerCase().includes(term) ||
       user.email.toLowerCase().includes(term) ||
       (user.ra ?? "").toLowerCase().includes(term)
->>>>>>> c206ab6b1b265cbd6fadad52c5d4a6aab9d72963
     );
   });
 
@@ -648,7 +646,7 @@ const Perfil: React.FC = () => {
       if (!res.ok) {
         alert(
           "Erro ao adicionar equipamento: " +
-            (data.error || "Falha no servidor"),
+          (data.error || "Falha no servidor"),
         );
         return;
       }
@@ -814,16 +812,36 @@ const Perfil: React.FC = () => {
                     </p>
                   </div>
                   <div className="upcoming-actions">
-                    <button type="button" className="secondary-btn">
+                    <button type="button" className="secondary-btn" onClick={() => {
+                      if (appointments.length > 0) {
+                        setSelectedAppointment(appointments[0]);
+                      }
+                    }}>
                       Ver detalhes
                     </button>
-                    <button type="button" className="ghost-btn">
+                    <button type="button" className="ghost-btn" onClick={() => {
+                      alert("Para reagendar, cancele este agendamento na lista abaixo e faça um novo na tela de Equipamentos.");
+                    }}>
                       Reagendar
                     </button>
                   </div>
                 </div>
               ) : (
                 <div className="empty-card">Nenhum agendamento encontrado.</div>
+              )}
+
+              {userRole === "ADMIN" && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', color: '#cbd5e1', fontSize: '0.9rem' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={viewAllAppointments} 
+                      onChange={(e) => setViewAllAppointments(e.target.checked)} 
+                      style={{ marginRight: '8px' }}
+                    />
+                    Ver todos os agendamentos (Histórico Global)
+                  </label>
+                </div>
               )}
 
               <div className="filter-row">
@@ -856,26 +874,36 @@ const Perfil: React.FC = () => {
                   filteredAppointments.map((appt) => (
                     <li key={appt.id} className="schedule-item">
                       <div>
-                        <strong>{appt.equipment}</strong>
+                        <strong>{appt.equipment?.name || appt.equipment || "Agendamento"}</strong>
+                        {viewAllAppointments && appt.user && (
+                          <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '2px', marginBottom: '4px' }}>
+                            👤 {appt.user || appt.user?.name} ({appt.userRole || appt.user?.role})
+                          </div>
+                        )}
                         <p>
                           {appt.date
                             ? appt.date.split("-").reverse().join("/")
                             : "Data não informada"}{" "}
-                          • {appt.startTime || "??:??"} -{" "}
+                          • {appt.startTime || appt.time || "??:??"} -{" "}
                           {appt.endTime || "??:??"}
                         </p>
                       </div>
                       <div className="schedule-meta">
-                        <span className={`status-badge ${appt.status}`}>
+                        <span className={`perfil-status-badge ${appt.status}`}>
                           {appt.status}
                         </span>
                         <div className="schedule-actions">
-                          <button type="button" className="secondary-btn">
+                          <button type="button" className="secondary-btn" onClick={() => setSelectedAppointment(appt)}>
+                            Ver detalhes
+                          </button>
+                          <button type="button" className="ghost-btn" onClick={() => alert("Para reagendar, cancele este agendamento e faça um novo na tela de Equipamentos.")}>
                             Reagendar
                           </button>
-                          <button type="button" className="ghost-btn danger">
-                            Cancelar
-                          </button>
+                          {['PENDENTE', 'APROVADO'].includes(appt.status) && (
+                            <button type="button" className="ghost-btn danger" onClick={() => handleCancelAppointment(appt.id)}>
+                              Cancelar
+                            </button>
+                          )}
                         </div>
                       </div>
                     </li>
@@ -929,6 +957,7 @@ const Perfil: React.FC = () => {
                       <th>Usuário</th>
                       <th>E-mail</th>
                       <th>R.A.</th>
+                      <th>Status</th>
                       <th>Ações</th>
                     </tr>
                   </thead>
@@ -938,6 +967,11 @@ const Perfil: React.FC = () => {
                         <td className="user-name-cell">{user.name}</td>
                         <td>{user.email}</td>
                         <td>{user.ra}</td>
+                        <td>
+                          <span className={`status-pill ${user.isActive === false ? 'manutencao' : 'disponivel'}`}>
+                            {user.isActive === false ? 'DESATIVADO' : 'ATIVO'}
+                          </span>
+                        </td>
                         <td>
                           <button
                             type="button"
@@ -974,7 +1008,23 @@ const Perfil: React.FC = () => {
                                 />
                               </svg>
                             </span>
-                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            className={`ghost-btn small ${user.isActive === false ? 'success' : 'danger'}`}
+                            onClick={() => handleToggleActive(user)}
+                            title={user.isActive === false ? 'Ativar conta' : 'Desativar conta'}
+                          >
+                            {user.isActive === false ? 'Ativar' : 'Desativar'}
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost-btn small danger"
+                            onClick={() => handleDeleteUser(user)}
+                            disabled={user.role === "ADMIN"}
+                            title={user.role === "ADMIN" ? "Admins não podem ser excluídos" : "Excluir usuário"}
+                          >
+                            Excluir
                           </button>
                         </td>
                       </tr>
@@ -1061,6 +1111,20 @@ const Perfil: React.FC = () => {
                             </svg>
                           </span>
                           Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost-btn small flex-1 danger"
+                          onClick={() => handleDeleteEquipment(Number(item.id), item.name)}
+                          title="Excluir equipamento"
+                          style={{ borderColor: 'rgba(239, 68, 68, 0.4)', color: '#ef4444' }}
+                        >
+                          <span className="button-icon" aria-hidden="true">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/>
+                            </svg>
+                          </span>
+                          Excluir
                         </button>
                         <button
                           type="button"
@@ -1176,10 +1240,133 @@ const Perfil: React.FC = () => {
                   </button>
                 </form>
               </div>
+
+              {isAdmin && (
+                <div className="settings-card">
+                  <div className="settings-header">
+                    <h3>Feriados e Recessos</h3>
+                    <span>Bloqueio de Agenda</span>
+                  </div>
+                  <form onSubmit={handleAddBlock} className="password-form" style={{ marginBottom: '20px' }}>
+                    <label>Data</label>
+                    <input
+                      type="date"
+                      value={blockDateStr}
+                      onChange={(e) => setBlockDateStr(e.target.value)}
+                      required
+                    />
+                    <label>Equipamento (Deixe em branco para bloquear o laboratório todo)</label>
+                    <select
+                      value={blockEquipmentId}
+                      onChange={(e) => setBlockEquipmentId(e.target.value)}
+                      style={{ padding: '14px 16px', borderRadius: '14px', border: '1px solid rgba(255, 255, 255, 0.08)', background: 'rgba(255, 255, 255, 0.04)', color: '#f8fafc', marginBottom: '14px', width: '100%' }}
+                    >
+                      <option value="" style={{ color: 'black' }}>-- Todos os Equipamentos (Geral) --</option>
+                      {equipmentItems.map(eq => (
+                          <option key={eq.id} value={eq.id} style={{ color: 'black' }}>{eq.name}</option>
+                      ))}
+                    </select>
+                    <label>Motivo (Ex: Feriado Nacional)</label>
+                    <input
+                      type="text"
+                      value={blockReason}
+                      onChange={(e) => setBlockReason(e.target.value)}
+                      placeholder="Ex: Emenda de feriado..."
+                    />
+                    <button type="submit" className="secondary-btn" style={{ marginTop: '10px' }}>
+                      Bloquear Data
+                    </button>
+                  </form>
+
+                  <h4>Datas Bloqueadas Ativas</h4>
+                  <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {blockedDates.length === 0 ? (
+                      <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Nenhuma data bloqueada.</p>
+                    ) : (
+                      blockedDates.map(block => (
+                        <div key={block.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '10px 14px', borderRadius: '8px' }}>
+                          <div>
+                            <strong style={{ display: 'block', color: '#f8fafc' }}>{block.date.split('-').reverse().join('/')}</strong>
+                            <span style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
+                              {block.equipment ? `Apenas: ${block.equipment.name}` : 'Bloqueio Geral (Todos)'} 
+                              {block.reason ? ` - ${block.reason}` : ''}
+                            </span>
+                          </div>
+                          <button type="button" onClick={() => handleRemoveBlock(block.id)} className="ghost-btn danger small">
+                            Remover
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
+
+      {/* Modal de Detalhes do Agendamento */}
+      {selectedAppointment && (
+        <div className="modal-overlay">
+          <div className="modal-content appointment-details-modal">
+            <div className="modal-header">
+              <h2>Detalhes do Agendamento</h2>
+              <button className="close-modal-btn" onClick={() => setSelectedAppointment(null)}>
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="detail-row">
+                <span className="detail-label">Equipamento:</span>
+                <span className="detail-value">{selectedAppointment.equipment?.name || selectedAppointment.equipment || "Agendamento"}</span>
+              </div>
+              <div className="detail-row">
+                <span className="detail-label">Data:</span>
+                <span className="detail-value">{selectedAppointment.date ? selectedAppointment.date.split("-").reverse().join("/") : "Não informada"}</span>
+              </div>
+              <div className="detail-row">
+                <span className="detail-label">Horário:</span>
+                <span className="detail-value">{selectedAppointment.startTime || selectedAppointment.time || "??:??"} às {selectedAppointment.endTime || "??:??"}</span>
+              </div>
+              <div className="detail-row">
+                <span className="detail-label">Status:</span>
+                <span className={`perfil-status-badge ${selectedAppointment.status}`}>{selectedAppointment.status}</span>
+              </div>
+              
+              {selectedAppointment.user && (
+                <div className="detail-row">
+                  <span className="detail-label">Usuário:</span>
+                  <span className="detail-value">{selectedAppointment.user?.name || selectedAppointment.user} ({selectedAppointment.userRole || selectedAppointment.user?.role})</span>
+                </div>
+              )}
+
+              {selectedAppointment.justification && (
+                <div className="detail-row" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <span className="detail-label" style={{ marginBottom: '8px' }}>Justificativa / Motivo:</span>
+                  <div className="detail-value" style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px', width: '100%', fontStyle: 'italic' }}>
+                    "{selectedAppointment.justification}"
+                  </div>
+                </div>
+              )}
+
+              {selectedAppointment.rejectionReason && (
+                <div className="detail-row" style={{ flexDirection: 'column', alignItems: 'flex-start', marginTop: '10px' }}>
+                  <span className="detail-label" style={{ marginBottom: '8px', color: '#ef4444' }}>Motivo da Recusa:</span>
+                  <div className="detail-value" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid #ef4444', color: '#fca5a5', padding: '12px', borderRadius: '8px', width: '100%' }}>
+                    {selectedAppointment.rejectionReason}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer" style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="secondary-btn" onClick={() => setSelectedAppointment(null)}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isEditModalOpen && editingUser && (
         <div className="modal-overlay" onClick={closeEditModal}>
@@ -1289,7 +1476,7 @@ const Perfil: React.FC = () => {
                 <button
                   type="button"
                   className="ghost-btn danger-btn"
-                  onClick={handleDeleteUser}
+                  onClick={() => handleDeleteUser()}
                 >
                   Excluir Usuário
                 </button>

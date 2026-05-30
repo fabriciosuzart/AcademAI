@@ -14,33 +14,40 @@ async function main() {
             email: "admin@inovfablab.com",
             ra: "ADMIN001",
             password: passwordHash,
-            role: "ADMIN"
+            role: "ADMIN",
+            isActive: true,
+            isTempPassword: 0
         },
         {
             name: "Professor Responsável",
             email: "prof@inovfablab.com",
             ra: "PROF001",
             password: passwordHash,
-            role: "PROFESSOR"
+            role: "PROFESSOR",
+            isActive: true,
+            isTempPassword: 0
         },
         {
             name: "Aluno Inovador 1",
             email: "aluno1@inovfablab.com",
             ra: "ALU001",
             password: passwordHash,
-            role: "ALUNO"
+            role: "ALUNO",
+            isActive: true,
+            isTempPassword: 0
         },
         {
             name: "Aluno Inovador 2",
             email: "aluno2@inovfablab.com",
             ra: "ALU002",
             password: passwordHash,
-            role: "ALUNO"
+            role: "ALUNO",
+            isActive: true,
+            isTempPassword: 0
         }
     ];
 
     for (const u of usersToCreate) {
-        // Usa upsert para não criar duplicado se rodar duas vezes
         await prisma.user.upsert({
             where: { email: u.email },
             update: {},

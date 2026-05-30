@@ -64,8 +64,9 @@
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
-  padding: 8px 6px;
+  padding: 8px 12px; /* Aumentei o padding horizontal para respirar mais */
   border-radius: 8px;
+  white-space: nowrap; /* Impede a quebra de linha de "Assistente IA" */
   transition: all 0.3s ease;
 }
 

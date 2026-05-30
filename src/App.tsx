@@ -15,7 +15,9 @@ import Cadastro from './components/pages/Cadastro';
 import Agendamento from './components/pages/Agendamento';
 import AdminTrain from './components/pages/AdminTrain'; // <-- Nova tela do Admin 23/04/2026
 import Perfil from './components/pages/Perfil';
+import Disponibilidade from './components/pages/Disponibilidade';
 import NovaSenha from './components/pages/NovaSenha';
+import Notificacoes from './components/pages/Notificacoes';
 import VoiceNavigator from './components/VoiceNavigator';
 
 function App() {
@@ -33,6 +35,7 @@ function App() {
             <Route path='/equipamento/:id' element={<EquipamentoDetalhes />} />
             <Route path='/documentacao' element={<Documentacao />} />
             <Route path='/contato' element={<Contato />} />
+            <Route path='/disponibilidade' element={<Disponibilidade />} />
             
             {/* Rotas do Sistema */}
             <Route path='/login' element={<Login />} />
@@ -40,6 +43,7 @@ function App() {
             <Route path='/agendamento' element={<Agendamento />} />
             <Route path='/perfil' element={<Perfil />} />
             <Route path='/nova-senha' element={<NovaSenha />} />
+            <Route path='/notificacoes' element={<Notificacoes />} />
             
             {/* Rotas de Administração */}
             <Route path='/admin' element={<AdminTrain />} />

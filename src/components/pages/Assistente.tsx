@@ -174,9 +174,9 @@ const Assistente: React.FC = () => {
   };
 
   return (
-    <div className="assistente-container">
+    <div className="assistente-container" role="main" aria-label="Assistente Virtual de Inteligência Artificial">
       <div className="chat-interface">
-        <div className="chat-history">
+        <div className="chat-history" aria-live="polite" aria-label="Histórico de mensagens do chat">
           {messages.map((msg) => (
             <div key={msg.id} className={`message ${msg.sender}`}>
               <div className="avatar">{msg.sender === 'ai' ? '🤖' : '👤'}</div>
@@ -191,7 +191,7 @@ const Assistente: React.FC = () => {
                 </p>
 
                 {msg.sender === 'ai' && msg.text !== '' && (
-                  <button type="button" className="speak-btn" onClick={() => speak(msg.text)} title="Ouvir">🔊</button>
+                  <button type="button" className="speak-btn" onClick={() => speak(msg.text)} title="Ouvir resposta" aria-label="Ouvir resposta da Inteligência Artificial em áudio">🔊</button>
                 )}
               </div>
             </div>
@@ -208,7 +208,8 @@ const Assistente: React.FC = () => {
                 type="button"
                 className={`icon-button speech-toggle ${isSpeechEnabled ? 'active' : ''}`}
                 onClick={() => setIsSpeechEnabled(!isSpeechEnabled)}
-                title={isSpeechEnabled ? "Desativar fala" : "Ativar fala"}
+                title={isSpeechEnabled ? "Desativar fala automática" : "Ativar fala automática"}
+                aria-label={isSpeechEnabled ? "Desativar leitura em voz alta automática" : "Ativar leitura em voz alta automática das mensagens da Inteligência Artificial"}
               >
                 {isSpeechEnabled ? '🔊' : '🔇'}
               </button>
@@ -218,7 +219,8 @@ const Assistente: React.FC = () => {
                 className={`icon-button mic-button ${isListening ? 'listening' : ''}`}
                 onClick={startListening}
                 disabled={isLoading}
-                title="Falar"
+                title={isListening ? "Parar gravação" : "Falar no microfone"}
+                aria-label={isListening ? "Parar de ouvir o microfone" : "Iniciar reconhecimento de voz pelo microfone"}
               >
                 {isListening ? '🛑' : '🎙️'}
               </button>
@@ -230,6 +232,7 @@ const Assistente: React.FC = () => {
                 placeholder="Digite sua dúvida ou use o microfone..."
                 rows={1}
                 disabled={isLoading}
+                aria-label="Caixa de texto para digitar sua mensagem para o assistente"
               />
 
               {isLoading ? (
@@ -237,7 +240,8 @@ const Assistente: React.FC = () => {
                   type="button"
                   className="send-btn stop-btn"
                   onClick={handleStop}
-                  title="Parar resposta"
+                  title="Interromper resposta"
+                  aria-label="Interromper geração da resposta da Inteligência Artificial"
                 >
                   ⏹️
                 </button>
@@ -247,6 +251,7 @@ const Assistente: React.FC = () => {
                   className="send-btn"
                   onClick={() => handleSend()}
                   disabled={!input.trim()}
+                  aria-label="Enviar mensagem digitada"
                 >
                   ➤
                 </button>

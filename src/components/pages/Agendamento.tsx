@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api/axios';
+import CalendarPicker from '../CalendarPicker';
 import './Agendamento.css';
 
 const Agendamento: React.FC = () => {
@@ -72,7 +73,7 @@ const Agendamento: React.FC = () => {
                     <p>Preencha os dados e informe a justificativa para avaliação do professor.</p>
                 </div>
 
-                <form className="schedule-form" onSubmit={handleSchedule}>
+                <form className="schedule-form" onSubmit={handleSchedule} aria-label="Formulário de solicitação de agendamento">
                     <div className="form-group">
                         <label htmlFor="equipment">Selecione o Equipamento</label>
                         <div className="select-wrapper">
@@ -81,38 +82,43 @@ const Agendamento: React.FC = () => {
                                 value={equipmentId} 
                                 onChange={e => setEquipmentId(e.target.value)} 
                                 required
+                                aria-required="true"
+                                aria-label="Selecione o equipamento para agendar"
                             >
                                 <option value="" disabled>-- Escolha um equipamento --</option>
                                 {equipmentList.map((item) => (
-                                    <option key={item.id} value={item.id}>
-                                        {item.status === 'DISPONÍVEL' ? '🟢' : '🟠'} {item.name}
+                                    <option 
+                                        key={item.id} 
+                                        value={item.id}
+                                        disabled={item.status === 'MANUTENÇÃO'}
+                                    >
+                                        {item.status === 'DISPONÍVEL' ? '🟢' : item.status === 'MANUTENÇÃO' ? '🔴' : '🟠'} {item.name} {item.status === 'MANUTENÇÃO' ? '(Bloqueado)' : ''}
                                     </option>
                                 ))}
                             </select>
                         </div>
                     </div>
 
-                    <div className="form-row">
-                        <div className="form-group">
-                            <label htmlFor="scheduleDate">Data Prevista</label>
-                            <input 
-                                type="date" 
-                                id="scheduleDate" 
-                                value={date} 
-                                onChange={e => setDate(e.target.value)} 
-                                required 
+                    <div className="form-group" style={{ marginBottom: '20px' }}>
+                        <label>Data e Horário</label>
+                        {!equipmentId ? (
+                            <div style={{ padding: '15px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                                Selecione um equipamento primeiro para ver a disponibilidade.
+                            </div>
+                        ) : (
+                            <CalendarPicker 
+                                equipmentId={equipmentId}
+                                onDateTimeSelect={(selectedDate, selectedTime) => {
+                                    setDate(selectedDate);
+                                    setTime(selectedTime);
+                                }}
                             />
-                        </div>
-                        <div className="form-group">
-                            <label htmlFor="scheduleTime">Horário de Início</label>
-                            <input 
-                                type="time" 
-                                id="scheduleTime" 
-                                value={time} 
-                                onChange={e => setTime(e.target.value)} 
-                                required 
-                            />
-                        </div>
+                        )}
+                        {date && time && (
+                            <p style={{ color: '#10b981', marginTop: '10px', fontWeight: 'bold' }}>
+                                ✅ Selecionado: {date.split('-').reverse().join('/')} às {time}
+                            </p>
+                        )}
                     </div>
 
                     <div className="form-group">
@@ -124,6 +130,8 @@ const Agendamento: React.FC = () => {
                             value={justification}
                             onChange={e => setJustification(e.target.value)}
                             required
+                            aria-required="true"
+                            aria-label="Descreva a justificativa ou motivo do uso"
                             style={{
                                 width: '100%',
                                 padding: '12px',
@@ -137,7 +145,7 @@ const Agendamento: React.FC = () => {
                         />
                     </div>
 
-                    <button type="submit" className="submit-button">
+                    <button type="submit" className="submit-button" aria-label="Enviar solicitação de reserva">
                         Enviar Solicitação
                     </button>
                 </form>

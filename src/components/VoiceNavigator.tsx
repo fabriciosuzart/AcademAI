@@ -112,6 +112,7 @@ const VoiceNavigator: React.FC = () => {
         const routes: { keywords: string[]; path: string; label: string }[] = [
             { keywords: ['inicio', 'home', 'pagina inicial', 'principal', 'comeco', 'beginning', 'start', 'main'], path: '/', label: 'início' },
             { keywords: ['equipamento', 'equipamentos', 'maquina', 'maquinas', 'equipment', 'machine', 'impressora', 'printer', 'laser', 'cortadora'], path: '/equipamentos', label: 'equipamentos' },
+            { keywords: ['disponibilidade', 'calendario', 'horario', 'livre', 'ocupado', 'disponivel', 'vago'], path: '/disponibilidade', label: 'disponibilidade' },
             { keywords: ['assistente', 'assistant', 'chat', 'ia', 'inteligencia', 'intelligence', 'ajuda', 'help', 'conversar', 'talk'], path: '/assistente', label: 'assistente virtual' },
             { keywords: ['perfil', 'profile', 'conta', 'account', 'meu perfil', 'my profile', 'dados', 'minha conta'], path: '/perfil', label: 'seu perfil' },
             { keywords: ['agendamento', 'agendar', 'reservar', 'reserva', 'schedule', 'booking', 'book', 'marcar', 'horario'], path: '/agendamento', label: 'agendamentos' },

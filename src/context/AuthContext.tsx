@@ -47,6 +47,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.setItem('userName', data.name);
     localStorage.setItem('userEmail', data.email);
     localStorage.setItem('userRole', data.role);
+    // Armazena refresh token (RNF04)
+    if (data.refreshToken) {
+      localStorage.setItem('refreshToken', data.refreshToken);
+    }
     
     setIsLoggedIn(true);
     setUser({
@@ -57,7 +61,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
-  const logout = () => {
+  const logout = async () => {
+    // Invalida refresh token no servidor
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (refreshToken) {
+      try {
+        await fetch('http://localhost:3000/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken })
+        });
+      } catch (e) {
+        // Silencioso - mesmo que falhe, limpa localmente
+      }
+    }
     localStorage.clear();
     setIsLoggedIn(false);
     setUser(null);

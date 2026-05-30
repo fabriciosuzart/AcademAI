@@ -131,6 +131,7 @@ const Login: React.FC = () => {
 
       if (response.ok) {
         localStorage.setItem('token', data.token);
+        localStorage.setItem('refreshToken', data.refreshToken || '');
         localStorage.setItem('userName', data.name);
         localStorage.setItem('userId', data.id);
         localStorage.setItem('userEmail', data.email);
@@ -207,21 +208,21 @@ const Login: React.FC = () => {
             <>
               <h1 className="login-title">Acesse sua Conta</h1>
               <p className="subtitle">Gerencie seus projetos e agendamentos.</p>
-              <form className="login-form" onSubmit={handleLogin}>
+              <form className="login-form" onSubmit={handleLogin} aria-label="Formulário de login">
                 <div className="login-field">
-                  <label>E-mail Institucional</label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu.nome@unisanta.br" required />
+                  <label htmlFor="login-email">E-mail Institucional</label>
+                  <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu.nome@unisanta.br" required aria-required="true" aria-label="Digite seu e-mail institucional" />
                 </div>
                 <div className="login-field">
-                  <label>Senha</label>
-                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Sua senha" required />
+                  <label htmlFor="login-password">Senha</label>
+                  <input id="login-password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Sua senha" required aria-required="true" aria-label="Digite sua senha" />
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '5px' }}>
-                    <button type="button" className="forgot-password-link" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem' }} onClick={() => setIsRecovering(true)}>Esqueceu a senha?</button>
+                    <button type="button" className="forgot-password-link" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem' }} onClick={() => setIsRecovering(true)} aria-label="Recuperar senha esquecida">Esqueceu a senha?</button>
                   </div>
                 </div>
-                <button type="submit" className="login-button">Entrar</button>
+                <button type="submit" className="login-button" aria-label="Botão para entrar na conta">Entrar</button>
                 <p style={{ textAlign: 'center', marginTop: '15px', color: '#64748b' }}>
-                  Não tem cadastro? <Link to="/cadastro" className="signup-link">Criar conta</Link>
+                  Não tem cadastro? <Link to="/cadastro" className="signup-link" aria-label="Link para a página de cadastro">Criar conta</Link>
                 </p>
               </form>
             </>
@@ -229,13 +230,13 @@ const Login: React.FC = () => {
             <>
               <h1 className="login-title">Recuperação</h1>
               <p className="subtitle">Informe seu e-mail para receber uma senha temporária.</p>
-              <form className="login-form" onSubmit={handleRecover}>
+              <form className="login-form" onSubmit={handleRecover} aria-label="Formulário de recuperação de senha">
                 <div className="login-field">
-                  <label>E-mail</label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu.nome@unisanta.br" required />
+                  <label htmlFor="recover-email">E-mail</label>
+                  <input id="recover-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu.nome@unisanta.br" required aria-required="true" aria-label="Digite seu e-mail para recuperar a senha" />
                 </div>
-                <button type="submit" className="login-button">Enviar E-mail</button>
-                <button type="button" style={{ width: '100%', padding: '16px', marginTop: '10px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', color: '#475569' }} onClick={() => setIsRecovering(false)}>Voltar ao Login</button>
+                <button type="submit" className="login-button" aria-label="Botão para enviar e-mail de recuperação">Enviar E-mail</button>
+                <button type="button" style={{ width: '100%', padding: '16px', marginTop: '10px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', color: '#475569' }} onClick={() => setIsRecovering(false)} aria-label="Cancelar recuperação e voltar ao login">Voltar ao Login</button>
               </form>
             </>
           )}
@@ -260,15 +261,15 @@ const Login: React.FC = () => {
             <p style={{ color: '#64748b' }}>Você acessou com uma senha temporária. Defina sua nova senha definitiva abaixo:</p>
 
             <div className="login-field" style={{ marginBottom: '15px' }}>
-              <label>Nova Senha</label>
-              <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
+              <label htmlFor="new-password">Nova Senha</label>
+              <input id="new-password" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" aria-label="Digite a nova senha definitiva" />
             </div>
             <div className="login-field" style={{ marginBottom: '25px' }}>
-              <label>Confirmar Nova Senha</label>
-              <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Digite novamente" />
+              <label htmlFor="confirm-password">Confirmar Nova Senha</label>
+              <input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Digite novamente" aria-label="Confirme a nova senha definitiva" />
             </div>
 
-            <button onClick={handleChangePassword} className="login-button" style={{ marginTop: 0, background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+            <button onClick={handleChangePassword} className="login-button" style={{ marginTop: 0, background: 'linear-gradient(135deg, #10b981, #059669)' }} aria-label="Salvar nova senha e entrar no sistema">
               Salvar e Entrar no Sistema
             </button>
           </div>

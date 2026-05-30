@@ -159,17 +159,40 @@
 .secondary-btn {
   background: linear-gradient(135deg, #0ea5e9, #4f46e5);
   color: #fff;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.secondary-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4);
+}
+
+.secondary-btn:active {
+  transform: translateY(0);
 }
 
 .ghost-btn {
   background: transparent;
   border-color: rgba(255, 255, 255, 0.1);
   color: #cbd5e1;
+  transition: all 0.2s ease;
+}
+
+.ghost-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 .ghost-btn.danger {
-  border-color: rgba(239, 68, 68, 0.8);
+  border-color: rgba(239, 68, 68, 0.5);
   color: #ef4444;
+}
+
+.ghost-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+  color: #f87171;
 }
 
 .filter-row {
@@ -432,8 +455,9 @@
 
 .equipment-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  width: 100%;
 }
 
 .equipment-card {
@@ -443,6 +467,13 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease;
+}
+
+.equipment-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+  border-color: rgba(56, 189, 248, 0.3);
 }
 
 .equipment-image {
@@ -527,14 +558,18 @@
 }
 
 .equipment-actions-row {
-  display: flex;
-  gap: 10px;
-  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  margin-top: auto;
+  align-items: center;
 }
 
 .ghost-btn.small.flex-1 {
-  flex: 1;
+  width: 100%;
   justify-content: center;
+  padding: 8px 4px;
+  font-size: 0.8rem;
 }
 
 .ghost-btn.small.icon-only {
@@ -1075,7 +1110,7 @@
 }
 
 /* Badges Status */
-.status-badge {
+.perfil-status-badge {
   padding: 6px 12px;
   border-radius: 999px;
   font-size: 0.85rem;
@@ -1083,22 +1118,34 @@
   backdrop-filter: blur(5px);
 }
 
-.status-badge.Pendente {
+.perfil-status-badge.Pendente, .perfil-status-badge.PENDENTE {
   background: rgba(250, 204, 21, 0.2);
   color: #facc15;
   border: 1px solid rgba(250, 204, 21, 0.3);
 }
 
-.status-badge.Aprovado {
+.perfil-status-badge.Aprovado, .perfil-status-badge.APROVADA {
   background: rgba(74, 222, 128, 0.2);
   color: #4ade80;
   border: 1px solid rgba(74, 222, 128, 0.3);
 }
 
-.status-badge.Rejeitado {
+.perfil-status-badge.Rejeitado, .perfil-status-badge.REJEITADA {
   background: rgba(239, 68, 68, 0.2);
   color: #f87171;
   border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.perfil-status-badge.Concluida, .perfil-status-badge.CONCLUIDA {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.perfil-status-badge.Cancelada, .perfil-status-badge.CANCELADA {
+  background: rgba(156, 163, 175, 0.2);
+  color: #9ca3af;
+  border: 1px solid rgba(156, 163, 175, 0.3);
 }
 /* Sleek User Edit Modal Styles */
 .edit-user-modal {
@@ -1247,4 +1294,55 @@
 .edit-user-form select option {
   background-color: #1e293b;
   color: #f8fafc;
+}
+
+/* Modal de Detalhes do Agendamento */
+.appointment-details-modal {
+  max-width: 550px;
+}
+
+.appointment-details-modal .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.detail-label {
+  color: #94a3b8;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.detail-value {
+  color: #f8fafc;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: right;
+}
+
+.close-modal-btn {
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  font-size: 1.8rem;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.close-modal-btn:hover {
+  color: #ef4444;
 }
