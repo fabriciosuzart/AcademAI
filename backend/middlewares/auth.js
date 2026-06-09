@@ -2,11 +2,10 @@ import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
-const JWT_SECRET = 'sua_chave_secreta_super_segura';
+const JWT_SECRET = process.env.JWT_SECRET || 'academai_dev_secret_mude_em_producao';
 
-// 1. Middleware de Autenticação (verifica JWT ou fallback X-User-Id)
+// 1. Middleware de Autenticação (verifica JWT — RNF05/RN08)
 export const authMiddleware = (req, res, next) => {
-    // Tenta verificar o token JWT primeiro
     const authHeader = req.headers['authorization'];
     if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.split(' ')[1];
@@ -18,13 +17,6 @@ export const authMiddleware = (req, res, next) => {
             // Token inválido ou expirado
             return res.status(401).json({ error: 'Token inválido ou expirado. Faça login novamente.' });
         }
-    }
-
-    // Fallback: X-User-Id (compatibilidade)
-    const userId = req.headers['x-user-id'];
-    if (userId) {
-        req.userId = parseInt(userId);
-        return next();
     }
 
     return res.status(401).json({ error: 'Acesso negado. Autenticação necessária.' });

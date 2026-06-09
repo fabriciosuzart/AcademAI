@@ -5,14 +5,20 @@ import './VoiceNavigator.css';
 const VoiceNavigator: React.FC = () => {
     const [isListening, setIsListening] = useState(false);
     const [status, setStatus] = useState<string>('');
+    const [showTtsWarning, setShowTtsWarning] = useState(false); // RNF07 — aviso privacidade TTS
     const mediaRecorder = useRef<MediaRecorder | null>(null);
     const audioChunks = useRef<Blob[]>([]);
     const isListeningRef = useRef(false);
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Feedback por voz
+    // Feedback por voz — RNF07: avisa na primeira utilização sobre TTS (Web Speech API)
     const speak = useCallback((text: string) => {
+        // Verifica se é a primeira vez usando TTS e exibe aviso de privacidade
+        const ttsWarningShown = localStorage.getItem('tts_privacy_warning_shown');
+        if (!ttsWarningShown) {
+            setShowTtsWarning(true);
+        }
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'pt-BR';
@@ -290,6 +296,35 @@ const VoiceNavigator: React.FC = () => {
         <div className="voice-navigator-container">
             {status && <div className="voice-status-bubble">{status}</div>}
 
+            {/* RNF07 — Aviso de privacidade TTS na primeira utilização */}
+            {showTtsWarning && (
+                <div style={{
+                    position: 'fixed', bottom: '90px', right: '20px', zIndex: 9999,
+                    background: '#1e293b', border: '1px solid #f59e0b', borderRadius: '12px',
+                    padding: '16px', maxWidth: '320px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
+                }}>
+                    <p style={{ color: '#fbbf24', fontWeight: 'bold', margin: '0 0 8px 0', fontSize: '0.9rem' }}>
+                        ⚠️ Aviso de Privacidade — Síntese de Voz
+                    </p>
+                    <p style={{ color: '#cbd5e1', fontSize: '0.8rem', margin: '0 0 12px 0', lineHeight: '1.4' }}>
+                        O feedback de voz usa a <strong>Web Speech API</strong> do navegador (Chrome), que pode enviar texto sintetizado a servidores externos. O áudio capturado é processado localmente via Whisper.
+                    </p>
+                    <button
+                        onClick={() => {
+                            localStorage.setItem('tts_privacy_warning_shown', '1');
+                            setShowTtsWarning(false);
+                        }}
+                        style={{
+                            background: '#f59e0b', color: '#1e293b', border: 'none',
+                            borderRadius: '6px', padding: '6px 14px', cursor: 'pointer',
+                            fontWeight: 'bold', fontSize: '0.8rem', width: '100%'
+                        }}
+                    >
+                        Entendi, não mostrar novamente
+                    </button>
+                </div>
+            )}
+
             <button
                 className={`voice-fab ${isListening ? 'listening' : ''}`}
                 onClick={isListening ? undefined : startRecording}
@@ -307,3 +342,4 @@ const VoiceNavigator: React.FC = () => {
 };
 
 export default VoiceNavigator;
+

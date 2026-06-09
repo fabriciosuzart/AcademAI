@@ -35,8 +35,8 @@ const VECTOR_CACHE_PATH = path.join(__dirname, 'vector_cache.json');
 
 const app = express();
 const PORT = 3000;
-const JWT_SECRET = 'sua_chave_secreta_super_segura';
-const JWT_EXPIRATION = '8h'; // RNF04 simplificado
+const JWT_SECRET = process.env.JWT_SECRET || 'academai_dev_secret_mude_em_producao';
+const JWT_EXPIRATION = '15m'; // RNF04 — access token 15 min (política definitiva)
 
 app.use(cors());
 app.use(express.json());
@@ -49,7 +49,10 @@ const storage = multer.diskStorage({
         cb(null, uniqueSuffix + path.extname(file.originalname));
     }
 });
-const upload = multer({ storage });
+const upload = multer({
+    storage,
+    limits: { fileSize: 50 * 1024 * 1024 } // 50 MB — conforme especificação (Seção 3.1)
+});
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- BANCO DE DADOS (PRISMA) ---
@@ -220,9 +223,9 @@ app.post('/api/register', async (req, res) => {
         if (!fullName || !email || !password) {
             return res.status(400).json({ error: "Nome, e-mail e senha são obrigatórios." });
         }
-        const hashedPassword = await bcrypt.hash(password, 8);
-        // Permite apenas ALUNO ou PROFESSOR no cadastro público
-        const allowedRoles = ['ALUNO', 'PROFESSOR'];
+        const hashedPassword = await bcrypt.hash(password, 12); // RNF03 — fator mínimo 12
+        // RF01/RN08 — apenas ALUNO pode se auto-registrar; Professor/Admin são atribuídos por administrador
+        const allowedRoles = ['ALUNO'];
         const userRole = allowedRoles.includes(role) ? role : 'ALUNO';
 
         await prisma.user.create({
@@ -330,7 +333,7 @@ app.post('/api/change-password', async (req, res) => {
             if (!valid) return res.status(401).json({ error: "Senha atual incorreta." });
         }
 
-        const hashedNew = await bcrypt.hash(newPassword, 8);
+        const hashedNew = await bcrypt.hash(newPassword, 12); // RNF03
         await prisma.user.update({
             where: { id: parseInt(userId) },
             data: { password: hashedNew, isTempPassword: 0 }
@@ -351,7 +354,7 @@ app.post('/api/reset-password', async (req, res) => {
 
         // Gera senha temporária
         const tempPassword = Math.random().toString(36).slice(-8);
-        const hashedTemp = await bcrypt.hash(tempPassword, 8);
+        const hashedTemp = await bcrypt.hash(tempPassword, 12); // RNF03
 
         await prisma.user.update({
             where: { id: user.id },
@@ -386,28 +389,43 @@ app.get('/api/users', authMiddleware, roleMiddleware(['ADMIN']), async (req, res
     }
 });
 
-// PUT /api/users/:id (RNF05 - protegido)
+// PUT /api/users/:id (RF04 - protegido, permite alterar perfil)
 app.put('/api/users/:id', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
     try {
         const userId = parseInt(req.params.id);
-        const { name, email, ra, trainings } = req.body;
+        const { name, email, ra, trainings, role } = req.body;
         const existingUser = await prisma.user.findUnique({ where: { id: userId } });
         if (!existingUser) return res.status(404).json({ error: "Usuário não encontrado." });
-        if (existingUser.role === 'ADMIN') return res.status(403).json({ error: "Perfis de administrador não podem ser editados." });
 
-        const updatedUser = await prisma.user.update({
-            where: { id: userId },
-            data: {
-                name, email,
-                ra: ra || null,
-                trainings: trainings !== undefined ? trainings : existingUser.trainings
+        // Validações de segurança ao alterar perfil (RN08)
+        if (role && role !== existingUser.role) {
+            const allowedRoles = ['ALUNO', 'PROFESSOR', 'ADMIN'];
+            if (!allowedRoles.includes(role)) {
+                return res.status(400).json({ error: "Perfil inválido." });
             }
-        });
+            // Proteger rebaixamento do último admin ativo (RN05)
+            if (existingUser.role === 'ADMIN' && role !== 'ADMIN') {
+                const activeAdmins = await prisma.user.count({ where: { role: 'ADMIN', isActive: true } });
+                if (activeAdmins <= 1) {
+                    return res.status(400).json({ error: "Não é possível alterar o perfil do único administrador ativo." });
+                }
+            }
+        }
+
+        const updateData = {
+            name, email,
+            ra: ra || null,
+            trainings: trainings !== undefined ? trainings : existingUser.trainings
+        };
+        if (role) updateData.role = role; // RF04 — admin pode alterar perfil do usuário
+
+        const updatedUser = await prisma.user.update({ where: { id: userId }, data: updateData });
         res.json({ message: "Usuário atualizado com sucesso!", user: updatedUser });
     } catch (error) {
         res.status(500).json({ error: "Erro ao atualizar usuário." });
     }
 });
+
 
 // DELETE /api/users/:id (RNF05 - protegido)
 app.delete('/api/users/:id', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
@@ -451,7 +469,60 @@ app.put('/api/users/:id/toggle-active', authMiddleware, roleMiddleware(['ADMIN']
     }
 });
 
+// GET /api/users/:id/stats — Estatísticas dinâmicas do perfil (RF17)
+app.get('/api/users/:id/stats', authMiddleware, async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id);
+
+        // Semestre atual: Jan-Jun ou Jul-Dez
+        const now = new Date();
+        const semesterStartMonth = now.getMonth() < 6 ? 0 : 6;
+        const semesterStart = new Date(now.getFullYear(), semesterStartMonth, 1).toISOString().split('T')[0];
+        const semesterEnd = now.toISOString().split('T')[0];
+
+        const semesterAppointments = await prisma.appointment.findMany({
+            where: {
+                userId,
+                date: { gte: semesterStart, lte: semesterEnd },
+                status: { in: ['APROVADA', 'CONCLUIDA'] }
+            },
+            select: { time: true, endTime: true, equipmentId: true }
+        });
+
+        // Calcula horas totais somando duração de cada reserva
+        let totalMinutes = 0;
+        for (const appt of semesterAppointments) {
+            if (appt.time && appt.endTime) {
+                const [sh, sm] = appt.time.split(':').map(Number);
+                const [eh, em] = appt.endTime.split(':').map(Number);
+                totalMinutes += Math.max(0, (eh * 60 + em) - (sh * 60 + sm));
+            } else {
+                totalMinutes += 60; // fallback: assume 1h por reserva sem endTime
+            }
+        }
+
+        // Conta equipamentos distintos (como "projetos")
+        const distinctEquipments = new Set(semesterAppointments.map(a => a.equipmentId));
+
+        // Treinamentos concluídos a partir do campo trainings do usuário
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { trainings: true }
+        });
+
+        res.json({
+            semesterHours: parseFloat((totalMinutes / 60).toFixed(1)),
+            projectCount: distinctEquipments.size,
+            completedTrainings: user?.trainings || ''
+        });
+    } catch (error) {
+        console.error('Erro ao buscar estatísticas:', error);
+        res.status(500).json({ error: 'Erro interno ao calcular estatísticas.' });
+    }
+});
+
 // --- EQUIPAMENTOS (RF05) ---
+
 
 app.get('/api/equipment', async (req, res) => {
     try {
@@ -540,7 +611,7 @@ app.put('/api/equipment/:id', authMiddleware, roleMiddleware(['ADMIN']), upload.
             // RN06 - Verificar se unidades a remover possuem reservas ativas
             const idsToDelete = groupItems.slice(newQuantity).map(item => item.id);
             const activeReservations = await prisma.appointment.count({
-                where: { equipmentId: { in: idsToDelete }, status: { in: ['PENDENTE', 'APROVADO'] } }
+                where: { equipmentId: { in: idsToDelete }, status: { in: ['PENDENTE', 'APROVADA'] } }
             });
             if (activeReservations > 0) {
                 return res.status(400).json({ error: `Não é possível reduzir a quantidade. ${activeReservations} unidade(s) possuem reservas ativas (pendentes ou aprovadas).` });
@@ -569,7 +640,7 @@ app.delete('/api/equipment/:id', authMiddleware, roleMiddleware(['ADMIN']), asyn
         if (!target) return res.status(404).json({ error: "Equipamento não encontrado." });
         
         const activeReservations = await prisma.appointment.count({
-            where: { equipmentId, status: { in: ['PENDENTE', 'APROVADO'] } }
+            where: { equipmentId, status: { in: ['PENDENTE', 'APROVADA'] } }
         });
         
         if (activeReservations > 0) {
@@ -624,7 +695,7 @@ app.post('/api/schedule', authMiddleware, async (req, res) => {
             where: {
                 equipmentId: eqId,
                 date: date,
-                status: { in: ['PENDENTE', 'APROVADO'] },
+                status: { in: ['PENDENTE', 'APROVADA'] },
                 OR: [
                     { time: { lte: reqEnd }, endTime: { gte: reqStart } },
                     { time: { gte: reqStart, lte: reqEnd } },
@@ -640,7 +711,7 @@ app.post('/api/schedule', authMiddleware, async (req, res) => {
         // RF11 - Aprovação automática para PROFESSOR e ADMIN
         const user = await prisma.user.findUnique({ where: { id: uId } });
         const autoApprove = user && (user.role === 'PROFESSOR' || user.role === 'ADMIN');
-        const reservaStatus = autoApprove ? 'APROVADO' : 'PENDENTE';
+        const reservaStatus = autoApprove ? 'APROVADA' : 'PENDENTE';
 
         const newAppointment = await prisma.appointment.create({
             data: {
@@ -690,7 +761,7 @@ app.get('/api/appointments/equipment/:equipmentId', async (req, res) => {
         const appointments = await prisma.appointment.findMany({
             where: { 
                 equipmentId,
-                status: { in: ['PENDENTE', 'APROVADO'] }
+                status: { in: ['PENDENTE', 'APROVADA'] }
             },
             select: { date: true, time: true, endTime: true, status: true }
         });
@@ -743,7 +814,7 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
             status,
             approvedById: req.userId
         };
-        if (status === 'RECUSADO' && rejectionReason) {
+        if (status === 'REJEITADA' && rejectionReason) {
             updateData.rejectionReason = rejectionReason;
         }
 
@@ -753,10 +824,10 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
         });
 
         // RF12 - Notificar o solicitante
-        if (status === 'APROVADO') {
+        if (status === 'APROVADA') {
             await createNotification(appointment.userId, 'RESERVA_APROVADA',
                 `Sua reserva para ${appointment.date} às ${appointment.time} foi aprovada!`, appointmentId);
-        } else if (status === 'RECUSADO') {
+        } else if (status === 'REJEITADA') {
             const reason = rejectionReason ? ` Motivo: ${rejectionReason}` : '';
             await createNotification(appointment.userId, 'RESERVA_REJEITADA',
                 `Sua reserva para ${appointment.date} às ${appointment.time} foi rejeitada.${reason}`, appointmentId);
@@ -769,46 +840,8 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
     }
 });
 
-// GET /api/appointments/overview (Visão Geral - ADMIN)
-app.get('/api/appointments/overview', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
-    try {
-        const today = new Date().toISOString().split('T')[0];
-        
-        // Obtém data de 7 dias atrás e de 7 dias no futuro para a semana (ou ajusta conforme a regra)
-        const dateNow = new Date();
-        const startOfWeek = new Date(dateNow.setDate(dateNow.getDate() - dateNow.getDay())).toISOString().split('T')[0];
-        const endOfWeek = new Date(dateNow.setDate(dateNow.getDate() + 6)).toISOString().split('T')[0];
+// NOTA: GET /api/appointments/overview está definida mais abaixo com implementação completa (semana segunda-domingo)
 
-        const todayAppointments = await prisma.appointment.findMany({
-            where: { 
-                date: today,
-                status: { notIn: ['CANCELADA', 'RECUSADO'] }
-            },
-            include: { user: { select: { name: true, role: true } }, equipment: { select: { name: true } } },
-            orderBy: { time: 'asc' }
-        });
-
-        const weekAppointments = await prisma.appointment.findMany({
-            where: { 
-                date: { gte: startOfWeek, lte: endOfWeek },
-                status: { notIn: ['CANCELADA', 'RECUSADO'] }
-            }
-        });
-
-        const pendingCount = await prisma.appointment.count({
-            where: { status: 'PENDENTE' }
-        });
-
-        res.json({
-            todayAppointments,
-            weekAppointments,
-            pendingCount
-        });
-    } catch (error) {
-        console.error("❌ Erro ao buscar visão geral:", error);
-        res.status(500).json({ error: "Erro interno." });
-    }
-});
 
 // GET /api/appointments/all-history (Histórico Global - ADMIN)
 app.get('/api/appointments/all-history', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
@@ -863,7 +896,7 @@ app.get('/api/appointments/:userId', authMiddleware, async (req, res) => {
     }
 });
 
-// PUT /api/appointments/:id/cancel (RF15 - cancelar reserva, RNF05 protegido)
+// PUT /api/appointments/:id/cancel (RF15/RN04 - cancelar reserva com antecedência mínima)
 app.put('/api/appointments/:id/cancel', authMiddleware, async (req, res) => {
     try {
         const appointmentId = parseInt(req.params.id);
@@ -875,8 +908,21 @@ app.put('/api/appointments/:id/cancel', authMiddleware, async (req, res) => {
         if (appointment.userId !== userId) {
             return res.status(403).json({ error: "Você só pode cancelar suas próprias reservas." });
         }
-        if (!['PENDENTE', 'APROVADO'].includes(appointment.status)) {
+        if (!['PENDENTE', 'APROVADA'].includes(appointment.status)) {
             return res.status(400).json({ error: "Apenas reservas pendentes ou aprovadas podem ser canceladas." });
+        }
+
+        // RF15/RN04 — verificar antecedência mínima (padrão 2h; admin isento)
+        const requester = await prisma.user.findUnique({ where: { id: userId } });
+        if (requester && requester.role !== 'ADMIN') {
+            const MIN_ADVANCE_HOURS = 2; // configurável pelo administrador no futuro
+            const appointmentDateTime = new Date(`${appointment.date}T${appointment.time}:00`);
+            const hoursUntil = (appointmentDateTime.getTime() - Date.now()) / (1000 * 60 * 60);
+            if (hoursUntil >= 0 && hoursUntil < MIN_ADVANCE_HOURS) {
+                return res.status(400).json({
+                    error: `Cancelamento não permitido. A reserva começa em menos de ${MIN_ADVANCE_HOURS}h. Contate o administrador para cancelar.`
+                });
+            }
         }
 
         const updated = await prisma.appointment.update({
@@ -897,10 +943,11 @@ app.put('/api/appointments/:id/cancel', authMiddleware, async (req, res) => {
 
         res.json({ message: "Reserva cancelada com sucesso!", appointment: updated });
     } catch (error) {
-        console.error("❌ Erro ao cancelar reserva:", error);
+        console.error("Erro ao cancelar reserva:", error);
         res.status(500).json({ error: "Erro interno." });
     }
 });
+
 
 // --- NOTIFICAÇÕES (RF12/RF13) ---
 
@@ -980,15 +1027,19 @@ app.post('/api/chat', async (req, res) => {
     console.log(`💬 Pergunta do Usuário (ID: ${userId || 'Visitante'}):`, message);
 
     try {
-        // --- 1. RAG (Busca nos PDFs) ---
+        // --- 1. RAG (Busca nos PDFs) — RF19: top-4 fragmentos com fonte obrigatória ---
         let contextText = "";
+        let ragSources = [];
         if (vectorStore.length > 0) {
             const output = await embedder(message, { pooling: 'mean', normalize: true });
             const queryVector = output.data;
             const results = vectorStore.map(item => ({ item, score: cosineSimilarity(queryVector, item.vector) }));
-            const topResults = results.sort((a, b) => b.score - a.score).slice(0, 3);
-            contextText = topResults.map(r => r.item.text).join("\n\n");
+            const topResults = results.sort((a, b) => b.score - a.score).slice(0, 4); // RF19/UC11: top-4
+            ragSources = [...new Set(topResults.map(r => r.item.source))]; // fontes únicas
+            // Inclui fonte no contexto para o LLM poder citá-la (RF19 obrigatório)
+            contextText = topResults.map(r => `[Fonte: ${r.item.source}]\n${r.item.text}`).join("\n\n");
         }
+
 
         // Informação sobre o perfil do usuário para RF23
         let userInfo = '';
@@ -1022,10 +1073,15 @@ app.post('/api/chat', async (req, res) => {
         6. Informe ao usuário se a reserva será aprovada automaticamente ou ficará pendente.
         7. Somente após confirmação, chame 'solicitar_reserva'.
 
+        REGRAS DE CITAÇÃO DE FONTE (RF19 — OBRIGATÓRIO):
+        - Se a sua resposta for baseada em algum trecho do contexto documental abaixo, cite obrigatoriamente a fonte ao final, no formato: "📄 Fonte: [nome do arquivo]"
+        - Se não houver documentos recuperados ou a pergunta não puder ser respondida com base neles, declare explicitamente: "Não encontrei essa informação nos documentos institucionais disponíveis."
+        - Nunca invente informações sobre o laboratório.
+
         REGRAS DE FORMATAÇÃO:
         - Seja direto e educado.
         - Não mencione termos técnicos como "banco de dados", "SQLite", "ferramentas".
-        - Contexto dos documentos do lab: ${contextText}`;
+        ${contextText ? `- Contexto dos documentos do lab:\n${contextText}` : '- Não há documentos institucionais indexados no momento.'}`;
 
         // 2. Primeira chamada (IA Pensa)
         const response1 = await fetch('http://127.0.0.1:11434/api/chat', {

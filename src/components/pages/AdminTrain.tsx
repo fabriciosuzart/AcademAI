@@ -4,7 +4,7 @@ import api from '../../api/axios';
 import './AdminTrain.css';
 
 const AdminTrain: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'overview' | 'reservations' | 'equipment' | 'ai'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'reservations' | 'equipment' | 'ai' | 'users' | 'calendar'>('overview');
     
     // --- ESTADOS PARA OVERVIEW ---
     const [overviewData, setOverviewData] = useState<any>(null);
@@ -30,6 +30,17 @@ const AdminTrain: React.FC = () => {
     const [pendingReservations, setPendingReservations] = useState<any[]>([]);
     const [loadingRes, setLoadingRes] = useState(false);
 
+    // --- ESTADOS PARA USUÁRIOS (RF30) ---
+    const [users, setUsers] = useState<any[]>([]);
+    const [loadingUsers, setLoadingUsers] = useState(false);
+    const [userRoleEdit, setUserRoleEdit] = useState<Record<number, string>>({});
+    const [userSearch, setUserSearch] = useState('');
+
+    // --- ESTADOS PARA CALENDÁRIO GLOBAL (RF30) ---
+    const [calendarAppointments, setCalendarAppointments] = useState<any[]>([]);
+    const [loadingCalendar, setLoadingCalendar] = useState(false);
+    const [calendarWeekOffset, setCalendarWeekOffset] = useState(0); // 0=semana atual, 1=próxima, etc.
+
     const navigate = useNavigate();
 
     // Proteção de Rota
@@ -45,6 +56,7 @@ const AdminTrain: React.FC = () => {
             if (role === 'ADMIN') {
                 fetchEquipments();
                 fetchOverview();
+                fetchUsers();
             }
             fetchPendingReservations();
         }
@@ -77,6 +89,72 @@ const AdminTrain: React.FC = () => {
             setPendingReservations(res.data);
         } catch (error) {
             console.error("Erro ao buscar reservas pendentes");
+        }
+    };
+
+    // --- FUNÇÕES DE USUÁRIOS ---
+    const fetchUsers = async () => {
+        setLoadingUsers(true);
+        try {
+            const res = await api.get('/users');
+            setUsers(Array.isArray(res.data) ? res.data : []);
+            // Inicializa o mapa de edição de role com valores atuais
+            const roleMap: Record<number, string> = {};
+            res.data.forEach((u: any) => { roleMap[u.id] = u.role; });
+            setUserRoleEdit(roleMap);
+        } catch (error) {
+            console.error("Erro ao buscar usuários");
+        } finally {
+            setLoadingUsers(false);
+        }
+    };
+
+    const handleToggleActive = async (user: any) => {
+        if (!window.confirm(`${user.isActive ? 'Desativar' : 'Ativar'} a conta de ${user.name}?`)) return;
+        try {
+            await api.put(`/users/${user.id}/toggle-active`);
+            fetchUsers();
+        } catch (error: any) {
+            alert(error.response?.data?.error || 'Erro ao alterar status.');
+        }
+    };
+
+    const handleChangeRole = async (userId: number) => {
+        const newRole = userRoleEdit[userId];
+        try {
+            await api.put(`/users/${userId}`, { role: newRole });
+            alert('Perfil atualizado com sucesso!');
+            fetchUsers();
+        } catch (error: any) {
+            alert(error.response?.data?.error || 'Erro ao alterar perfil.');
+        }
+    };
+
+    // --- FUNÇÕES DO CALENDÁRIO ---
+    const fetchCalendar = async (weekOffset = 0) => {
+        setLoadingCalendar(true);
+        try {
+            const today = new Date();
+            today.setDate(today.getDate() + weekOffset * 7);
+            const dayOfWeek = today.getDay();
+            const monday = new Date(today);
+            monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+            const friday = new Date(monday);
+            friday.setDate(monday.getDate() + 4);
+
+            const start = monday.toISOString().split('T')[0];
+            const end = friday.toISOString().split('T')[0];
+
+            const res = await api.get('/appointments/all-history');
+            const all = Array.isArray(res.data) ? res.data : [];
+            const weekAppts = all.filter((a: any) =>
+                a.date >= start && a.date <= end && ['APROVADA', 'PENDENTE'].includes(a.status)
+            );
+            setCalendarAppointments(weekAppts);
+        } catch (error) {
+            console.error("Erro ao buscar calendário");
+        } finally {
+            setLoadingCalendar(false);
         }
     };
 
@@ -180,9 +258,9 @@ const AdminTrain: React.FC = () => {
     };
 
     // --- FUNÇÕES DE RESERVA ---
-    const handleUpdateReservation = async (id: number, status: 'APROVADO' | 'RECUSADO') => {
+    const handleUpdateReservation = async (id: number, status: 'APROVADA' | 'REJEITADA') => {
         let rejectionReason = '';
-        if (status === 'RECUSADO') {
+        if (status === 'REJEITADA') {
             const reason = prompt('Por favor, informe a justificativa para a rejeição:');
             if (reason === null) return; // Cancelou o prompt
             rejectionReason = reason;
@@ -218,6 +296,14 @@ const AdminTrain: React.FC = () => {
                 </button>
                 {userRole === 'ADMIN' && (
                     <>
+                        <button
+                                onClick={() => { setActiveTab('calendar'); fetchCalendar(calendarWeekOffset); }}
+                                style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'calendar' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'calendar' ? 'white' : 'black', cursor: 'pointer' }}>
+                                🗓️ Calendário Global
+                            </button>
+                        <button onClick={() => setActiveTab('users')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'users' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'users' ? 'white' : 'black', cursor: 'pointer' }}>
+                            👥 Usuários
+                        </button>
                         <button onClick={() => setActiveTab('equipment')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'equipment' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'equipment' ? 'white' : 'black', cursor: 'pointer' }}>
                             🖨️ Equipamentos
                         </button>
@@ -293,10 +379,10 @@ const AdminTrain: React.FC = () => {
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
-                                            <button disabled={loadingRes} onClick={() => handleUpdateReservation(res.id, 'APROVADO')} style={{ background: '#10b981', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                            <button disabled={loadingRes} onClick={() => handleUpdateReservation(res.id, 'APROVADA')} style={{ background: '#10b981', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
                                                 ✅ Aprovar
                                             </button>
-                                            <button disabled={loadingRes} onClick={() => handleUpdateReservation(res.id, 'RECUSADO')} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                            <button disabled={loadingRes} onClick={() => handleUpdateReservation(res.id, 'REJEITADA')} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
                                                 ❌ Rejeitar
                                             </button>
                                         </div>
@@ -376,6 +462,135 @@ const AdminTrain: React.FC = () => {
                             ))}
                         </ul>
                     </div>
+                </div>
+            )}
+            {/* ABA: CALENDÁRIO GLOBAL */}
+            {activeTab === 'calendar' && userRole === 'ADMIN' && (
+                <div className="admin-panel" style={{ width: '100%', margin: '0 auto' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+                        <h2 style={{ color: 'white', margin: 0 }}>Calendário Global 🗓️</h2>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button onClick={() => { const w = calendarWeekOffset - 1; setCalendarWeekOffset(w); fetchCalendar(w); }}
+                                style={{ background: '#334155', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}>
+                                ← Semana Anterior
+                            </button>
+                            <button onClick={() => { setCalendarWeekOffset(0); fetchCalendar(0); }}
+                                style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}>
+                                Hoje
+                            </button>
+                            <button onClick={() => { const w = calendarWeekOffset + 1; setCalendarWeekOffset(w); fetchCalendar(w); }}
+                                style={{ background: '#334155', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}>
+                                Próxima Semana →
+                            </button>
+                        </div>
+                    </div>
+                    {loadingCalendar ? (
+                        <p style={{ color: '#94a3b8', textAlign: 'center', padding: '40px' }}>Carregando calendário...</p>
+                    ) : calendarAppointments.length === 0 ? (
+                        <p style={{ color: '#94a3b8', textAlign: 'center', padding: '40px' }}>Nenhuma reserva aprovada ou pendente nesta semana.</p>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {calendarAppointments
+                                .sort((a: any, b: any) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
+                                .map((appt: any) => {
+                                    const dateLabel = new Date(appt.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' });
+                                    const isApproved = appt.status === 'APROVADA';
+                                    return (
+                                        <div key={appt.id} style={{
+                                            background: '#0f172a', padding: '14px 18px', borderRadius: '10px',
+                                            borderLeft: `4px solid ${isApproved ? '#10b981' : '#fbbf24'}`,
+                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px'
+                                        }}>
+                                            <div>
+                                                <strong style={{ color: 'white', display: 'block', textTransform: 'capitalize' }}>{dateLabel}</strong>
+                                                <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
+                                                    {appt.time}{appt.endTime ? ` – ${appt.endTime}` : ''} &bull; {appt.equipment?.name || '—'}
+                                                </span>
+                                                <span style={{ color: '#cbd5e1', fontSize: '0.85rem', display: 'block', marginTop: '4px' }}>
+                                                    👤 {appt.user?.name} ({appt.user?.role})
+                                                </span>
+                                            </div>
+                                            <span style={{
+                                                padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold',
+                                                background: isApproved ? 'rgba(16,185,129,0.15)' : 'rgba(251,191,36,0.15)',
+                                                color: isApproved ? '#10b981' : '#fbbf24'
+                                            }}>
+                                                {appt.status}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ABA: USUÁRIOS */}
+            {activeTab === 'users' && userRole === 'ADMIN' && (
+                <div className="admin-panel" style={{ width: '100%', margin: '0 auto' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+                        <h2 style={{ color: 'white', margin: 0 }}>Gestão de Usuários 👥</h2>
+                        <input
+                            type="text"
+                            placeholder="Buscar por nome, e-mail ou RA..."
+                            value={userSearch}
+                            onChange={e => setUserSearch(e.target.value)}
+                            style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #334155', background: '#1e293b', color: 'white', minWidth: '240px' }}
+                        />
+                    </div>
+                    {loadingUsers ? (
+                        <p style={{ color: '#94a3b8', textAlign: 'center', padding: '40px' }}>Carregando usuários...</p>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {users
+                                .filter((u: any) => {
+                                    const term = userSearch.toLowerCase();
+                                    return !term || u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term) || (u.ra || '').toLowerCase().includes(term);
+                                })
+                                .map((u: any) => (
+                                    <div key={u.id} style={{
+                                        background: '#0f172a', padding: '16px', borderRadius: '10px',
+                                        borderLeft: `4px solid ${u.role === 'ADMIN' ? '#8b5cf6' : u.role === 'PROFESSOR' ? '#3b82f6' : '#10b981'}`,
+                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px',
+                                        opacity: u.isActive ? 1 : 0.5
+                                    }}>
+                                        <div>
+                                            <strong style={{ color: 'white', fontSize: '1rem' }}>{u.name}</strong>
+                                            <span style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'block' }}>{u.email} {u.ra ? `• RA: ${u.ra}` : ''}</span>
+                                            {!u.isActive && <span style={{ color: '#ef4444', fontSize: '0.75rem' }}>⛔ Conta desativada</span>}
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                            {/* Alterar perfil (RF04) */}
+                                            <select
+                                                value={userRoleEdit[u.id] || u.role}
+                                                onChange={e => setUserRoleEdit(prev => ({ ...prev, [u.id]: e.target.value }))}
+                                                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #334155', background: '#1e293b', color: 'white', fontSize: '0.85rem' }}
+                                            >
+                                                <option value="ALUNO">Estudante</option>
+                                                <option value="PROFESSOR">Professor</option>
+                                                <option value="ADMIN">Administrador</option>
+                                            </select>
+                                            {userRoleEdit[u.id] !== u.role && (
+                                                <button onClick={() => handleChangeRole(u.id)}
+                                                    style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                                    Salvar
+                                                </button>
+                                            )}
+                                            {/* Ativar/desativar conta */}
+                                            <button onClick={() => handleToggleActive(u)}
+                                                style={{
+                                                    background: u.isActive ? 'transparent' : '#10b981',
+                                                    color: u.isActive ? '#ef4444' : 'white',
+                                                    border: u.isActive ? '1px solid #ef4444' : 'none',
+                                                    padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem'
+                                                }}>
+                                                {u.isActive ? '⛔ Desativar' : '✅ Ativar'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                        </div>
+                    )}
                 </div>
             )}
         </div>

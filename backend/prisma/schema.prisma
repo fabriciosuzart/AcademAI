@@ -51,7 +51,7 @@ model Appointment {
   time            String   // Horário de início. Ex: "14:00"
   endTime         String?  // Horário de término. Ex: "16:00"
   justification   String?  // Motivo da reserva
-  status          String   @default("PENDENTE") // "PENDENTE", "APROVADO", "RECUSADO", "CANCELADA"
+  status          String   @default("PENDENTE") // RF09: "PENDENTE" | "APROVADA" | "REJEITADA" | "CANCELADA" | "CONCLUIDA"
   rejectionReason String?  // Justificativa de rejeição (professor/admin)
   approvedById    Int?     // ID de quem aprovou/rejeitou
   createdAt       DateTime @default(now())

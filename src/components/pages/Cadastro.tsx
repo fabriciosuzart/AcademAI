@@ -19,6 +19,9 @@ const Cadastro: React.FC = () => {
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (formData.password.length < 8) {
+            return alert('A senha deve ter no mínimo 8 caracteres.'); // RF01
+        }
         if (formData.password !== formData.confirmPassword) {
             return alert('As senhas não conferem.');
         }
@@ -79,17 +82,20 @@ const Cadastro: React.FC = () => {
                         <div className="signup-row">
                             <div className="signup-field">
                                 <label htmlFor="role">Perfil</label>
-                                <select id="role" value={formData.role} onChange={(e) => setFormData({...formData, role: e.target.value})} required aria-required="true" aria-label="Selecione seu perfil (estudante ou professor)" style={{ padding: '12px', borderRadius: '8px', border: '1px solid #334155', background: '#1e293b', color: 'white', fontFamily: 'inherit' }}>
+                                {/* RF01/RN08 — apenas Estudante no cadastro público; Professor e Admin são atribuídos pelo administrador */}
+                                <select id="role" value={formData.role} onChange={(e) => setFormData({...formData, role: e.target.value})} required aria-required="true" aria-label="Perfil do usuário (somente Estudante disponível no cadastro público)" style={{ padding: '12px', borderRadius: '8px', border: '1px solid #334155', background: '#1e293b', color: 'white', fontFamily: 'inherit' }}>
                                     <option value="ALUNO">Estudante</option>
-                                    <option value="PROFESSOR">Professor</option>
                                 </select>
+                                <small style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                                    Perfis Professor e Administrador são atribuídos pelo administrador do laboratório.
+                                </small>
                             </div>
                         </div>
 
                         <div className="signup-row">
                             <div className="signup-field">
                                 <label htmlFor="password">Criar Senha</label>
-                                <input type="password" id="password" placeholder="Mínimo 6 caracteres" value={formData.password} onChange={handleChange} required aria-required="true" aria-label="Crie uma senha de no mínimo 6 caracteres" />
+                                <input type="password" id="password" placeholder="Mínimo 8 caracteres" value={formData.password} onChange={handleChange} required aria-required="true" aria-label="Crie uma senha de no mínimo 8 caracteres com letras e números" />
                             </div>
                             <div className="signup-field">
                                 <label htmlFor="confirmPassword">Confirmar Senha</label>

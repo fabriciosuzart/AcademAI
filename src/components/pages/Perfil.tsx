@@ -63,6 +63,14 @@ const Perfil: React.FC = () => {
   // Estado para guardar o histórico de agendamentos
   const [appointments, setAppointments] = useState<any[]>([]);
   const [viewAllAppointments, setViewAllAppointments] = useState(false);
+
+  // Estatísticas dinâmicas do semestre (RF17 / #14)
+  const [semesterStats, setSemesterStats] = useState({
+    semesterHours: 0,
+    projectCount: 0,
+    completedTrainings: ''
+  });
+  const [loadingStats, setLoadingStats] = useState(false);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [equipmentItems, setEquipmentItems] = useState<EquipmentItem[]>([]);
   const [activeTab, setActiveTab] = useState<
@@ -249,9 +257,10 @@ const Perfil: React.FC = () => {
     setUserData({ name, email, ra });
     setUserRole(role);
 
-    // Se tiver ID, busca os agendamentos no banco
+    // Se tiver ID, busca os agendamentos no banco e as estatísticas dinâmicas
     if (userId) {
       fetchAppointments(userId, false);
+      fetchStats(userId);
     }
   }, []);
 
@@ -389,9 +398,26 @@ const Perfil: React.FC = () => {
       : "Aluno";
 
   const totalReservations = appointments.length;
-  const semesterHours = 47;
-  const projectCount = 4;
-  const completedTrainings = [true, true, true, false];
+
+  // Estatísticas dinâmicas (RF17) — substituem valores hard-coded
+  const fetchStats = async (userId: string) => {
+    setLoadingStats(true);
+    try {
+      const res = await api.get(`/users/${userId}/stats`);
+      setSemesterStats(res.data);
+    } catch (e) {
+      console.error('Erro ao buscar estatísticas:', e);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  const { semesterHours, projectCount, completedTrainings: trainingsStr } = semesterStats;
+
+  // Monta array booleano de treinamentos concluídos a partir da string CSV do banco
+  const completedTrainings = trainingModules.map(module =>
+    trainingsStr.split(',').map(t => t.trim()).includes(module)
+  );
 
   const filteredAppointments =
     appointmentFilter === "todos"
@@ -403,7 +429,7 @@ const Perfil: React.FC = () => {
         if (appointmentFilter === "aprovado") return s === "aprovada" || s === "aprovado";
         if (appointmentFilter === "concluido") return s === "concluida" || s === "concluido";
         if (appointmentFilter === "pendente") return s === "pendente";
-        if (appointmentFilter === "rejeitado") return s === "rejeitada" || s === "rejeitado";
+        if (appointmentFilter === "rejeitado") return s === "rejeitada" || s === "rejeitado" || s === "recusado";
         return s === appointmentFilter;
       });
 
@@ -459,8 +485,8 @@ const Perfil: React.FC = () => {
 
   const handlePasswordUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (currentPassword.length < 6 || newPassword.length < 6)
-      return alert("A senha deve ter no mínimo 6 caracteres.");
+    if (currentPassword.length < 8 || newPassword.length < 8)
+      return alert("A senha deve ter no mínimo 8 caracteres."); // RF01
     if (newPassword !== confirmPassword)
       return alert("As senhas não coincidem.");
 
@@ -697,11 +723,11 @@ const Perfil: React.FC = () => {
                 </div>
                 <div className="stats-card">
                   <span>Horas</span>
-                  <strong>{semesterHours}h</strong>
+                  <strong>{loadingStats ? '…' : `${semesterHours}h`}</strong>
                 </div>
                 <div className="stats-card">
-                  <span>Projetos</span>
-                  <strong>{projectCount}</strong>
+                  <span>Equipamentos</span>
+                  <strong>{loadingStats ? '…' : projectCount}</strong>
                 </div>
               </div>
 
