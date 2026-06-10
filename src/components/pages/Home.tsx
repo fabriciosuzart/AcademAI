@@ -14,8 +14,10 @@ const Home: React.FC = () => {
                 <div className="tabs">
                     <Link to="/assistente" className="tab-button active">Interagir com IA</Link>
                     <Link to="/cadastro" className="tab-button active">Cadastre-se Agora</Link>
-                    {userRole === 'ADMIN' && (
-                        <Link to="/admin" className="tab-button admin-tab">Painel Admin</Link>
+                    {(userRole === 'ADMIN' || userRole === 'PROFESSOR') && (
+                        <Link to="/admin" className="tab-button admin-tab">
+                            {userRole === 'ADMIN' ? 'Painel Admin' : 'Painel do Professor'}
+                        </Link>
                     )}
                 </div>
 

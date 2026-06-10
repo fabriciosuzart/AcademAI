@@ -30,6 +30,21 @@ const Assistente: React.FC = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
+  // Processa comandos de voz globais
+  useEffect(() => {
+    const checkPendingCommand = () => {
+      const pendingCmd = sessionStorage.getItem('pending_voice_command');
+      if (pendingCmd) {
+        sessionStorage.removeItem('pending_voice_command');
+        handleSend(pendingCmd);
+      }
+    };
+
+    checkPendingCommand(); // Na montagem
+    window.addEventListener('process-pending-voice', checkPendingCommand);
+    return () => window.removeEventListener('process-pending-voice', checkPendingCommand);
+  }, []);
+
   // --- TEXT TO SPEECH (IA Fala) ---
   const speak = (text: string) => {
     if (!window.speechSynthesis) return;

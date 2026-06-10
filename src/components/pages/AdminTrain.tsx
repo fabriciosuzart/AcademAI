@@ -4,7 +4,9 @@ import api from '../../api/axios';
 import './AdminTrain.css';
 
 const AdminTrain: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'overview' | 'reservations' | 'equipment' | 'ai' | 'users' | 'calendar'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'reservations' | 'equipment' | 'ai' | 'users' | 'calendar'>(
+        localStorage.getItem('userRole') === 'ADMIN' ? 'overview' : 'reservations'
+    );
     
     // --- ESTADOS PARA OVERVIEW ---
     const [overviewData, setOverviewData] = useState<any>(null);

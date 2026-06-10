@@ -56,7 +56,7 @@ export async function executarSolicitacaoReserva(args, userId) {
     console.log(`🛠️ MCP ACIONADO: Reservando Equipamento ${eId} para Usuário ${uId}...`);
 
     if (!uId) {
-        return "O agendamento FALHOU. Usuário não está logado.";
+        return "O agendamento FALHOU. Usuário não está logado. Peça para o usuário fazer login no sistema.";
     }
 
     try {

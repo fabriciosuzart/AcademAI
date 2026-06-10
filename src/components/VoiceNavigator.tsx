@@ -6,23 +6,30 @@ const VoiceNavigator: React.FC = () => {
     const [isListening, setIsListening] = useState(false);
     const [status, setStatus] = useState<string>('');
     const [showTtsWarning, setShowTtsWarning] = useState(false); // RNF07 — aviso privacidade TTS
-    const mediaRecorder = useRef<MediaRecorder | null>(null);
-    const audioChunks = useRef<Blob[]>([]);
+
     const isListeningRef = useRef(false);
     const navigate = useNavigate();
     const location = useLocation();
 
     // Feedback por voz — RNF07: avisa na primeira utilização sobre TTS (Web Speech API)
-    const speak = useCallback((text: string) => {
+    const speak = useCallback((text: string, onEnd?: () => void) => {
         // Verifica se é a primeira vez usando TTS e exibe aviso de privacidade
         const ttsWarningShown = localStorage.getItem('tts_privacy_warning_shown');
         if (!ttsWarningShown) {
             setShowTtsWarning(true);
         }
         window.speechSynthesis.cancel();
+        if (!text) {
+            if (onEnd) onEnd();
+            return;
+        }
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'pt-BR';
         utterance.rate = 1.0;
+        if (onEnd) {
+            utterance.onend = onEnd;
+            utterance.onerror = onEnd; // Fallback se der erro
+        }
         window.speechSynthesis.speak(utterance);
     }, []);
 
@@ -49,39 +56,6 @@ const VoiceNavigator: React.FC = () => {
         }
     }, [location.pathname, speak]);
 
-    // Conversor WAV
-    const convertToWav = async (blob: Blob): Promise<Blob> => {
-        const arrayBuffer = await blob.arrayBuffer();
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        const channelData = audioBuffer.getChannelData(0);
-        const sampleRate = audioBuffer.sampleRate;
-        const wavBuffer = new ArrayBuffer(44 + channelData.length * 2);
-        const view = new DataView(wavBuffer);
-        const writeString = (offset: number, string: string) => {
-            for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
-        };
-        writeString(0, 'RIFF');
-        view.setUint32(4, 36 + channelData.length * 2, true);
-        writeString(8, 'WAVE');
-        writeString(12, 'fmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);
-        view.setUint16(22, 1, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, sampleRate * 2, true);
-        view.setUint16(32, 2, true);
-        view.setUint16(34, 16, true);
-        writeString(36, 'data');
-        view.setUint32(40, channelData.length * 2, true);
-        let offset = 44;
-        for (let i = 0; i < channelData.length; i++, offset += 2) {
-            const s = Math.max(-1, Math.min(1, channelData[i]));
-            view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-        }
-        return new Blob([view], { type: 'audio/wav' });
-    };
-
     // Processa o comando transcrito de forma inteligente
     const processCommand = useCallback((text: string) => {
         const lower = text.toLowerCase()
@@ -93,16 +67,17 @@ const VoiceNavigator: React.FC = () => {
         // === Se estiver na página de login, verifica comandos de preenchimento ===
         if (location.pathname === '/login') {
             if (lower.includes('email') || lower.includes('e-mail') || lower.includes('correio')) {
-                // Dispara evento para Login.tsx preencher o e-mail
-                speak('Microfone ativado. Diga seu e-mail agora.');
-                setStatus('🎤 Agora diga seu e-mail...');
-                setTimeout(() => startRecordingForField('email'), 1500);
+                setStatus('🎤 Preparando para ouvir e-mail...');
+                speak('Diga seu e-mail agora.', () => {
+                    startRecordingForField('email');
+                });
                 return;
             }
             if (lower.includes('senha') || lower.includes('password') || lower.includes('codigo')) {
-                speak('Microfone ativado. Diga sua senha agora.');
-                setStatus('🎤 Agora diga sua senha...');
-                setTimeout(() => startRecordingForField('password'), 1500);
+                setStatus('🎤 Preparando para ouvir senha...');
+                speak('Diga sua senha agora.', () => {
+                    startRecordingForField('password');
+                });
                 return;
             }
             if (lower.includes('entrar') || lower.includes('login') || lower.includes('enviar')) {
@@ -114,9 +89,24 @@ const VoiceNavigator: React.FC = () => {
             }
         }
 
+        // === Comandos Globais de IA (Ex: Reservar, Agendar, Perguntar) ===
+        const aiKeywords = ['reservar', 'agendar', 'marcar', 'cancelar reserva', 'quais equipamentos', 'quero reservar'];
+        if (aiKeywords.some(kw => lower.startsWith(kw))) {
+            setStatus('🤖 Encaminhando para IA...');
+            speak('Encaminhando seu pedido para a Inteligência Artificial.');
+            sessionStorage.setItem('pending_voice_command', text);
+            if (location.pathname !== '/assistente') {
+                navigate('/assistente');
+            } else {
+                window.dispatchEvent(new Event('process-pending-voice'));
+            }
+            setTimeout(() => setStatus(''), 3000);
+            return;
+        }
+
         // === Navegação entre páginas ===
         const routes: { keywords: string[]; path: string; label: string }[] = [
-            { keywords: ['inicio', 'home', 'pagina inicial', 'principal', 'comeco', 'beginning', 'start', 'main'], path: '/', label: 'início' },
+            { keywords: ['inicio', 'home', 'pagina inicial', 'principal', 'comeco', 'beginning', 'start', 'main', 'rom', 'roume', 'houme', 'homi'], path: '/', label: 'início' },
             { keywords: ['equipamento', 'equipamentos', 'maquina', 'maquinas', 'equipment', 'machine', 'impressora', 'printer', 'laser', 'cortadora'], path: '/equipamentos', label: 'equipamentos' },
             { keywords: ['disponibilidade', 'calendario', 'horario', 'livre', 'ocupado', 'disponivel', 'vago'], path: '/disponibilidade', label: 'disponibilidade' },
             { keywords: ['assistente', 'assistant', 'chat', 'ia', 'inteligencia', 'intelligence', 'ajuda', 'help', 'conversar', 'talk'], path: '/assistente', label: 'assistente virtual' },
@@ -124,7 +114,7 @@ const VoiceNavigator: React.FC = () => {
             { keywords: ['agendamento', 'agendar', 'reservar', 'reserva', 'schedule', 'booking', 'book', 'marcar', 'horario'], path: '/agendamento', label: 'agendamentos' },
             { keywords: ['documentacao', 'documento', 'manual', 'manuais', 'documentation', 'document', 'guia', 'guide', 'pdf'], path: '/documentacao', label: 'documentação' },
             { keywords: ['contato', 'contatos', 'contact', 'falar', 'mensagem', 'message', 'suporte', 'support'], path: '/contato', label: 'contato' },
-            { keywords: ['fazer login', 'login', 'logar', 'sign in', 'signin', 'log in', 'acessar'], path: '/login', label: 'login' },
+            { keywords: ['fazer login', 'login', 'logar', 'sign in', 'signin', 'log in', 'acessar', 'loguin', 'entrar'], path: '/login', label: 'login' },
             { keywords: ['cadastro', 'cadastrar', 'registrar', 'register', 'sign up', 'signup', 'criar conta'], path: '/cadastro', label: 'cadastro' },
         ];
 
@@ -147,133 +137,90 @@ const VoiceNavigator: React.FC = () => {
         setTimeout(() => setStatus(''), 6000);
     }, [navigate, speak, location.pathname]);
 
-    // Gravação para preenchimento de campos (email/senha no login)
-    const startRecordingForField = async (field: 'email' | 'password') => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const recorder = new MediaRecorder(stream);
-            const chunks: Blob[] = [];
 
-            recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) chunks.push(e.data);
-            };
+    // === Web Speech API Nativa ===
+    const listenWithNativeSpeech = (onResult: (text: string) => void, startMessage: string, listeningStatus: string) => {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            speak("Seu navegador não suporta reconhecimento de voz nativo.");
+            setStatus('❌ Navegador não suportado');
+            isListeningRef.current = false;
+            setIsListening(false);
+            return;
+        }
 
-            recorder.onstop = async () => {
-                speak('Processando.');
-                setStatus('🧠 Processando...');
-                const webmBlob = new Blob(chunks);
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'pt-BR';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
 
-                try {
-                    const wavBlob = await convertToWav(webmBlob);
-                    const formData = new FormData();
-                    formData.append('audio', wavBlob, 'campo.wav');
-
-                    const response = await fetch('http://localhost:3000/api/transcribe', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const data = await response.json();
-
-                    if (data.text) {
-                        // Dispara evento customizado para Login.tsx capturar
-                        window.dispatchEvent(new CustomEvent('voice-fill-field', {
-                            detail: { field, text: data.text.trim() }
-                        }));
-                    } else {
-                        speak('Não entendi. Pressione M e tente novamente.');
-                    }
-                } catch (error) {
-                    speak('Falha de conexão.');
-                    console.error(error);
-                }
-
-                stream.getTracks().forEach(t => t.stop());
-                isListeningRef.current = false;
-                setIsListening(false);
-                setTimeout(() => setStatus(''), 5000);
-            };
-
-            recorder.start();
+        recognition.onstart = () => {
             isListeningRef.current = true;
             setIsListening(true);
+            if (startMessage) {
+                speak(startMessage);
+            }
+            setStatus(listeningStatus);
+        };
 
-            // Grava 10 segundos para e-mail, 5 para senha
+        recognition.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript;
+            onResult(transcript);
+        };
+
+        recognition.onerror = (event: any) => {
+            if (event.error === 'no-speech') {
+                speak('Não ouvi nada. Pressione M e tente novamente.');
+                setStatus('❌ Nada ouvido');
+            } else {
+                speak('Erro no reconhecimento de voz.');
+                setStatus('❌ Erro no microfone');
+            }
+        };
+
+        recognition.onend = () => {
+            isListeningRef.current = false;
+            setIsListening(false);
             setTimeout(() => {
-                if (recorder.state === 'recording') recorder.stop();
-            }, field === 'email' ? 10000 : 5000);
+                setStatus(prev => prev.includes('❌') || prev.includes('✅') || prev.includes('🎤') ? '' : prev);
+            }, 4000);
+        };
 
-        } catch (error) {
-            speak('Não foi possível acessar o microfone.');
+        try {
+            recognition.start();
+        } catch (e) {
+            console.error("Erro ao iniciar reconhecimento", e);
             isListeningRef.current = false;
             setIsListening(false);
         }
     };
 
+    // Gravação para preenchimento de campos (email/senha no login)
+    const startRecordingForField = (field: 'email' | 'password') => {
+        listenWithNativeSpeech((text) => {
+            if (text) {
+                setStatus(`"${text}"`);
+                window.dispatchEvent(new CustomEvent('voice-fill-field', {
+                    detail: { field, text: text.trim() }
+                }));
+            } else {
+                speak('Não entendi. Pressione M e tente novamente.');
+            }
+        }, '', field === 'email' ? '🎤 Diga seu e-mail...' : '🎤 Diga sua senha...');
+    };
+
     // Gravação principal (comando de navegação)
-    const startRecording = useCallback(async () => {
+    const startRecording = useCallback(() => {
         if (isListeningRef.current) return;
-
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder.current = new MediaRecorder(stream);
-            audioChunks.current = [];
-
-            mediaRecorder.current.ondataavailable = (e) => {
-                if (e.data.size > 0) audioChunks.current.push(e.data);
-            };
-
-            mediaRecorder.current.onstop = async () => {
-                speak('Processando seu comando.');
-                setStatus('🧠 Processando...');
-                const webmBlob = new Blob(audioChunks.current);
-
-                try {
-                    const wavBlob = await convertToWav(webmBlob);
-                    const formData = new FormData();
-                    formData.append('audio', wavBlob, 'comando.wav');
-
-                    const response = await fetch('http://localhost:3000/api/transcribe', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const data = await response.json();
-
-                    if (data.text) {
-                        setStatus(`"${data.text}"`);
-                        processCommand(data.text);
-                    } else {
-                        speak('Não consegui entender. Pressione M para tentar novamente.');
-                        setStatus('❌ Não entendi.');
-                    }
-                } catch (error) {
-                    speak('Falha de conexão com o servidor.');
-                    setStatus('❌ Falha de conexão.');
-                    console.error(error);
-                }
-
-                isListeningRef.current = false;
-                setIsListening(false);
-                stream.getTracks().forEach(t => t.stop());
-                setTimeout(() => setStatus(''), 5000);
-            };
-
-            mediaRecorder.current.start();
-            isListeningRef.current = true;
-            setIsListening(true);
-            speak('Microfone ativado. Fale seu comando.');
-            setStatus('🎤 Ouvindo...');
-
-            setTimeout(() => {
-                if (mediaRecorder.current?.state === 'recording') {
-                    mediaRecorder.current.stop();
-                }
-            }, 4000);
-
-        } catch (error) {
-            speak('Não foi possível acessar o microfone.');
-            isListeningRef.current = false;
-            setIsListening(false);
-        }
+        listenWithNativeSpeech((text) => {
+            if (text) {
+                setStatus(`"${text}"`);
+                processCommand(text);
+            } else {
+                speak('Não consegui entender. Pressione M para tentar novamente.');
+                setStatus('❌ Não entendi.');
+            }
+        }, 'Microfone ativado. Fale seu comando.', '🎤 Ouvindo...');
     }, [processCommand, speak]);
 
     // === ATALHO GLOBAL: Tecla M ===

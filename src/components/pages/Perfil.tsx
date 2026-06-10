@@ -925,7 +925,7 @@ const Perfil: React.FC = () => {
                           <button type="button" className="ghost-btn" onClick={() => alert("Para reagendar, cancele este agendamento e faça um novo na tela de Equipamentos.")}>
                             Reagendar
                           </button>
-                          {['PENDENTE', 'APROVADO'].includes(appt.status) && (
+                          {['PENDENTE', 'APROVADO', 'APROVADA'].includes(appt.status?.toUpperCase()) && (
                             <button type="button" className="ghost-btn danger" onClick={() => handleCancelAppointment(appt.id)}>
                               Cancelar
                             </button>

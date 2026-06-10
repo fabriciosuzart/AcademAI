@@ -13,7 +13,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import multer from 'multer';
-import pkg from 'wavefile';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import {
@@ -21,7 +20,6 @@ import {
     toolSolicitarReserva, executarSolicitacaoReserva
 } from './mcp_tools.js';
 
-const { WaveFile } = pkg;
 const execPromise = promisify(exec);
 
 const require = createRequire(import.meta.url);
@@ -1023,7 +1021,7 @@ app.post('/api/train', authMiddleware, roleMiddleware(['ADMIN']), upload.single(
 
 // --- CHAT (MCP + RAG + RESERVAS) ---
 app.post('/api/chat', async (req, res) => {
-    const { message, userId } = req.body;
+    const { message, userId, history = [] } = req.body;
     console.log(`💬 Pergunta do Usuário (ID: ${userId || 'Visitante'}):`, message);
 
     try {
@@ -1054,7 +1052,7 @@ app.post('/api/chat', async (req, res) => {
                 statusLogin = `Você está falando com ${user.name} (${user.role}, ID: ${userId}). ${userInfo}`;
             }
         } else {
-            statusLogin = `Você está falando com um VISITANTE NÃO LOGADO. Se ele tentar agendar, recuse e peça para fazer login.`;
+            statusLogin = `Você está falando com um VISITANTE NÃO LOGADO. Se o usuário falar em agendar, reservar ou perguntar sobre a disponibilidade de equipamentos para reservar, RECUSE IMEDIATAMENTE informando que ele precisa fazer login na plataforma. NÃO CHAME nenhuma ferramenta (nem consultar_equipamentos, nem solicitar_reserva). Encerre o assunto ali mesmo.`;
         }
 
         const systemPromptBase = `Você é o assistente virtual do AcademAI.
@@ -1083,16 +1081,19 @@ app.post('/api/chat', async (req, res) => {
         - Não mencione termos técnicos como "banco de dados", "SQLite", "ferramentas".
         ${contextText ? `- Contexto dos documentos do lab:\n${contextText}` : '- Não há documentos institucionais indexados no momento.'}`;
 
+        const messagesArray = [
+            { role: "system", content: systemPromptBase },
+            ...history,
+            { role: "user", content: message }
+        ];
+
         // 2. Primeira chamada (IA Pensa)
         const response1 = await fetch('http://127.0.0.1:11434/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model: "llama3.2",
-                messages: [
-                    { role: "system", content: systemPromptBase },
-                    { role: "user", content: message }
-                ],
+                messages: messagesArray,
                 tools: [toolConsultarEquipamentos, toolSolicitarReserva],
                 stream: false
             })
@@ -1127,7 +1128,7 @@ app.post('/api/chat', async (req, res) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: "llama3.2",
-                    messages: [{ role: "user", content: promptInjetado }],
+                    messages: [...messagesArray, { role: "user", content: promptInjetado }],
                     stream: true
                 })
             });
@@ -1150,10 +1151,7 @@ app.post('/api/chat', async (req, res) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model: "llama3.2",
-                messages: [
-                    { role: "system", content: systemPromptBase },
-                    { role: "user", content: message }
-                ],
+                messages: messagesArray,
                 stream: true
             })
         });
@@ -1174,38 +1172,7 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
-// --- TRANSCRIÇÃO (WHISPER) ---
-let transcriber = null;
 
-app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
-    try {
-        if (!req.file) return res.status(400).json({ error: "Nenhum áudio enviado." });
-        console.log(`🎙️ Novo áudio recebido: ${req.file.filename}`);
-
-        if (!transcriber) {
-            console.log("⚙️ Carregando modelo Whisper-Base...");
-            transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-base');
-            console.log("✅ Whisper-Base carregado!");
-        }
-
-        let buffer = fs.readFileSync(req.file.path);
-        let wav = new WaveFile(buffer);
-        wav.toBitDepth('32f');
-        wav.toSampleRate(16000);
-        let audioData = wav.getSamples();
-        if (Array.isArray(audioData)) audioData = audioData[0];
-
-        console.log("🧠 Transcrevendo em Português...");
-        let output = await transcriber(audioData, { language: 'portuguese', task: 'transcribe' });
-        console.log(`✅ Texto transcrito: "${output.text}"`);
-
-        fs.unlinkSync(req.file.path);
-        res.json({ text: output.text });
-    } catch (error) {
-        console.error("❌ Erro no Whisper:", error);
-        res.status(500).json({ error: "Falha ao processar áudio." });
-    }
-});
 
 // --- PAINEL ADMINISTRATIVO (RF30 / UC14) ---
 

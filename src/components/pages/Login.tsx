@@ -244,7 +244,7 @@ const Login: React.FC = () => {
 
         {/* Lado Direito: Imagem Imersiva */}
         <div className="login-image-panel">
-          <img src="/background.png" alt="InovFabLab Background" onError={(e) => e.currentTarget.src = '/background2.png'} />
+          <img src="/Bambu_LAB_02.png" alt="InovFabLab Background" onError={(e) => e.currentTarget.style.display = 'none'} />
           <div className="image-overlay">
             <h2>Bem-vindo de Volta</h2>
             <p>Continue construindo o futuro no laboratório inteligente.</p>
