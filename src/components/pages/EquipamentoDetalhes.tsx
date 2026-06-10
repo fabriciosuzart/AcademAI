@@ -27,6 +27,17 @@ const EquipamentoDetalhes: React.FC = () => {
         fetchDetails();
     }, [id]);
 
+    // ── Leitura de Tela por Voz ─────────────────────────────
+    useEffect(() => {
+        const handleReadScreen = () => {
+            if (!equipment) return;
+            const text = `Detalhes de ${equipment.name}. O status atual é ${equipment.status}. ${equipment.description ? 'Descrição: ' + equipment.description : 'Sem descrição.'}`;
+            window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text } }));
+        };
+        window.addEventListener('voice-read-screen', handleReadScreen);
+        return () => window.removeEventListener('voice-read-screen', handleReadScreen);
+    }, [equipment]);
+
     if (loading) return <div className="details-container"><p style={{color:'white', textAlign:'center'}}>Carregando detalhes...</p></div>;
     if (error || !equipment) return <div className="details-container"><p className="error-text">{error}</p></div>;
 

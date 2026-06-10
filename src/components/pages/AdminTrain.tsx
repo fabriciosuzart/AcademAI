@@ -64,6 +64,49 @@ const AdminTrain: React.FC = () => {
         }
     }, [navigate]);
 
+    // ── Listeners de navegação por voz (VoiceNavigator) ───────────────────────────────────
+    useEffect(() => {
+        const validAdminTabs = ['overview', 'reservations', 'calendar', 'users', 'equipment', 'ai'];
+        const validProfessorTabs = ['reservations'];
+
+        const handleVoiceTab = (e: Event) => {
+            const { tab } = (e as CustomEvent).detail as { tab: string };
+            const role = localStorage.getItem('userRole');
+            const allowed = role === 'ADMIN' ? validAdminTabs : validProfessorTabs;
+            if (allowed.includes(tab)) {
+                setActiveTab(tab as any);
+                if (tab === 'calendar') {
+                    fetchCalendar(calendarWeekOffset);
+                }
+            } else {
+                // Professor não tem acesso a essa aba — ignora silenciosamente
+                console.warn('Aba de voz não permitida para este perfil:', tab);
+            }
+        };
+
+        const handleVoiceAction = (e: Event) => {
+            const { action } = (e as CustomEvent).detail as { action: string };
+            if (action === 'approve-first') {
+                if (pendingReservations.length > 0) {
+                    setActiveTab('reservations');
+                    handleUpdateReservation(pendingReservations[0].id, 'APROVADA');
+                }
+            } else if (action === 'reject-first') {
+                if (pendingReservations.length > 0) {
+                    setActiveTab('reservations');
+                    handleUpdateReservation(pendingReservations[0].id, 'REJEITADA');
+                }
+            }
+        };
+
+        window.addEventListener('voice-admin-tab', handleVoiceTab);
+        window.addEventListener('voice-admin-action', handleVoiceAction);
+        return () => {
+            window.removeEventListener('voice-admin-tab', handleVoiceTab);
+            window.removeEventListener('voice-admin-action', handleVoiceAction);
+        };
+    }, [pendingReservations, calendarWeekOffset]);
+
     const fetchOverview = async () => {
         setLoadingOverview(true);
         try {
@@ -288,28 +331,29 @@ const AdminTrain: React.FC = () => {
 
             <div className="admin-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
                 {userRole === 'ADMIN' && (
-                    <button onClick={() => setActiveTab('overview')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'overview' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'overview' ? 'white' : 'black', cursor: 'pointer' }}>
+                    <button id="admin-tab-overview" onClick={() => setActiveTab('overview')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'overview' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'overview' ? 'white' : 'black', cursor: 'pointer' }}>
                         📊 Visão Geral
                     </button>
                 )}
-                <button onClick={() => setActiveTab('reservations')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'reservations' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'reservations' ? 'white' : 'black', cursor: 'pointer' }}>
+                <button id="admin-tab-reservations" onClick={() => setActiveTab('reservations')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'reservations' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'reservations' ? 'white' : 'black', cursor: 'pointer' }}>
                     📅 Reservas Pendentes
                     {pendingReservations.length > 0 && <span style={{ background: '#ef4444', color: 'white', padding: '2px 8px', borderRadius: '12px', marginLeft: '8px', fontSize: '0.8rem' }}>{pendingReservations.length}</span>}
                 </button>
                 {userRole === 'ADMIN' && (
                     <>
                         <button
+                                id="admin-tab-calendar"
                                 onClick={() => { setActiveTab('calendar'); fetchCalendar(calendarWeekOffset); }}
                                 style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'calendar' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'calendar' ? 'white' : 'black', cursor: 'pointer' }}>
                                 🗓️ Calendário Global
                             </button>
-                        <button onClick={() => setActiveTab('users')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'users' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'users' ? 'white' : 'black', cursor: 'pointer' }}>
+                        <button id="admin-tab-users" onClick={() => setActiveTab('users')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'users' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'users' ? 'white' : 'black', cursor: 'pointer' }}>
                             👥 Usuários
                         </button>
-                        <button onClick={() => setActiveTab('equipment')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'equipment' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'equipment' ? 'white' : 'black', cursor: 'pointer' }}>
+                        <button id="admin-tab-equipment" onClick={() => setActiveTab('equipment')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'equipment' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'equipment' ? 'white' : 'black', cursor: 'pointer' }}>
                             🖨️ Equipamentos
                         </button>
-                        <button onClick={() => setActiveTab('ai')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'ai' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'ai' ? 'white' : 'black', cursor: 'pointer' }}>
+                        <button id="admin-tab-ai" onClick={() => setActiveTab('ai')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'ai' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'ai' ? 'white' : 'black', cursor: 'pointer' }}>
                             🧠 Treinamento IA
                         </button>
                     </>

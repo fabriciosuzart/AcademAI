@@ -76,6 +76,24 @@ const Perfil: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
     "agendamentos" | "usuarios" | "equipamentos" | "configuracoes"
   >("agendamentos");
+
+  // Estado das Vozes (Jarvis Mode)
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>(localStorage.getItem('preferredVoiceURI') || '');
+
+  useEffect(() => {
+    const loadVoices = () => {
+      setVoices(window.speechSynthesis.getVoices());
+    };
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }, []);
+
+  const handleVoiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const uri = e.target.value;
+    setSelectedVoiceURI(uri);
+    localStorage.setItem('preferredVoiceURI', uri);
+  };
   const [appointmentFilter, setAppointmentFilter] = useState<
     "todos" | "aprovado" | "pendente" | "concluido" | "cancelado"
   >("todos");
@@ -130,6 +148,7 @@ const Perfil: React.FC = () => {
   // Estados para gerenciar bloqueios de datas
   const [blockedDates, setBlockedDates] = useState<any[]>([]);
   const [blockDateStr, setBlockDateStr] = useState("");
+
   const [blockReason, setBlockReason] = useState("");
   const [blockEquipmentId, setBlockEquipmentId] = useState("");
 
@@ -684,6 +703,21 @@ const Perfil: React.FC = () => {
       alert("Erro de conexão ao salvar equipamento.");
     }
   };
+
+  // ── Leitura de Tela por Voz ─────────────────────────────
+  useEffect(() => {
+    const handleReadScreen = () => {
+      let text = `Você está na página do seu perfil, ${userData.name}. `;
+      if (isAdmin) {
+         text += `Você está na visão de administrador. Existem ${adminUsers.length} usuários cadastrados e ${appointments.length} agendamentos no histórico.`;
+      } else {
+         text += `Este semestre você tem ${totalReservations} reservas concluídas, totalizando ${semesterHours} horas de uso em ${projectCount} projetos. Você concluiu ${completedTrainings.filter(Boolean).length} de ${trainingModules.length} treinamentos disponíveis.`;
+      }
+      window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text } }));
+    };
+    window.addEventListener('voice-read-screen', handleReadScreen);
+    return () => window.removeEventListener('voice-read-screen', handleReadScreen);
+  }, [userData.name, isAdmin, totalReservations, semesterHours, projectCount, completedTrainings, adminUsers.length, appointments.length]);
 
   return (
     <div className="profile-container">
@@ -1265,6 +1299,43 @@ const Perfil: React.FC = () => {
                     Atualizar senha
                   </button>
                 </form>
+              </div>
+
+              <div className="settings-card">
+                <h3>Configurações de Voz (Jarvis Mode)</h3>
+                <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '15px' }}>
+                  Escolha qual voz o assistente utilizará para ler notificações e telas. As opções disponíveis dependem do seu navegador e sistema operacional.
+                </p>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label htmlFor="voiceSelect" style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>Voz Preferida:</label>
+                  <select 
+                    id="voiceSelect" 
+                    value={selectedVoiceURI} 
+                    onChange={handleVoiceChange}
+                    style={{ padding: '10px', borderRadius: '8px', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155' }}
+                  >
+                    <option value="">-- Padrão do Sistema --</option>
+                    {voices.map(v => (
+                      <option key={v.voiceURI} value={v.voiceURI}>
+                        {v.name} ({v.lang})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ marginTop: '20px' }}>
+                  <button 
+                    className="primary-btn small" 
+                    onClick={() => {
+                       const u = new SpeechSynthesisUtterance("Testando a nova voz do assistente Academ AI.");
+                       const selected = voices.find(v => v.voiceURI === selectedVoiceURI);
+                       if (selected) u.voice = selected;
+                       window.speechSynthesis.speak(u);
+                    }}
+                  >
+                    Testar Voz
+                  </button>
+                </div>
               </div>
 
               {isAdmin && (

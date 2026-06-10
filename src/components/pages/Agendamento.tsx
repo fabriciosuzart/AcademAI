@@ -17,6 +17,31 @@ const Agendamento: React.FC = () => {
     
     const [isLoggedIn, setIsLoggedIn] = useState(false);
 
+    // ── Preenchimento e Submissão por Voz ────────────────────
+    useEffect(() => {
+        const handleVoiceFill = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (!detail) return;
+            const { field, text } = detail;
+            
+            if (field === 'justification') {
+                setJustification(text);
+            }
+        };
+
+        const handleVoiceSubmit = () => {
+            const form = document.querySelector('.schedule-form') as HTMLFormElement;
+            if (form && form.requestSubmit) form.requestSubmit();
+        };
+
+        window.addEventListener('voice-fill-field', handleVoiceFill);
+        window.addEventListener('voice-submit-form', handleVoiceSubmit);
+        return () => {
+            window.removeEventListener('voice-fill-field', handleVoiceFill);
+            window.removeEventListener('voice-submit-form', handleVoiceSubmit);
+        };
+    }, []);
+
     // Trava de login
     useEffect(() => {
         const token = localStorage.getItem('token');

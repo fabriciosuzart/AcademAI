@@ -27,6 +27,23 @@ const Equipamentos: React.FC = () => {
     loadEquipments();
   }, []);
 
+  // ── Leitura de Tela por Voz ─────────────────────────────
+  useEffect(() => {
+    const handleReadScreen = () => {
+      const disponiveis = equipamentos.filter(e => e.status === 'DISPONÍVEL').length;
+      const manutencao = equipamentos.filter(e => e.status === 'MANUTENÇÃO').length;
+      let text = `Você está na página de Equipamentos. Existem ${equipamentos.length} equipamentos cadastrados, sendo ${disponiveis} disponíveis no momento.`;
+      if (manutencao > 0) text += ` Atenção, ${manutencao} estão em manutenção.`;
+      
+      if (filterStatus !== 'all') {
+         text += ` Você está filtrando para mostrar apenas equipamentos com status ${filterStatus}.`;
+      }
+      window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text } }));
+    };
+    window.addEventListener('voice-read-screen', handleReadScreen);
+    return () => window.removeEventListener('voice-read-screen', handleReadScreen);
+  }, [equipamentos, filterStatus]);
+
   const filteredItems = equipamentos
     .filter(item => filterStatus === 'all' ? true : item.status === filterStatus)
     .sort((a, b) => {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Cadastro.css';
 
@@ -13,7 +13,40 @@ const Cadastro: React.FC = () => {
     });
     const navigate = useNavigate();
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // ── Preenchimento e Submissão por Voz ────────────────────
+    useEffect(() => {
+        const handleVoiceFill = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (!detail) return;
+            const { field, text } = detail;
+            
+            setFormData(prev => {
+                const newData = { ...prev };
+                if (field === 'name') newData.fullName = text;
+                if (field === 'ra') newData.ra = text;
+                if (field === 'email') newData.email = text.replace(/\s+/g, '').toLowerCase();
+                if (field === 'password') {
+                    newData.password = text;
+                    newData.confirmPassword = text; // auto-preenche a confirmação para facilitar
+                }
+                return newData;
+            });
+        };
+
+        const handleVoiceSubmit = () => {
+            const form = document.querySelector('.signup-form') as HTMLFormElement;
+            if (form && form.requestSubmit) form.requestSubmit();
+        };
+
+        window.addEventListener('voice-fill-field', handleVoiceFill);
+        window.addEventListener('voice-submit-form', handleVoiceSubmit);
+        return () => {
+            window.removeEventListener('voice-fill-field', handleVoiceFill);
+            window.removeEventListener('voice-submit-form', handleVoiceSubmit);
+        };
+    }, []);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         setFormData({...formData, [e.target.id]: e.target.value});
     };
 

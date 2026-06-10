@@ -15,13 +15,7 @@ const Login: React.FC = () => {
 
   const navigate = useNavigate();
 
-  // Feedback por voz
-  const speak = (text: string) => {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'pt-BR';
-    window.speechSynthesis.speak(utterance);
-  };
+  // Removido: speak() local para evitar conflitos de TTS com o VoiceNavigator
 
   // Formata e-mail ditado
   const formatSpokenEmail = (text: string): string => {
@@ -99,18 +93,19 @@ const Login: React.FC = () => {
   // === ESCUTA EVENTOS DO VoiceNavigator (tecla M) ===
   useEffect(() => {
     const handleVoiceFill = (e: Event) => {
-      const { field, text } = (e as CustomEvent).detail;
+      const detail = (e as CustomEvent).detail;
+      const { field, text, onFormatted } = detail;
 
       if (field === 'email') {
         const formatted = formatSpokenEmail(text);
         setEmail(formatted);
-        speak(`E-mail preenchido: ${formatted}. Pressione M e diga senha para preencher a senha.`);
         setVoiceStatus(`✅ E-mail: ${formatted}`);
+        if (onFormatted) onFormatted(formatted);
       } else if (field === 'password') {
         const cleanPwd = text.replace(/\s+/g, '');
         setPassword(cleanPwd);
-        speak('Senha preenchida. Pressione M e diga entrar para fazer login.');
         setVoiceStatus('✅ Senha preenchida');
+        if (onFormatted) onFormatted(cleanPwd);
       }
       setTimeout(() => setVoiceStatus(''), 5000);
     };
@@ -141,16 +136,16 @@ const Login: React.FC = () => {
         if (data.isTempPassword === 1) {
           setShowChangePasswordModal(true);
         } else {
-          speak(`Bem-vindo, ${data.name}!`);
+          window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text: `Bem-vindo, ${data.name}!` } }));
           alert('Bem-vindo, ' + data.name + '!');
           navigate('/');
         }
       } else {
-        speak(`Erro: ${data.error}`);
+        window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text: `Erro: ${data.error}` } }));
         alert('Erro: ' + data.error);
       }
     } catch (error) {
-      speak('Erro de conexão com o servidor.');
+      window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text: 'Erro de conexão com o servidor.' } }));
       alert('Erro de conexão com o servidor.');
     }
   };
