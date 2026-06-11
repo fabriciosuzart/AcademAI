@@ -171,30 +171,20 @@ const Perfil: React.FC = () => {
     if (!editingUser) return;
 
     try {
-      const res = await fetch(
-        `http://localhost:3000/api/users/${editingUser.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: editName,
-            email: editEmail,
-            ra: editRa,
-            trainings: editTrainings.join(","),
-          }),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        alert("Erro ao salvar usuário: " + (data.error || "Falha no servidor"));
-        return;
+      const res = await api.put(`/users/${editingUser.id}`, {
+        name: editName,
+        email: editEmail,
+        ra: editRa,
+        trainings: editTrainings.join(","),
+      });
+      if (res.status === 200) {
+        await fetchAdminUsers();
+        closeEditModal();
+        alert("Usuário atualizado com sucesso.");
       }
-      await fetchAdminUsers();
-      closeEditModal();
-      alert("Usuário atualizado com sucesso.");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao atualizar usuário:", error);
-      alert("Erro de conexão ao salvar usuário.");
+      alert("Erro ao salvar usuário: " + (error.response?.data?.error || "Falha no servidor"));
     }
   };
 
@@ -533,18 +523,21 @@ const Perfil: React.FC = () => {
   const handleToggleStatus = async (item: any) => {
     try {
       const isMaintenance = getStatusClass(item.status) === "maintenance";
-      const newStatus = isMaintenance ? "available" : "maintenance";
+      const newStatus = isMaintenance ? "DISPONÍVEL" : "MANUTENÇÃO";
 
-      const res = await fetch(
-        `http://localhost:3000/api/equipment/${item.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: newStatus }),
-        },
-      );
+      const formData = new FormData();
+      formData.append('name', item.name);
+      formData.append('status', newStatus);
+      formData.append('description', '');
+      formData.append('specs', '');
+      formData.append('requiresTraining', 'false');
+      formData.append('quantity', '1');
 
-      if (res.ok) {
+      const res = await api.put(`/equipment/${item.id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (res.status === 200) {
         if (pauseModalGroup) {
           setPauseModalGroup((prev) => {
             if (!prev) return prev;
@@ -558,9 +551,9 @@ const Perfil: React.FC = () => {
         }
         fetchEquipment();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao atualizar status", error);
-      alert("Erro de conexão com o servidor.");
+      alert("Erro ao atualizar status: " + (error.response?.data?.error || "Erro de conexão."));
     }
   };
 
@@ -605,34 +598,26 @@ const Perfil: React.FC = () => {
 
     try {
       const equipmentId = editingEquipment.items[0].id;
-      const res = await fetch(
-        `http://localhost:3000/api/equipment/${equipmentId}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: editEquipmentName,
-            specs: editEquipmentSpecs,
-            description: editEquipmentDescription,
-            quantity: editEquipmentQuantity,
-            status: editEquipmentStatus,
-            requiresTraining: editEquipmentRequiresTraining,
-          }),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        alert(
-          "Erro ao salvar equipamento: " + (data.error || "Falha no servidor"),
-        );
-        return;
+      const formData = new FormData();
+      formData.append('name', editEquipmentName);
+      formData.append('specs', editEquipmentSpecs);
+      formData.append('description', editEquipmentDescription);
+      formData.append('quantity', String(editEquipmentQuantity));
+      formData.append('status', editEquipmentStatus);
+      formData.append('requiresTraining', String(editEquipmentRequiresTraining));
+
+      const res = await api.put(`/equipment/${equipmentId}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (res.status === 200) {
+        await fetchEquipment();
+        closeEditEquipmentModal();
+        alert("Equipamento atualizado com sucesso.");
       }
-      await fetchEquipment();
-      closeEditEquipmentModal();
-      alert("Equipamento atualizado com sucesso.");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao atualizar equipamento:", error);
-      alert("Erro de conexão ao salvar equipamento.");
+      alert("Erro ao salvar equipamento: " + (error.response?.data?.error || "Falha no servidor"));
     }
   };
 
@@ -683,24 +668,18 @@ const Perfil: React.FC = () => {
         formData.append("image", addEquipmentImageFile);
       }
 
-      const res = await fetch("http://localhost:3000/api/equipment", {
-        method: "POST",
-        body: formData,
+      const res = await api.post("/equipment", formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
-      const data = await res.json();
-      if (!res.ok) {
-        alert(
-          "Erro ao adicionar equipamento: " +
-          (data.error || "Falha no servidor"),
-        );
-        return;
+
+      if (res.status === 201 || res.status === 200) {
+        await fetchEquipment();
+        closeAddEquipmentModal();
+        alert("Equipamento adicionado com sucesso!");
       }
-      await fetchEquipment();
-      closeAddEquipmentModal();
-      alert("Equipamento adicionado com sucesso!");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao adicionar equipamento:", error);
-      alert("Erro de conexão ao salvar equipamento.");
+      alert("Erro ao adicionar equipamento: " + (error.response?.data?.error || "Falha no servidor"));
     }
   };
 

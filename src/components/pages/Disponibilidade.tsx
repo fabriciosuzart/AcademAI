@@ -19,7 +19,7 @@ interface BookedSlot {
 
 const Disponibilidade: React.FC = () => {
     const navigate = useNavigate();
-    const { requireAuth } = useAuth();
+    const { isLoggedIn } = useAuth();
     const [equipments, setEquipments] = useState<Equipment[]>([]);
     const [selectedEquipment, setSelectedEquipment] = useState<number | null>(null);
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -144,9 +144,15 @@ const Disponibilidade: React.FC = () => {
     const handleReserveSlot = (time: string) => {
         if (!selectedEquipment || !selectedDate) return;
         const dateStr = selectedDate.toISOString().split('T')[0];
-        requireAuth(() => navigate('/agendamento', {
-            state: { equipmentId: selectedEquipment, preDate: dateStr, preTime: time }
-        }));
+        if (isLoggedIn) {
+            navigate('/agendamento', {
+                state: { equipmentId: selectedEquipment, preDate: dateStr, preTime: time }
+            });
+        } else {
+            navigate('/login', {
+                state: { from: 'agendamento', equipmentId: selectedEquipment, preDate: dateStr, preTime: time }
+            });
+        }
     };
 
     const selectedEquipmentData = equipments.find(e => e.id === selectedEquipment);

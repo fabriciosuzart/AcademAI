@@ -87,8 +87,8 @@ const Cadastro: React.FC = () => {
     return (
         <div className="signup-page">
             <div className="signup-card">
-                
-                {/* Lado Esquerdo: Formulário com Glassmorphism */}
+
+                {/* Lado Esquerdo: Formulário Premium */}
                 <div className="signup-content">
                     <div className="signup-header">
                         <h1 className="signup-title">Criar Conta</h1>
@@ -96,19 +96,56 @@ const Cadastro: React.FC = () => {
                     </div>
 
                     <form className="signup-form" onSubmit={handleRegister} aria-label="Formulário de cadastro">
+
                         <div className="signup-field">
                             <label htmlFor="fullName">Nome Completo</label>
-                            <input type="text" id="fullName" placeholder="Ex: Juliana Santos" value={formData.fullName} onChange={handleChange} required aria-required="true" aria-label="Digite seu nome completo" />
+                            <div className="input-wrapper">
+                                <span className="input-icon">👤</span>
+                                <input
+                                    type="text"
+                                    id="fullName"
+                                    placeholder="Ex: Juliana Santos"
+                                    value={formData.fullName}
+                                    onChange={handleChange}
+                                    required
+                                    aria-required="true"
+                                    aria-label="Digite seu nome completo"
+                                />
+                            </div>
                         </div>
-                        
+
                         <div className="signup-row">
                             <div className="signup-field">
                                 <label htmlFor="email">E-mail Institucional</label>
-                                <input type="email" id="email" placeholder="nome@unisanta.br" value={formData.email} onChange={handleChange} required aria-required="true" aria-label="Digite seu e-mail institucional" />
+                                <div className="input-wrapper">
+                                    <span className="input-icon">✉️</span>
+                                    <input
+                                        type="email"
+                                        id="email"
+                                        placeholder="nome@unisanta.br"
+                                        value={formData.email}
+                                        onChange={handleChange}
+                                        required
+                                        aria-required="true"
+                                        aria-label="Digite seu e-mail institucional"
+                                    />
+                                </div>
                             </div>
                             <div className="signup-field">
                                 <label htmlFor="ra">RA (Matrícula)</label>
-                                <input type="text" id="ra" placeholder="Seu RA" value={formData.ra} onChange={handleChange} required aria-required="true" aria-label="Digite seu Registro Acadêmico ou matrícula" />
+                                <div className="input-wrapper">
+                                    <span className="input-icon">🎓</span>
+                                    <input
+                                        type="text"
+                                        id="ra"
+                                        placeholder="Seu RA"
+                                        value={formData.ra}
+                                        onChange={handleChange}
+                                        required
+                                        aria-required="true"
+                                        aria-label="Digite seu Registro Acadêmico ou matrícula"
+                                    />
+                                </div>
                             </div>
                         </div>
 
@@ -116,10 +153,20 @@ const Cadastro: React.FC = () => {
                             <div className="signup-field">
                                 <label htmlFor="role">Perfil</label>
                                 {/* RF01/RN08 — apenas Estudante no cadastro público; Professor e Admin são atribuídos pelo administrador */}
-                                <select id="role" value={formData.role} onChange={(e) => setFormData({...formData, role: e.target.value})} required aria-required="true" aria-label="Perfil do usuário (somente Estudante disponível no cadastro público)" style={{ padding: '12px', borderRadius: '8px', border: '1px solid #334155', background: '#1e293b', color: 'white', fontFamily: 'inherit' }}>
-                                    <option value="ALUNO">Estudante</option>
-                                </select>
-                                <small style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                                <div className="input-wrapper select-wrapper">
+                                    <span className="input-icon">🏷️</span>
+                                    <select
+                                        id="role"
+                                        value={formData.role}
+                                        onChange={(e) => setFormData({...formData, role: e.target.value})}
+                                        required
+                                        aria-required="true"
+                                        aria-label="Perfil do usuário (somente Estudante disponível no cadastro público)"
+                                    >
+                                        <option value="ALUNO">Estudante</option>
+                                    </select>
+                                </div>
+                                <small className="field-hint">
                                     Perfis Professor e Administrador são atribuídos pelo administrador do laboratório.
                                 </small>
                             </div>
@@ -128,29 +175,46 @@ const Cadastro: React.FC = () => {
                         <div className="signup-row">
                             <div className="signup-field">
                                 <label htmlFor="password">Criar Senha</label>
-                                <input type="password" id="password" placeholder="Mínimo 8 caracteres" value={formData.password} onChange={handleChange} required aria-required="true" aria-label="Crie uma senha de no mínimo 8 caracteres com letras e números" />
+                                <div className="input-wrapper">
+                                    <span className="input-icon">🔒</span>
+                                    <input
+                                        type="password"
+                                        id="password"
+                                        placeholder="Mínimo 8 caracteres"
+                                        value={formData.password}
+                                        onChange={handleChange}
+                                        required
+                                        aria-required="true"
+                                        aria-label="Crie uma senha de no mínimo 8 caracteres com letras e números"
+                                    />
+                                </div>
                             </div>
                             <div className="signup-field">
                                 <label htmlFor="confirmPassword">Confirmar Senha</label>
-                                <input type="password" id="confirmPassword" placeholder="Repita a senha" value={formData.confirmPassword} onChange={handleChange} required aria-required="true" aria-label="Confirme a senha criada" />
+                                <div className="input-wrapper">
+                                    <span className="input-icon">🔑</span>
+                                    <input
+                                        type="password"
+                                        id="confirmPassword"
+                                        placeholder="Repita a senha"
+                                        value={formData.confirmPassword}
+                                        onChange={handleChange}
+                                        required
+                                        aria-required="true"
+                                        aria-label="Confirme a senha criada"
+                                    />
+                                </div>
                             </div>
                         </div>
 
-                        <button type="submit" className="signup-button" aria-label="Botão para confirmar e cadastrar agora">Cadastrar Agora</button>
-                        
+                        <button type="submit" className="signup-button" aria-label="Botão para confirmar e cadastrar agora">
+                            ✦ Cadastrar Agora
+                        </button>
+
                         <div className="auth-link">
                             <p>Já tem uma conta? <Link to="/login" className="login-link" aria-label="Link para a página de login">Faça login</Link></p>
                         </div>
                     </form>
-                </div>
-
-                {/* Lado Direito: Imagem e Inspiração */}
-                <div className="signup-image-panel">
-                    <img src="/background2.png" alt="InovFabLab Background" />
-                    <div className="image-overlay">
-                        <h2>Construa o Futuro</h2>
-                        <p>Acesse impressoras 3D, cortadoras a laser e a mentoria de nossa IA exclusiva.</p>
-                    </div>
                 </div>
 
             </div>

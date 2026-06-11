@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import './Login.css';
 
 const Login: React.FC = () => {
@@ -14,6 +14,7 @@ const Login: React.FC = () => {
   const [voiceStatus, setVoiceStatus] = useState('');
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Removido: speak() local para evitar conflitos de TTS com o VoiceNavigator
 
@@ -138,7 +139,13 @@ const Login: React.FC = () => {
         } else {
           window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text: `Bem-vindo, ${data.name}!` } }));
           alert('Bem-vindo, ' + data.name + '!');
-          navigate('/');
+          
+          const locationState = location.state as any;
+          if (locationState?.from === 'agendamento') {
+             navigate('/agendamento', { state: locationState });
+          } else {
+             navigate('/');
+          }
         }
       } else {
         window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text: `Erro: ${data.error}` } }));
@@ -191,7 +198,7 @@ const Login: React.FC = () => {
     <div className="login-page">
       <div className="login-card">
 
-        {/* Lado Esquerdo: Formulário */}
+        {/* Formulário de Login */}
         <div className="login-content">
 
           {/* Barra de status de voz */}
@@ -201,22 +208,50 @@ const Login: React.FC = () => {
 
           {!isRecovering ? (
             <>
-              <h1 className="login-title">Acesse sua Conta</h1>
+              <h1 className="login-title">Acessar Conta</h1>
               <p className="subtitle">Gerencie seus projetos e agendamentos.</p>
               <form className="login-form" onSubmit={handleLogin} aria-label="Formulário de login">
                 <div className="login-field">
                   <label htmlFor="login-email">E-mail Institucional</label>
-                  <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu.nome@unisanta.br" required aria-required="true" aria-label="Digite seu e-mail institucional" />
+                  <div className="input-wrapper">
+                    <span className="input-icon">✉️</span>
+                    <input
+                      id="login-email"
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      placeholder="seu.nome@unisanta.br"
+                      required
+                      aria-required="true"
+                      aria-label="Digite seu e-mail institucional"
+                    />
+                  </div>
                 </div>
                 <div className="login-field">
                   <label htmlFor="login-password">Senha</label>
-                  <input id="login-password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Sua senha" required aria-required="true" aria-label="Digite sua senha" />
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '5px' }}>
-                    <button type="button" className="forgot-password-link" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem' }} onClick={() => setIsRecovering(true)} aria-label="Recuperar senha esquecida">Esqueceu a senha?</button>
+                  <div className="input-wrapper">
+                    <span className="input-icon">🔒</span>
+                    <input
+                      id="login-password"
+                      type="password"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="Sua senha"
+                      required
+                      aria-required="true"
+                      aria-label="Digite sua senha"
+                    />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                    <button type="button" className="forgot-password-link" onClick={() => setIsRecovering(true)} aria-label="Recuperar senha esquecida">
+                      Esqueceu a senha?
+                    </button>
                   </div>
                 </div>
-                <button type="submit" className="login-button" aria-label="Botão para entrar na conta">Entrar</button>
-                <p style={{ textAlign: 'center', marginTop: '15px', color: '#64748b' }}>
+                <button type="submit" className="login-button" aria-label="Botão para entrar na conta">
+                  ✦ Entrar
+                </button>
+                <p className="login-footer-text">
                   Não tem cadastro? <Link to="/cadastro" className="signup-link" aria-label="Link para a página de cadastro">Criar conta</Link>
                 </p>
               </form>
@@ -228,43 +263,56 @@ const Login: React.FC = () => {
               <form className="login-form" onSubmit={handleRecover} aria-label="Formulário de recuperação de senha">
                 <div className="login-field">
                   <label htmlFor="recover-email">E-mail</label>
-                  <input id="recover-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu.nome@unisanta.br" required aria-required="true" aria-label="Digite seu e-mail para recuperar a senha" />
+                  <div className="input-wrapper">
+                    <span className="input-icon">✉️</span>
+                    <input
+                      id="recover-email"
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      placeholder="seu.nome@unisanta.br"
+                      required
+                      aria-required="true"
+                      aria-label="Digite seu e-mail para recuperar a senha"
+                    />
+                  </div>
                 </div>
-                <button type="submit" className="login-button" aria-label="Botão para enviar e-mail de recuperação">Enviar E-mail</button>
-                <button type="button" style={{ width: '100%', padding: '16px', marginTop: '10px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', color: '#475569' }} onClick={() => setIsRecovering(false)} aria-label="Cancelar recuperação e voltar ao login">Voltar ao Login</button>
+                <button type="submit" className="login-button" aria-label="Botão para enviar e-mail de recuperação">
+                  ✦ Enviar E-mail
+                </button>
+                <button type="button" className="back-login-btn" onClick={() => setIsRecovering(false)} aria-label="Cancelar recuperação e voltar ao login">
+                  ← Voltar ao Login
+                </button>
               </form>
             </>
           )}
-        </div>
-
-        {/* Lado Direito: Imagem Imersiva */}
-        <div className="login-image-panel">
-          <img src="/Bambu_LAB_02.png" alt="InovFabLab Background" onError={(e) => e.currentTarget.style.display = 'none'} />
-          <div className="image-overlay">
-            <h2>Bem-vindo de Volta</h2>
-            <p>Continue construindo o futuro no laboratório inteligente.</p>
-          </div>
         </div>
 
       </div>
 
       {/* Modal de Troca Obrigatória */}
       {showChangePasswordModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'white', padding: '40px', borderRadius: '24px', maxWidth: '400px', width: '90%', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
-            <h2 style={{ color: '#e11d48', marginTop: 0, fontSize: '1.8rem' }}>⚠️ Nova Senha</h2>
-            <p style={{ color: '#64748b' }}>Você acessou com uma senha temporária. Defina sua nova senha definitiva abaixo:</p>
+        <div className="password-modal-overlay">
+          <div className="password-modal">
+            <h2>⚠️ Nova Senha</h2>
+            <p>Você acessou com uma senha temporária. Defina sua nova senha definitiva abaixo:</p>
 
             <div className="login-field" style={{ marginBottom: '15px' }}>
               <label htmlFor="new-password">Nova Senha</label>
-              <input id="new-password" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" aria-label="Digite a nova senha definitiva" />
+              <div className="input-wrapper">
+                <span className="input-icon">🔒</span>
+                <input id="new-password" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" aria-label="Digite a nova senha definitiva" />
+              </div>
             </div>
             <div className="login-field" style={{ marginBottom: '25px' }}>
               <label htmlFor="confirm-password">Confirmar Nova Senha</label>
-              <input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Digite novamente" aria-label="Confirme a nova senha definitiva" />
+              <div className="input-wrapper">
+                <span className="input-icon">🔑</span>
+                <input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Digite novamente" aria-label="Confirme a nova senha definitiva" />
+              </div>
             </div>
 
-            <button onClick={handleChangePassword} className="login-button" style={{ marginTop: 0, background: 'linear-gradient(135deg, #10b981, #059669)' }} aria-label="Salvar nova senha e entrar no sistema">
+            <button onClick={handleChangePassword} className="login-button" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }} aria-label="Salvar nova senha e entrar no sistema">
               Salvar e Entrar no Sistema
             </button>
           </div>

@@ -56,7 +56,9 @@
 }
 
 .nav-item {
-  line-height: 40px;
+  display: flex;
+  align-items: center;
+  line-height: 1;
 }
 
 .nav-link {
@@ -94,17 +96,22 @@
 /* Caixa de Usuário / Logout */
 .user-nav-box {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 15px;
+  flex-wrap: nowrap;
+  gap: 10px;
   background: rgba(255, 255, 255, 0.05);
-  padding: 5px 15px;
+  padding: 6px 14px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: nowrap;
 }
 
 .nav-user-name {
-  color: #38bdf8 !important; /* Azul brilhante */
+  color: #38bdf8 !important;
   font-weight: 700;
+  white-space: nowrap;
+  font-size: 13px;
   transition: color 0.3s;
 }
 

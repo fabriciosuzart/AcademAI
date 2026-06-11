@@ -302,6 +302,25 @@ const AdminTrain: React.FC = () => {
         }
     };
 
+    const handleQuickStatus = async (eq: any, newStatus: string) => {
+        if (newStatus === eq.status) return;
+        try {
+            let parsedDesc: any = {};
+            try { parsedDesc = JSON.parse(eq.description || '{}'); } catch { /* ignore */ }
+            const formData = new FormData();
+            formData.append('name', eq.name);
+            formData.append('status', newStatus);
+            formData.append('description', parsedDesc.description || '');
+            formData.append('specs', parsedDesc.specs || '');
+            formData.append('requiresTraining', parsedDesc.requiresTraining ? 'true' : 'false');
+            formData.append('quantity', '1');
+            await api.put(`/equipment/${eq.id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            fetchEquipments();
+        } catch (error: any) {
+            alert(error.response?.data?.error || 'Erro ao alterar status.');
+        }
+    };
+
     // --- FUNÇÕES DE RESERVA ---
     const handleUpdateReservation = async (id: number, status: 'APROVADA' | 'REJEITADA') => {
         let rejectionReason = '';
@@ -480,29 +499,55 @@ const AdminTrain: React.FC = () => {
                         <h2 style={{ color: 'white', marginTop: 0 }}>Equipamentos Cadastrados ({equipments.length})</h2>
                         <ul style={{ listStyle: 'none', padding: 0, maxHeight: '500px', overflowY: 'auto' }}>
                             {equipments.map(eq => (
-                                <li key={eq.id} style={{ background: '#1e293b', margin: '8px 0', padding: '12px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div style={{ color: 'white', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <strong style={{ fontSize: '1.1rem' }}>{eq.name}</strong>
-                                        <span style={{ fontSize: '0.85rem', color: eq.status === 'DISPONÍVEL' ? '#10b981' : (eq.status === 'EM USO' ? '#fbbf24' : '#ef4444') }}>
-                                            {eq.status === 'DISPONÍVEL' ? '🟢 ' : (eq.status === 'EM USO' ? '🟠 ' : '🔴 ')} 
-                                            {eq.status}
-                                        </span>
+                                <li key={eq.id} style={{ background: '#1e293b', margin: '8px 0', padding: '12px', borderRadius: '8px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                        <div style={{ color: 'white', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <strong style={{ fontSize: '1.1rem' }}>{eq.name}</strong>
+                                            <span style={{ fontSize: '0.85rem', color: eq.status === 'DISPONÍVEL' ? '#10b981' : (eq.status === 'EM USO' || eq.status === 'IN-USE' ? '#fbbf24' : '#ef4444') }}>
+                                                {eq.status === 'DISPONÍVEL' ? '🟢 Disponível' : (eq.status === 'EM USO' || eq.status === 'IN-USE' ? '🟡 Em Uso' : '🔴 Em Manutenção')}
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => handleEditClick(eq)}
+                                                style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem' }}
+                                            >
+                                                ✏️ Editar
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => handleDeleteEquipment(eq.id, eq.name)}
+                                                style={{ background: 'transparent', color: '#ef4444', border: '1px solid #ef4444', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem' }}
+                                            >
+                                                🗑️ Excluir
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => handleEditClick(eq)}
-                                            style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem' }}
-                                        >
-                                            Editar
-                                        </button>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => handleDeleteEquipment(eq.id, eq.name)}
-                                            style={{ background: 'transparent', color: '#ef4444', border: '1px solid #ef4444', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem' }}
-                                        >
-                                            Excluir
-                                        </button>
+                                    {/* Alteração rápida de status */}
+                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleQuickStatus(eq, 'DISPONÍVEL')}
+                                            style={{
+                                                padding: '4px 12px', borderRadius: '20px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700,
+                                                background: eq.status === 'DISPONÍVEL' ? 'rgba(16,185,129,0.3)' : 'rgba(16,185,129,0.08)',
+                                                color: '#34d399',
+                                                border: eq.status === 'DISPONÍVEL' ? '1.5px solid #34d399' : '1px solid rgba(52,211,153,0.3)',
+                                                opacity: eq.status === 'DISPONÍVEL' ? 1 : 0.6
+                                            }}
+                                        >🟢 Disponível</button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleQuickStatus(eq, 'MANUTENÇÃO')}
+                                            style={{
+                                                padding: '4px 12px', borderRadius: '20px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700,
+                                                background: eq.status === 'MANUTENÇÃO' ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.08)',
+                                                color: '#f87171',
+                                                border: eq.status === 'MANUTENÇÃO' ? '1.5px solid #f87171' : '1px solid rgba(248,113,113,0.3)',
+                                                opacity: eq.status === 'MANUTENÇÃO' ? 1 : 0.6
+                                            }}
+                                        >🔴 Manutenção</button>
                                     </div>
                                 </li>
                             ))}

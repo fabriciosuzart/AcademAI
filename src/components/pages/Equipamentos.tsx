@@ -6,7 +6,7 @@ import './Equipamentos.css';
 
 const Equipamentos: React.FC = () => {
   const navigate = useNavigate();
-  const { requireAuth } = useAuth();
+  const { isLoggedIn } = useAuth();
   
   const [equipamentos, setEquipamentos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +51,21 @@ const Equipamentos: React.FC = () => {
       return a.id - b.id;
     });
 
+  // Traduz status do banco para português e define a classe CSS
+  const getStatusInfo = (status: string): { label: string; className: string } => {
+    const s = (status || '').toUpperCase().trim();
+    if (s === 'DISPONÍVEL' || s === 'DISPONIVEL' || s === 'AVAILABLE') {
+      return { label: 'Disponível', className: 'available' };
+    }
+    if (s === 'EM USO' || s === 'IN USE' || s === 'INUSE' || s === 'IN-USE') {
+      return { label: 'Em Uso', className: 'in-use' };
+    }
+    if (s === 'MANUTENÇÃO' || s === 'MANUTENCAO' || s === 'MAINTENANCE') {
+      return { label: 'Manutenção', className: 'maintenance' };
+    }
+    return { label: status, className: 'in-use' };
+  };
+
   return (
     <div className="equipment-page">
       
@@ -91,26 +106,32 @@ const Equipamentos: React.FC = () => {
                         onError={(e) => e.currentTarget.src = 'https://via.placeholder.com/300x200?text=S/IMAGEM'} 
                     />
                     
-                    <span className={`status-badge ${item.status === 'DISPONÍVEL' ? 'available' : 'in-use'}`}>
-                        ● {item.status}
+                    <span className={`status-badge ${getStatusInfo(item.status).className}`}>
+                        ● {getStatusInfo(item.status).label}
                     </span>
                 </div>
                 
                 <div className="card-content">
                     <h3>{item.name}</h3>
                     
-                    <div style={{ display: 'flex', gap: '10px' }}>
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: 'auto' }}>
                         <button 
                             onClick={() => navigate(`/equipamento/${item.id}`)}
                             className="schedule-button"
-                            style={{ border: '1px solid #3b82f6', background: 'transparent', color: '#3b82f6', width: '50%', fontFamily: 'inherit' }}
+                            style={{ border: '1px solid #3b82f6', background: 'transparent', color: '#3b82f6', fontFamily: 'inherit', flex: 1, textAlign: 'center' }}
                         >
                             Detalhes
                         </button>
                         <button 
-                            onClick={() => requireAuth(() => navigate('/agendamento', { state: { equipmentId: item.id } }))} 
+                            onClick={() => {
+                                if (isLoggedIn) {
+                                    navigate('/agendamento', { state: { equipmentId: item.id } });
+                                } else {
+                                    navigate('/login', { state: { from: 'agendamento', equipmentId: item.id } });
+                                }
+                            }} 
                             className="schedule-button"
-                            style={{ border: 'none', width: '50%', fontFamily: 'inherit' }}
+                            style={{ border: 'none', fontFamily: 'inherit', flex: 1, textAlign: 'center' }}
                         >
                             Reservar
                         </button>

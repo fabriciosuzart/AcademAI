@@ -1,156 +1,346 @@
-/* Fundo Principal Premium */
+/* ===================================================
+   CADASTRO — REDESIGN PREMIUM 2025
+   =================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+/* ── Fundo animado ──────────────────────────────── */
 .signup-page {
   min-height: calc(100vh - 80px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background: #060d1a;
   font-family: 'Inter', sans-serif;
+  position: relative;
+  overflow: hidden;
 }
 
-/* Card Principal (Glassmorphism e Layout Dividido) */
+/* Orbs de fundo animados */
+.signup-page::before,
+.signup-page::after {
+  content: '';
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.18;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.signup-page::before {
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, #0ea5e9, #4f46e5);
+  top: -200px;
+  left: -200px;
+  animation: floatOrb 14s ease-in-out infinite alternate;
+}
+
+.signup-page::after {
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, #8b5cf6, #06b6d4);
+  bottom: -150px;
+  right: -150px;
+  animation: floatOrb 18s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes floatOrb {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(60px, 40px) scale(1.12); }
+}
+
+/* ── Card Principal ─────────────────────────────────────── */
 .signup-card {
   width: 100%;
-  max-width: 1100px;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 30px;
-  display: flex;
-  overflow: hidden;
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
-  transform: translateY(0);
-  transition: transform 0.3s ease;
+  max-width: 560px;
+  background: rgba(14, 22, 40, 0.75);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 0 0 1px rgba(14, 165, 233, 0.08),
+    0 40px 80px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  position: relative;
+  z-index: 1;
+  animation: fadeSlideUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Lado do Formulário */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(32px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Lado do Formulário ───────────────────────────────── */
 .signup-content {
-  flex: 1.2;
-  padding: 60px;
+  padding: 52px 52px;
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
 
+/* ── Cabeçalho ──────────────────────────────────── */
 .signup-header {
-  margin-bottom: 30px;
+  margin-bottom: 36px;
+  animation: fadeSlideUp 0.6s 0.1s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+
+
 .signup-title {
-  font-size: 2.5rem;
-  font-weight: 800;
-  color: #1e293b;
+  font-size: 2.6rem;
+  font-weight: 900;
   margin: 0 0 10px 0;
-  background: linear-gradient(90deg, #0ea5e9, #6366f1);
+  background: linear-gradient(120deg, #e0f2fe 0%, #38bdf8 40%, #818cf8 80%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 .signup-header p {
   color: #64748b;
-  font-size: 1.1rem;
+  font-size: 1rem;
   margin: 0;
+  line-height: 1.6;
 }
 
-/* Campos do Formulário */
+/* ── Formulário ─────────────────────────────────── */
 .signup-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
+  animation: fadeSlideUp 0.6s 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .signup-row {
   display: flex;
-  gap: 20px;
+  gap: 16px;
 }
 
 .signup-field {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
 .signup-field label {
-  font-size: 0.9rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  color: #334155;
+  color: #94a3b8;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+/* Wrapper do input com ícone */
+.signup-field .input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.signup-field .input-icon {
+  position: absolute;
+  left: 16px;
+  font-size: 1rem;
+  color: #475569;
+  pointer-events: none;
+  transition: color 0.3s;
+  z-index: 1;
 }
 
 .signup-field input {
   width: 100%;
-  padding: 14px 20px;
+  padding: 13px 18px 13px 44px;
   border-radius: 12px;
-  border: 2px solid #e2e8f0;
-  background-color: #f8fafc;
-  font-size: 1rem;
-  color: #0f172a;
+  border: 1.5px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.95rem;
+  color: #e2e8f0;
   outline: none;
   box-sizing: border-box;
   transition: all 0.3s ease;
-}
-
-.signup-field input:focus {
-  background-color: #ffffff;
-  border-color: #38bdf8;
-  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.15);
+  font-family: 'Inter', sans-serif;
 }
 
 .signup-field input::placeholder {
-  color: #cbd5e1;
+  color: #334155;
+  font-size: 0.9rem;
 }
 
-/* Botão de Ação Animado */
-.signup-button {
-  margin-top: 20px;
+.signup-field input:focus {
+  background: rgba(14, 165, 233, 0.06);
+  border-color: #38bdf8;
+  box-shadow:
+    0 0 0 3px rgba(56, 189, 248, 0.12),
+    0 0 20px rgba(56, 189, 248, 0.08);
+  color: #f1f5f9;
+}
+
+.signup-field input:focus + .input-icon,
+.signup-field .input-wrapper:focus-within .input-icon {
+  color: #38bdf8;
+}
+
+/* Select estilizado */
+.signup-field select {
   width: 100%;
-  padding: 16px 0;
+  padding: 13px 18px 13px 44px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.95rem;
+  color: #94a3b8;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.signup-field select:focus {
+  background: rgba(14, 165, 233, 0.06);
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+  color: #e2e8f0;
+}
+
+.select-wrapper {
+  position: relative;
+}
+
+.select-wrapper::after {
+  content: '▾';
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #475569;
+  pointer-events: none;
+  font-size: 0.85rem;
+}
+
+/* Hint text */
+.signup-field .field-hint {
+  color: #334155;
+  font-size: 0.72rem;
+  margin-top: 2px;
+  line-height: 1.5;
+}
+
+/* ── Botão Principal ─────────────────────────────── */
+.signup-button {
+  margin-top: 10px;
+  width: 100%;
+  padding: 15px 0;
   border: none;
   border-radius: 12px;
-  background: linear-gradient(135deg, #0ea5e9, #4f46e5);
+  background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
   color: #ffffff;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 10px 20px rgba(14, 165, 233, 0.3);
+  letter-spacing: 0.03em;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(14, 165, 233, 0.35);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: 'Inter', sans-serif;
+}
+
+/* Shimmer animado */
+.signup-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transform: skewX(-20deg);
+  animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+  0%   { left: -100%; }
+  60%  { left: 160%; }
+  100% { left: 160%; }
 }
 
 .signup-button:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 15px 25px rgba(14, 165, 233, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px rgba(14, 165, 233, 0.5);
+  background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
 }
 
 .signup-button:active {
   transform: translateY(1px);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
 }
 
+/* ── Link de Login ───────────────────────────────── */
 .auth-link {
   text-align: center;
-  margin-top: 15px;
-  font-size: 0.95rem;
-  color: #64748b;
+  margin-top: 18px;
+  font-size: 0.88rem;
+  color: #475569;
 }
 
 .login-link {
-  color: #0ea5e9;
+  color: #38bdf8;
   font-weight: 700;
   text-decoration: none;
-  transition: color 0.3s;
+  transition: all 0.2s;
+  position: relative;
 }
 
-.login-link:hover {
-  color: #4f46e5;
-  text-decoration: underline;
+.login-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 0;
+  height: 1px;
+  background: #38bdf8;
+  transition: width 0.3s ease;
 }
 
-/* Painel de Imagem (Lado Direito) */
+.login-link:hover::after { width: 100%; }
+.login-link:hover { color: #7dd3fc; }
+
+/* ── Painel de Imagem (Direita) ──────────────────── */
 .signup-image-panel {
   flex: 1;
   position: relative;
-  background-color: #0f172a;
+  background: linear-gradient(160deg, #0c1829 0%, #0f1e35 100%);
   display: flex;
   align-items: flex-end;
   overflow: hidden;
+  min-height: 520px;
+}
+
+/* Grid de pontos decorativos */
+.signup-image-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(56, 189, 248, 0.15) 1px, transparent 1px);
+  background-size: 28px 28px;
+  z-index: 1;
+  opacity: 0.4;
 }
 
 .signup-image-panel img {
@@ -160,37 +350,108 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.8;
-  transition: transform 0.8s ease;
+  opacity: 0.25;
+  transition: transform 1s ease, opacity 0.5s ease;
+  mix-blend-mode: luminosity;
 }
 
 .signup-card:hover .signup-image-panel img {
-  transform: scale(1.05);
+  transform: scale(1.06);
+  opacity: 0.35;
+}
+
+/* Decoração de círculo brilhante */
+.signup-image-panel .panel-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 360px;
+  height: 360px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.12), transparent 70%);
+  z-index: 2;
+  animation: pulseGlow 4s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+  50%       { transform: translate(-50%, -50%) scale(1.2); opacity: 0.4; }
+}
+
+/* Ícone central decorativo */
+.signup-image-panel .panel-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -60%);
+  font-size: 5rem;
+  z-index: 3;
+  filter: drop-shadow(0 0 24px rgba(56, 189, 248, 0.6));
+  animation: floatIcon 6s ease-in-out infinite;
+}
+
+@keyframes floatIcon {
+  0%, 100% { transform: translate(-50%, -60%) translateY(0); }
+  50%       { transform: translate(-50%, -60%) translateY(-14px); }
 }
 
 .image-overlay {
   position: relative;
-  z-index: 2;
-  padding: 50px 40px;
-  background: linear-gradient(to top, rgba(15, 23, 42, 0.9) 0%, rgba(15, 23, 42, 0) 100%);
+  z-index: 4;
+  padding: 48px 44px;
+  background: linear-gradient(to top, rgba(6, 13, 26, 0.96) 0%, rgba(6, 13, 26, 0) 100%);
   color: white;
   width: 100%;
 }
 
 .image-overlay h2 {
-  font-size: 2.2rem;
-  font-weight: 800;
-  margin: 0 0 10px 0;
+  font-size: 2rem;
+  font-weight: 900;
+  margin: 0 0 12px 0;
+  background: linear-gradient(120deg, #ffffff, #7dd3fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
 }
 
 .image-overlay p {
-  font-size: 1.1rem;
-  line-height: 1.5;
-  margin: 0;
-  color: #cbd5e1;
+  font-size: 0.95rem;
+  line-height: 1.65;
+  margin: 0 0 24px 0;
+  color: #64748b;
 }
 
-/* Responsividade */
+/* Feature pills no painel */
+.image-overlay .panel-features {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.image-overlay .panel-feature {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.image-overlay .panel-feature span.feat-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+/* ── Responsividade ──────────────────────────────── */
 @media (max-width: 900px) {
   .signup-card {
     flex-direction: column-reverse;
@@ -198,17 +459,23 @@
   .signup-content {
     padding: 40px 30px;
   }
+  .signup-content::after { display: none; }
   .signup-image-panel {
-    min-height: 250px;
+    min-height: 260px;
   }
+  .signup-image-panel .panel-icon { font-size: 3.5rem; top: 40%; }
+  .image-overlay h2 { font-size: 1.6rem; }
 }
 
 @media (max-width: 600px) {
   .signup-row {
     flex-direction: column;
-    gap: 20px;
+    gap: 18px;
   }
   .signup-title {
     font-size: 2rem;
+  }
+  .signup-content {
+    padding: 32px 20px;
   }
 }
