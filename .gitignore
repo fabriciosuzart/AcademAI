@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 backend/vector_cache.json
+
+backend/uploads/
+*.db
+vector_cache.json
