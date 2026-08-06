@@ -63,6 +63,33 @@ let knowledgeBase = [];
 let vectorStore = [];
 let embedder = null;
 
+// --- ROTEADOR DE INTENÇÃO (INTENT ROUTER) ---
+function precisaDeFerramentas(mensagemUsuario) {
+    const texto = mensagemUsuario.toLowerCase();
+
+    // 1. Verbos e ações de agendamento
+    const acoes = [
+        'agendar', 'reservar', 'marcar', 'alugar', 'alocar', 'usar',
+        'emprestar', 'utilizar', 'disponível', 'disponibilidade',
+        'horário', 'cancelar', 'quais máquinas', 'equipamentos tem'
+    ];
+
+    // 2. Termos genéricos e específicos do INOVFABLAB
+    // Adicione aqui as categorias de tudo o que vocês pretendem ter no laboratório
+    const equipamentos = [
+        'equipamento', 'máquina', 'impressora', '3d', 'bambu',
+        'laser', 'cnc', 'torno', 'solda', 'osciloscópio', 'câmera',
+        'notebook', 'ferramenta', 'arduino', 'raspberry'
+    ];
+
+    // Verifica se a frase do usuário contém alguma palavra de ação OU nome de equipamento
+    const temAcao = acoes.some(acao => texto.includes(acao));
+    const temEquipamento = equipamentos.some(eq => texto.includes(eq));
+
+    // Retorna TRUE se ele citou uma ação ou um equipamento. FALSE se for conversa geral (ex: "Judas")
+    return temAcao || temEquipamento;
+}
+
 async function loadDocuments() {
     if (!fs.existsSync(DOCUMENTS_PATH)) {
         fs.mkdirSync(DOCUMENTS_PATH);
@@ -283,34 +310,47 @@ app.post('/api/chat', async (req, res) => {
 
         INFORMAÇÃO DO USUÁRIO ATUAL: ${statusLogin}
 
-        PROTOCOLO DE RESERVA (SIGA RIGOROSAMENTE):
-        1. Se o usuário quiser reservar mas não disse qual equipamento ou você não sabe o ID, chame 'consultar_equipamentos' IMEDIATAMENTE.
-        2. Ao receber a lista do banco, apresente-a assim:
-        "Encontrei estes equipamentos:
-        [ID] Nome do Equipamento - Status
-        Qual destes você deseja reservar?"
-        3. NUNCA tente adivinhar um ID. Só use IDs que você acabou de ler na ferramenta 'consultar_equipamentos'.
-        4. Após o usuário escolher o número (ID), peça a Data (AAAA-MM-DD) e Hora (HH:MM) se ele ainda não informou.
-        5. Somente com o ID confirmado e os dados de tempo, chame 'solicitar_reserva'.
+        BASE DE CONHECIMENTO (DOCUMENTOS E MANUAIS):
+        ${contextText ? contextText : "Nenhum documento adicional carregado no momento."}
 
-        REGRAS DE FORMATAÇÃO:
-        - Seja direto. Não explique que está acessando o banco de dados.
-        - Não use termos técnicos como "ID 1 criado no SQLite". Diga apenas "Reserva solicitada com sucesso!".`;
+        REGRA DE ROTEAMENTO (MUITO IMPORTANTE):
+        1. PERGUNTAS GERAIS: Se o usuário perguntar sobre conceitos, história (ex: "quem foi Judas", "como funciona X"), ou informações gerais do laboratório, responda baseando-se APENAS na 'BASE DE CONHECIMENTO' acima. NÃO chame ferramentas de agendamento.
+        2. AÇÕES DO SISTEMA: SÓ utilize as ferramentas 'consultar_equipamentos' ou 'solicitar_reserva' se a frase do usuário contiver intenção clara de reserva (ex: "quero agendar", "reservar", "quais máquinas disponíveis").
 
-        // --- 2. PRIMEIRA CHAMADA (A IA Pensa) ---
+        PROTOCOLO DE AGENDAMENTO (SISTEMA SEM MEMÓRIA):
+        1. A ferramenta 'solicitar_reserva' aceita o NOME do equipamento, DATA e HORA. Você NÃO PRECISA chamar 'consultar_equipamentos' para descobrir IDs.
+        2. Se o pedido vier completo (Ex: "Quero agendar a Impressora para 17/07 às 19:30"), chame 'solicitar_reserva' DIRETAMENTE.
+        3. Se o usuário pedir para agendar mas faltar dado, APENAS responda: "Por favor, me informe o pedido completo em uma única frase. Exemplo: Quero agendar a [Máquina] para o dia [Data] às [Horário]".`;
+
+        // --- 2. PRIMEIRA CHAMADA (A IA Pensa e o Roteador Decide) ---
+
+        // Passa a mensagem do usuário pelo nosso filtro ultrarrápido
+        const usarMCP = precisaDeFerramentas(message);
+        console.log(usarMCP ? "🔌 MODO MCP ATIVADO (Ferramentas ligadas)" : "💬 MODO CHAT/RAG (Ferramentas desligadas)");
+
+        // Monta o corpo base da requisição sem as ferramentas
+        const requestBody = {
+            model: "llama3.2",
+            messages: [
+                { role: "system", content: systemPromptBase },
+                { role: "user", content: message }
+            ],
+            stream: false,
+            options: {
+                temperature: 0.1 // Mantém a IA focada e evita alucinações
+            }
+        };
+
+        // INJEÇÃO DINÂMICA: Só entrega as ferramentas se o roteador autorizar
+        if (usarMCP) {
+            requestBody.tools = [toolConsultarEquipamentos, toolSolicitarReserva];
+        }
+
+        // Faz a chamada para a API local do Ollama
         const response1 = await fetch('http://127.0.0.1:11434/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: "llama3.2",
-                messages: [
-                    { role: "system", content: systemPromptBase },
-                    { role: "user", content: message }
-                ],
-                // 👇 ADICIONAMOS A NOVA FERRAMENTA AQUI 👇
-                tools: [toolConsultarEquipamentos, toolSolicitarReserva],
-                stream: false
-            })
+            body: JSON.stringify(requestBody)
         });
 
         const data1 = await response1.json();
@@ -337,34 +377,36 @@ app.post('/api/chat', async (req, res) => {
             console.log("--------------------------------------------------");
 
             // --- 4. SEGUNDA CHAMADA (Injeção Forçada) ---
-            const promptInjetado = `Você acabou de consultar o sistema interno silenciosamente e obteve esta resposta:
-            ${resultadoBanco}
-            
-            Com base nesse resultado, responda ao usuário de forma natural, educada e direta. 
-            REGRA ABSOLUTA: NUNCA mencione palavras técnicas como "banco de dados", "SQLite", "sistema interno" ou "ferramentas". Apenas repasse a informação ou confirme a ação.`;
+            let mensagensContexto = [];
+
+            if (toolCall.function.name === "consultar_equipamentos") {
+                mensagensContexto = [
+                    { role: "system", content: systemPromptBase },
+                    { role: "user", content: message },
+                    { role: "system", content: `RESULTADO DO BANCO DE DADOS:\n${resultadoBanco}\n\nORDEM RESTRITA: Analise a mensagem original do usuário. Se ele JÁ MANDOU a data e o horário, apenas confirme que a máquina está disponível e diga que vai efetuar a reserva. SE ELE NÃO MANDOU, pergunte para qual dia e horário ele deseja reservar.` }
+                ];
+            }
+            else if (toolCall.function.name === "solicitar_reserva") {
+                mensagensContexto = [
+                    { role: "system", content: systemPromptBase },
+                    { role: "user", content: message },
+                    { role: "system", content: `RESULTADO DO BANCO DE DADOS:\n${resultadoBanco}\n\nORDEM RESTRITA: Informe o usuário de forma amigável que a reserva foi registrada com sucesso e está aguardando aprovação.` }
+                ];
+            }
 
             const finalResponse = await fetch('http://127.0.0.1:11434/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: "llama3.2",
-                    messages: [
-                        { role: "user", content: promptInjetado }
-                    ],
-                    stream: true
+                    messages: mensagensContexto,
+                    stream: true,
+                    // 👇 A TRAVA DE SEGURANÇA MÁXIMA: Tira a "criatividade" da IA
+                    options: {
+                        temperature: 0.1
+                    }
                 })
             });
-
-            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-            for await (const chunk of finalResponse.body) {
-                const line = chunk.toString();
-                try {
-                    const json = JSON.parse(line);
-                    if (json.message?.content) res.write(json.message.content);
-                    if (json.done) res.end();
-                } catch (e) { }
-            }
-            return; // Sai da função aqui se usou ferramenta
         }
 
         // --- 5. RAG DIRETO (Continua dentro do TRY) ---

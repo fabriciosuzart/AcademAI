@@ -42,59 +42,65 @@ export const toolSolicitarReserva = {
     type: "function",
     function: {
         name: "solicitar_reserva",
-        description: "Envia um pedido de agendamento de equipamento para a aprovação do administrador.",
+        description: "Envia um pedido de agendamento de equipamento. SÓ CHAME ESTA FERRAMENTA SE TIVER O NOME, DATA E HORA.",
         parameters: {
             type: "object",
             properties: {
-                equipmentId: { type: "integer", description: "O ID numérico do equipamento." },
-                date: { type: "string", description: "A data desejada no formato YYYY-MM-DD." },
-                time: { type: "string", description: "O horário de início desejado no formato HH:MM." }
+                equipmentName: { type: "string", description: "O nome da máquina. Ex: Impressora 3D Teste" },
+                date: { type: "string", description: "A data estritamente no formato DD/MM/AAAA." },
+                time: { type: "string", description: "O horário estritamente no formato HH:MM." }
             },
-            required: ["equipmentId", "date", "time"]
+            // Voltamos a obrigar os 3 para evitar o bug do campo vazio
+            required: ["equipmentName", "date", "time"] 
         }
     }
 };
 
 // --- AÇÃO: SALVAR NO BANCO ---
-// Note que agora recebemos o userId para garantir quem está logado
 export async function executarSolicitacaoReserva(args, userId) {
-    // 🔥 Forçamos a conversão para Inteiro para evitar erros do Prisma
-    const eId = parseInt(args.equipmentId);
-    const uId = parseInt(userId);
+    console.log("📦 Dados brutos recebidos da IA:", args);
 
-    console.log(`🛠️ MCP ACIONADO: Reservando Equipamento ${eId} para o Usuário ${uId}...`);
-    
-    if (!uId) {
+    const uId = parseInt(userId);
+    const nomeAlvo = args.equipmentName;
+
+    if (!uId || isNaN(uId)) {
         return "Aviso à IA: O agendamento FALHOU. Usuário não identificado como logado.";
     }
 
+    if (!nomeAlvo) {
+        return `Aviso à IA: A reserva NÃO foi concluída porque o nome do equipamento está vazio. Pergunte ao usuário qual equipamento ele deseja.`;
+    }
+
+    if (!args.date || !args.time) {
+        return `Aviso à IA: A reserva NÃO foi concluída. Faltam a data ou o horário. Pergunte educadamente ao usuário para qual dia e horário ele deseja reservar o equipamento '${nomeAlvo}'.`;
+    }
+
     try {
-        // 1. Verifica se o equipamento existe
-        const equipamento = await prisma.equipment.findUnique({ where: { id: eId } });
+        // 🔥 A MÁGICA ACONTECE AQUI: O Node.js traduz o nome para o ID 🔥
+        const todosEquipamentos = await prisma.equipment.findMany();
+        
+        // Procura ignorando maiúsculas e minúsculas
+        const equipamento = todosEquipamentos.find(e => 
+            e.name.toLowerCase().includes(nomeAlvo.toLowerCase())
+        );
+
         if (!equipamento) {
-            return `Aviso à IA: O equipamento com ID ${eId} não foi encontrado no banco.`;
+            return `Aviso à IA: O equipamento chamado '${nomeAlvo}' não foi encontrado no banco de dados. Avise o usuário.`;
         }
 
-        // 2. Verifica se o usuário existe (Evita erro de chave estrangeira)
-        const usuario = await prisma.user.findUnique({ where: { id: uId } });
-        if (!usuario) {
-            return `Aviso à IA: O Usuário ID ${uId} não existe no banco de dados. Peça para o usuário deslogar e logar novamente.`;
-        }
-
-        // 3. Tenta salvar
+        // Agora salvamos usando o ID real que o Node.js encontrou
         const novaReserva = await prisma.appointment.create({
             data: {
                 date: args.date,
                 time: args.time,
                 status: "PENDENTE",
                 userId: uId,
-                equipmentId: eId
+                equipmentId: equipamento.id 
             }
         });
 
-        return `SUCESSO! Agendamento ID ${novaReserva.id} criado como PENDENTE.`;
+        return `SUCESSO! Agendamento ID ${novaReserva.id} criado como PENDENTE. Avise o usuário com entusiasmo!`;
     } catch (error) {
-        // 👇 OLHE O TERMINAL DO NODE PARA VER O ERRO REAL AQUI 👇
         console.error("❌ ERRO REAL NO PRISMA:", error);
         return "Erro técnico ao acessar o banco de dados. Verifique os logs do servidor.";
     }
