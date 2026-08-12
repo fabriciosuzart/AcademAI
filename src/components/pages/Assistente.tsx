@@ -100,17 +100,35 @@ const Assistente: React.FC = () => {
     try {
       abortControllerRef.current = new AbortController();
 
-      // Pegando o ID do usuário logado do cache do navegador 
       const idLogado = localStorage.getItem('userId');
+      const token = localStorage.getItem('token');
 
-      console.log("ID enviado:", idLogado);
+      // O backend aceita 'history' e monta o contexto da conversa com ele, mas
+      // nada estava enviando — cada pergunta chegava sem memória do que veio
+      // antes. Mandamos as últimas trocas, limitadas para não crescer sem fim.
+      const HISTORICO_MAX = 10;
+      const history = messages
+        .filter(m => m.text.trim())
+        .slice(-HISTORICO_MAX)
+        .map(m => ({
+          role: m.sender === 'user' ? 'user' : 'assistant',
+          content: m.text
+        }));
+
+      // Continuamos com fetch em vez do cliente axios porque esta rota responde
+      // em streaming, e o axios no navegador só entrega o corpo já completo.
+      // Os headers abaixo replicam o que o interceptor de src/api/axios.ts injeta.
       const response = await fetch('http://localhost:3000/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // 👇 Agora enviamos a mensagem E o userId 👇
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(idLogado ? { 'X-User-Id': idLogado } : {})
+        },
         body: JSON.stringify({
           message: textToSend,
-          userId: idLogado ? parseInt(idLogado) : null
+          userId: idLogado ? parseInt(idLogado) : null,
+          history
         }),
         signal: abortControllerRef.current.signal,
       });
