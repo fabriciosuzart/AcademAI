@@ -25,7 +25,7 @@ const Navbar: React.FC = () => {
       <div className="navbar-container">
         <Link to="/" className="navbar-logo" onClick={closeMobileMenu}>
           <img src={logoImage} alt="InovFabLab Logo" className="logo-image" />
-          <span>InovFabLab</span>
+          <span>INOVFABLAB</span>
         </Link>
 
         <ul className={isMenuOpen ? "nav-menu active" : "nav-menu"}>
@@ -44,20 +44,6 @@ const Navbar: React.FC = () => {
           <li className="nav-item">
             <Link to="/contato" className="nav-link" onClick={closeMobileMenu}>Contato</Link>
           </li>
-
-          {/* ITEM EXCLUSIVO PARA ADMINISTRADOR 👇 */}
-          {userRole === 'ADMIN' && (
-            <li className="nav-item">
-              <Link 
-                to="/admin" 
-                className="nav-link" 
-                style={{ color: '#ffcc00', fontWeight: 'bold' }} 
-                onClick={closeMobileMenu}
-              >
-                ⚙️ Painel Admin
-              </Link>
-            </li>
-          )}
 
           {/* LÓGICA DE LOGIN / LOGOUT 👇 */}
           <li className="nav-item">

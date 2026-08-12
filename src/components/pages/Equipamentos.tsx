@@ -2,30 +2,21 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import './Equipamentos.css';
 
-const equipamentosData = [
-  { id: 1, name: 'Impressora 3D Finder 01', status: 'available', img: 'impressora_3D_finder_01.jpg' },
-  { id: 2, name: 'Impressora 3D Finder 02', status: 'available', img: 'impressora_3D_finder_02.jpg' },
-  { id: 3, name: 'Cortadora a Laser', status: 'in-use', img: 'cortadora_a_laser.jpeg' },
-  { id: 4, name: 'Prototipadora', status: 'in-use', img: 'prototipadora.png' },
-  { id: 5, name: 'Bambu Lab A1', status: 'available', img: 'Bambu_LAB_01.png' },
-  { id: 6, name: 'Bambu Lab A2', status: 'available', img: 'Bambu_LAB_02.png' },
-  { id: 7, name: 'Micro Retífica', status: 'available', img: 'micro_retífica.jpg' },
-  { id: 8, name: 'Plotter de Recorte', status: 'in-use', img: 'plotter_de_recorte.jpg' },
-  { id: 9, name: 'X1 Carbon Combo', status: 'available', img: 'X1_CARBON_COMBO_IMPRESSORA_3D.jpg' },
-  { id: 10, name: 'Estação de Solda 01', status: 'available', img: 'ESTACAO_DE_SOLDA.jpg' },
-  { id: 11, name: 'Estação de Solda 02', status: 'available', img: 'ESTACAO_DE_SOLDA.jpg' },
-  { id: 12, name: 'Furadeira de Bancada', status: 'in-use', img: 'furadeira_de_bancada.jpg' },
-  { id: 13, name: 'Serra Tico-Tico', status: 'in-use', img: 'Serra_tico-tico_bosch.jpg' },
-  { id: 14, name: 'Máquina de Costura', status: 'available', img: 'maquina_de_costura.jpg' },
-  { id: 15, name: 'Parafusadeira', status: 'available', img: 'Parafusadeira_e_Furadeira_Bateria.jpg' },
-  { id: 16, name: 'Lixadeira Portátil', status: 'available', img: 'Lixadeira_portátil_DEWALT.jpg' },
-];
+export const equipamentosData = []; // Dados estáticos removidos, agora vem do banco de dados
 
 const Equipamentos: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [sortOrder, setSortOrder] = useState('default');
+  const [equipamentos, setEquipamentos] = useState<any[]>([]);
 
-  const filteredItems = equipamentosData
+  React.useEffect(() => {
+    fetch('http://localhost:3000/api/equipment')
+      .then(res => res.json())
+      .then(data => setEquipamentos(data))
+      .catch(console.error);
+  }, []);
+
+  const filteredItems = equipamentos
     .filter(item => filterStatus === 'all' ? true : item.status === filterStatus)
     .sort((a, b) => {
       if (sortOrder === 'alphabetical') return a.name.localeCompare(b.name);
