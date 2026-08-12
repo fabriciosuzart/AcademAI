@@ -306,6 +306,33 @@ app.delete('/api/users/:id', async (req, res) => {
     }
 });
 
+app.get('/api/appointments/:userId', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.userId);
+        if (isNaN(userId)) {
+            return res.status(400).json({ error: "ID de usuário inválido." });
+        }
+
+        const appointments = await prisma.appointment.findMany({
+            where: { userId },
+            include: { equipment: true }
+        });
+
+        // O front espera o nome do equipamento como texto e o horário em startTime.
+        // O modelo guarda a relação e um unico campo 'time', entao adaptamos aqui.
+        res.json(appointments.map(a => ({
+            id: a.id,
+            equipment: a.equipment.name,
+            date: a.date,
+            startTime: a.time,
+            endTime: null,
+            status: a.status
+        })));
+    } catch (error) {
+        res.status(500).json({ error: "Erro ao buscar agendamentos." });
+    }
+});
+
 app.get('/api/equipment', async (req, res) => {
     try {
         const equipment = await prisma.equipment.findMany();
