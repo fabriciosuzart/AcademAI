@@ -205,6 +205,25 @@ const VoiceNavigator: React.FC = () => {
     const [pendingConfirmation, setPendingConfirmation] = useState<{ text: string, action: () => void } | null>(null);
     const startRecordingRef = useRef<() => void>(() => {});
 
+    // A escuta se re-arma sozinha quando não entende, e sem um teto ela repetia
+    // "Não entendi" indefinidamente. Este contador zera a cada acerto.
+    const MAX_TENTATIVAS_SEM_ENTENDER = 3;
+    const tentativasSemEntenderRef = useRef(0);
+
+    // Re-arma a escuta, desistindo depois de algumas falhas seguidas.
+    const reescutar = (atraso: number) => {
+        tentativasSemEntenderRef.current += 1;
+        if (tentativasSemEntenderRef.current >= MAX_TENTATIVAS_SEM_ENTENDER) {
+            tentativasSemEntenderRef.current = 0;
+            setStatus('❌ Não consegui entender. Pressione M para tentar de novo.');
+            return;
+        }
+        setTimeout(() => startRecordingRef.current(), atraso);
+    };
+
+    // Chamado quando algo foi reconhecido com sucesso.
+    const reiniciarTentativas = () => { tentativasSemEntenderRef.current = 0; };
+
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -498,6 +517,7 @@ const VoiceNavigator: React.FC = () => {
                                     text: emailText.trim(),
                                     onFormatted: (formatted: string) => {
                                         speak(`E-mail ok: ${formatted}. Diga senha ou entrar.`, () => {
+                                            reiniciarTentativas();
                                             setTimeout(() => startRecordingRef.current(), 350);
                                         });
                                     }
@@ -505,7 +525,7 @@ const VoiceNavigator: React.FC = () => {
                             }));
                             clearStatus(5000);
                         } else {
-                            speak('Não entendi.', () => setTimeout(() => startRecordingRef.current(), 300));
+                            speak('Não entendi.', () => reescutar(300));
                         }
                     },
                     '📧 Diga seu e-mail...',
@@ -525,6 +545,7 @@ const VoiceNavigator: React.FC = () => {
                                     text: senhaText.trim(),
                                     onFormatted: () => {
                                         speak('Senha ok. Diga entrar para fazer login.', () => {
+                                            reiniciarTentativas();
                                             setTimeout(() => startRecordingRef.current(), 350);
                                         });
                                     }
@@ -532,7 +553,7 @@ const VoiceNavigator: React.FC = () => {
                             }));
                             clearStatus(4000);
                         } else {
-                            speak('Não entendi.', () => setTimeout(() => startRecordingRef.current(), 300));
+                            speak('Não entendi.', () => reescutar(300));
                         }
                     },
                     '🔒 Diga sua senha...',
