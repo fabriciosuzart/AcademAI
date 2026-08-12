@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./inovfablab.db"
+  url      = "file:./academai.db"
 }
 
 // 1. Tabela de Usuários

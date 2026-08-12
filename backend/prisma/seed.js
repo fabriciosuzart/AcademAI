@@ -11,7 +11,7 @@ async function main() {
     const usersToCreate = [
         {
             name: "Administrador Geral",
-            email: "admin@inovfablab.com",
+            email: "admin@academai.com",
             ra: "ADMIN001",
             password: passwordHash,
             role: "ADMIN",
@@ -20,7 +20,7 @@ async function main() {
         },
         {
             name: "Professor Responsável",
-            email: "prof@inovfablab.com",
+            email: "prof@academai.com",
             ra: "PROF001",
             password: passwordHash,
             role: "PROFESSOR",
@@ -29,7 +29,7 @@ async function main() {
         },
         {
             name: "Aluno Inovador 1",
-            email: "aluno1@inovfablab.com",
+            email: "aluno1@academai.com",
             ra: "ALU001",
             password: passwordHash,
             role: "ALUNO",
@@ -38,7 +38,7 @@ async function main() {
         },
         {
             name: "Aluno Inovador 2",
-            email: "aluno2@inovfablab.com",
+            email: "aluno2@academai.com",
             ra: "ALU002",
             password: passwordHash,
             role: "ALUNO",

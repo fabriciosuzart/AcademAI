@@ -132,7 +132,7 @@ function precisaDeFerramentas(mensagemUsuario) {
         'horário', 'cancelar', 'quais máquinas', 'equipamentos tem'
     ];
 
-    // 2. Termos genéricos e específicos do INOVFABLAB
+    // 2. Termos genéricos e específicos do AcademAI
     // Adicione aqui as categorias de tudo o que vocês pretendem ter no laboratório
     const equipamentos = [
         'equipamento', 'máquina', 'impressora', '3d', 'bambu',
