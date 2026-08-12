@@ -1,5 +1,27 @@
 const { PrismaClient } = require('@prisma/client');
+const fs = require('fs');
+const path = require('path');
 const prisma = new PrismaClient();
+
+// As imagens dos equipamentos são conteúdo de seed e ficam versionadas em
+// seed-assets/. A pasta uploads/ é de runtime e está no .gitignore, então
+// copiamos para lá no seed — assim as URLs /uploads/... continuam valendo.
+const SEED_ASSETS = path.join(__dirname, 'seed-assets');
+const UPLOADS = path.join(__dirname, 'uploads');
+
+function copiarImagensDoSeed() {
+  if (!fs.existsSync(SEED_ASSETS)) {
+    console.warn('⚠️ Pasta seed-assets/ não encontrada — equipamentos ficarão sem imagem.');
+    return;
+  }
+  fs.mkdirSync(UPLOADS, { recursive: true });
+  let copiadas = 0;
+  for (const arquivo of fs.readdirSync(SEED_ASSETS)) {
+    fs.copyFileSync(path.join(SEED_ASSETS, arquivo), path.join(UPLOADS, arquivo));
+    copiadas++;
+  }
+  console.log(`🖼️  ${copiadas} imagens copiadas para uploads/.`);
+}
 
 const equipamentosData = [
   { id: 1, name: 'Impressora 3D Finder 01', status: 'available', imagePath: '/uploads/impressora_3D_finder_01.jpg' },
@@ -21,6 +43,7 @@ const equipamentosData = [
 ];
 
 async function main() {
+  copiarImagensDoSeed();
   await prisma.equipment.deleteMany();
   for (const eq of equipamentosData) {
     await prisma.equipment.create({

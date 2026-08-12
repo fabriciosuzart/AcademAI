@@ -37,7 +37,7 @@ const NovaSenha: React.FC = () => {
                 
                 {/* Lado Esquerdo: Imagem */}
                 <div className="login-image-panel">
-                    <img src="/background2.png" alt="InovFabLab Background" />
+                    <img src="/background2.png" alt="AcademAI Background" />
                     <div className="image-overlay">
                         <h2>Segurança em Primeiro Lugar</h2>
                         <p>Mantenha sua conta protegida com uma senha forte.</p>
