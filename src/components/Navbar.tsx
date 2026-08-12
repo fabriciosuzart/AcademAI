@@ -9,7 +9,6 @@ const Navbar: React.FC = () => {
 
   // Recupera os dados do usuário salvos no login
   const userName = localStorage.getItem('userName');
-  const userRole = localStorage.getItem('userRole');
 
   const closeMobileMenu = () => setIsMenuOpen(false);
 
