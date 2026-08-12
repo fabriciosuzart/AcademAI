@@ -121,6 +121,47 @@ let knowledgeBase = [];
 let vectorStore = [];
 let embedder = null;
 
+// --- ROTEADOR DE INTENÇÃO (INTENT ROUTER) ---
+function precisaDeFerramentas(mensagemUsuario) {
+    const texto = mensagemUsuario.toLowerCase();
+
+    // 1. Verbos e ações de agendamento
+    const acoes = [
+        'agendar', 'reservar', 'marcar', 'alugar', 'alocar', 'usar',
+        'emprestar', 'utilizar', 'disponível', 'disponibilidade',
+        'horário', 'cancelar', 'quais máquinas', 'equipamentos tem'
+    ];
+
+    // 2. Termos genéricos e específicos do INOVFABLAB
+    // Adicione aqui as categorias de tudo o que vocês pretendem ter no laboratório
+    const equipamentos = [
+        'equipamento', 'máquina', 'impressora', '3d', 'bambu',
+        'laser', 'cnc', 'torno', 'solda', 'osciloscópio', 'câmera',
+        'notebook', 'ferramenta', 'arduino', 'raspberry'
+    ];
+
+    // Verifica se a frase do usuário contém alguma palavra de ação OU nome de equipamento
+    const temAcao = acoes.some(acao => texto.includes(acao));
+    const temEquipamento = equipamentos.some(eq => texto.includes(eq));
+
+    // Retorna TRUE se ele citou uma ação ou um equipamento. FALSE se for conversa geral (ex: "Judas")
+    return temAcao || temEquipamento;
+}
+
+// --- REPASSA O STREAM DO OLLAMA PARA O CLIENTE ---
+// Usado tanto pela resposta pós-ferramenta quanto pelo RAG direto.
+async function repassarStreamOllama(res, ollamaResponse) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    for await (const chunk of ollamaResponse.body) {
+        const line = chunk.toString();
+        try {
+            const json = JSON.parse(line);
+            if (json.message?.content) res.write(json.message.content);
+            if (json.done) res.end();
+        } catch (e) { }
+    }
+}
+
 async function loadDocuments() {
     if (!fs.existsSync(DOCUMENTS_PATH)) {
         fs.mkdirSync(DOCUMENTS_PATH);
@@ -520,7 +561,6 @@ app.get('/api/users/:id/stats', authMiddleware, async (req, res) => {
 });
 
 // --- EQUIPAMENTOS (RF05) ---
-
 
 app.get('/api/equipment', async (req, res) => {
     try {
@@ -1059,17 +1099,16 @@ app.post('/api/chat', async (req, res) => {
 
         INFORMAÇÃO DO USUÁRIO ATUAL: ${statusLogin}
 
+        REGRA DE ROTEAMENTO (MUITO IMPORTANTE):
+        1. PERGUNTAS GERAIS: Se o usuário perguntar sobre conceitos, história ou informações gerais do laboratório, responda APENAS com base no contexto documental. NÃO chame ferramentas de agendamento.
+        2. AÇÕES DO SISTEMA: SÓ use 'consultar_equipamentos' ou 'solicitar_reserva' quando houver intenção clara de reserva (ex: "quero agendar", "reservar", "quais máquinas disponíveis").
+
         PROTOCOLO DE RESERVA (SIGA RIGOROSAMENTE):
-        1. Se o usuário quiser reservar mas não disse qual equipamento, chame 'consultar_equipamentos' IMEDIATAMENTE.
-        2. Ao receber a lista, apresente assim:
-        "Encontrei estes equipamentos:
-        [ID] Nome do Equipamento - Status
-        Qual destes você deseja reservar?"
-        3. NUNCA adivinhe um ID. Só use IDs da ferramenta 'consultar_equipamentos'.
-        4. Após o usuário escolher, peça Data (AAAA-MM-DD) e Hora (HH:MM) se não informou.
-        5. ANTES de chamar 'solicitar_reserva', CONFIRME os dados com o usuário.
-        6. Informe ao usuário se a reserva será aprovada automaticamente ou ficará pendente.
-        7. Somente após confirmação, chame 'solicitar_reserva'.
+        1. 'solicitar_reserva' aceita o NOME do equipamento, DATA e HORA. Você NÃO precisa de ID nem de chamar 'consultar_equipamentos' antes.
+        2. Se o pedido vier completo (ex: "Quero agendar a Impressora 3D Finder 01 para 2026-07-17 às 19:30"), chame 'solicitar_reserva' DIRETAMENTE.
+        3. A data vai no formato AAAA-MM-DD e a hora em HH:MM.
+        4. Se faltar algum dado, peça o pedido completo numa única frase: "Quero agendar a [Máquina] para o dia [Data] às [Horário]".
+        5. Informe ao usuário se a reserva foi aprovada automaticamente ou ficou pendente.
 
         REGRAS DE CITAÇÃO DE FONTE (RF19 — OBRIGATÓRIO):
         - Se a sua resposta for baseada em algum trecho do contexto documental abaixo, cite obrigatoriamente a fonte ao final, no formato: "📄 Fonte: [nome do arquivo]"
@@ -1087,16 +1126,31 @@ app.post('/api/chat', async (req, res) => {
             { role: "user", content: message }
         ];
 
-        // 2. Primeira chamada (IA Pensa)
+        // --- 2. PRIMEIRA CHAMADA (A IA pensa e o roteador decide) ---
+
+        // Filtro ultrarrápido por palavra-chave, antes de gastar uma chamada com ferramentas.
+        const usarMCP = precisaDeFerramentas(message);
+        console.log(usarMCP ? "🔌 MODO MCP ATIVADO (Ferramentas ligadas)" : "💬 MODO CHAT/RAG (Ferramentas desligadas)");
+
+        const requestBody = {
+            model: "llama3.2",
+            messages: messagesArray,
+            stream: false,
+            options: {
+                temperature: 0.1 // Mantém a IA focada e evita alucinações
+            }
+        };
+
+        // INJEÇÃO DINÂMICA: só entrega as ferramentas se o roteador autorizar.
+        // Sem isso a IA tentava agendar até em pergunta conceitual.
+        if (usarMCP) {
+            requestBody.tools = [toolConsultarEquipamentos, toolSolicitarReserva];
+        }
+
         const response1 = await fetch('http://127.0.0.1:11434/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: "llama3.2",
-                messages: messagesArray,
-                tools: [toolConsultarEquipamentos, toolSolicitarReserva],
-                stream: false
-            })
+            body: JSON.stringify(requestBody)
         });
 
         const data1 = await response1.json();
@@ -1117,9 +1171,10 @@ app.post('/api/chat', async (req, res) => {
 
             console.log("📦 RETORNO:", resultadoBanco);
 
+            // --- 4. SEGUNDA CHAMADA (injeção do resultado) ---
             const promptInjetado = `Você consultou o sistema e obteve:
             ${resultadoBanco}
-            
+
             Responda ao usuário de forma natural. NUNCA mencione "banco de dados", "SQLite" ou "ferramentas".
             ${userInfo ? `Lembre: ${userInfo}` : ''}`;
 
@@ -1129,19 +1184,15 @@ app.post('/api/chat', async (req, res) => {
                 body: JSON.stringify({
                     model: "llama3.2",
                     messages: [...messagesArray, { role: "user", content: promptInjetado }],
-                    stream: true
+                    stream: true,
+                    options: {
+                        temperature: 0.1 // Tira a "criatividade" ao relatar o resultado
+                    }
                 })
             });
 
-            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-            for await (const chunk of finalResponse.body) {
-                const line = chunk.toString();
-                try {
-                    const json = JSON.parse(line);
-                    if (json.message?.content) res.write(json.message.content);
-                    if (json.done) res.end();
-                } catch (e) { }
-            }
+            // Repassa a confirmação da ferramenta e ENCERRA a requisição aqui.
+            await repassarStreamOllama(res, finalResponse);
             return;
         }
 
@@ -1156,15 +1207,7 @@ app.post('/api/chat', async (req, res) => {
             })
         });
 
-        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-        for await (const chunk of responseDirect.body) {
-            const line = chunk.toString();
-            try {
-                const json = JSON.parse(line);
-                if (json.message?.content) res.write(json.message.content);
-                if (json.done) res.end();
-            } catch (e) { }
-        }
+        await repassarStreamOllama(res, responseDirect);
 
     } catch (error) {
         console.error("❌ Erro na Rota Chat:", error);

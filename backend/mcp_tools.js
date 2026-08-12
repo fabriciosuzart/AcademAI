@@ -35,35 +35,50 @@ export const toolSolicitarReserva = {
     type: "function",
     function: {
         name: "solicitar_reserva",
-        description: "Envia um pedido de reserva de equipamento. Professores e administradores são aprovados automaticamente. Alunos ficam pendentes.",
+        description: "Envia um pedido de reserva de equipamento. SÓ CHAME SE TIVER O NOME DO EQUIPAMENTO, A DATA E A HORA. Professores e administradores são aprovados automaticamente; alunos ficam pendentes.",
         parameters: {
             type: "object",
             properties: {
-                equipmentId: { type: "integer", description: "O ID numérico do equipamento." },
-                date: { type: "string", description: "A data desejada no formato YYYY-MM-DD." },
-                time: { type: "string", description: "O horário de início desejado no formato HH:MM." },
-                endTime: { type: "string", description: "O horário de término desejado no formato HH:MM (opcional)." }
+                // Recebemos o NOME e não o ID: o modelo alucinava IDs que não existiam.
+                // A tradução nome -> ID acontece no Node, logo abaixo.
+                equipmentName: { type: "string", description: "O nome da máquina. Ex: Impressora 3D Finder 01" },
+                date: { type: "string", description: "A data estritamente no formato YYYY-MM-DD." },
+                time: { type: "string", description: "O horário de início estritamente no formato HH:MM." },
+                endTime: { type: "string", description: "O horário de término no formato HH:MM (opcional)." }
             },
-            required: ["equipmentId", "date", "time"]
+            // Voltamos a obrigar os 3 para evitar o bug do campo vazio
+            required: ["equipmentName", "date", "time"] 
         }
     }
 };
 
+// --- AÇÃO: SALVAR NO BANCO ---
 export async function executarSolicitacaoReserva(args, userId) {
-    const eId = parseInt(args.equipmentId);
+    console.log("📦 Dados brutos recebidos da IA:", args);
+
     const uId = parseInt(userId);
+    const nomeAlvo = args.equipmentName;
 
-    console.log(`🛠️ MCP ACIONADO: Reservando Equipamento ${eId} para Usuário ${uId}...`);
-
-    if (!uId) {
+    if (!uId || isNaN(uId)) {
         return "O agendamento FALHOU. Usuário não está logado. Peça para o usuário fazer login no sistema.";
     }
 
+    if (!nomeAlvo) {
+        return `Aviso à IA: A reserva NÃO foi concluída porque o nome do equipamento está vazio. Pergunte ao usuário qual equipamento ele deseja.`;
+    }
+
+    if (!args.date || !args.time) {
+        return `Aviso à IA: A reserva NÃO foi concluída. Faltam a data ou o horário. Pergunte educadamente ao usuário para qual dia e horário ele deseja reservar o equipamento '${nomeAlvo}'.`;
+    }
+
     try {
-        // 1. Verificar equipamento
-        const equipamento = await prisma.equipment.findUnique({ where: { id: eId } });
+        // 1. Traduzir o NOME informado pela IA para o ID real, ignorando maiúsculas
+        const todosEquipamentos = await prisma.equipment.findMany();
+        const equipamento = todosEquipamentos.find(e =>
+            e.name.toLowerCase().includes(nomeAlvo.toLowerCase())
+        );
         if (!equipamento) {
-            return `Equipamento com ID ${eId} não encontrado.`;
+            return `O equipamento chamado '${nomeAlvo}' não foi encontrado. Avise o usuário e sugira que ele peça a lista de equipamentos.`;
         }
 
         // 2. Verificar usuário
@@ -75,9 +90,12 @@ export async function executarSolicitacaoReserva(args, userId) {
         // 3. Verificar conflito de horário (RF16)
         const conflicting = await prisma.appointment.findFirst({
             where: {
-                equipmentId: eId,
+                equipmentId: equipamento.id,
                 date: args.date,
-                status: { in: ['PENDENTE', 'APROVADO'] },
+                // "APROVADA" no feminino: e o valor que as rotas REST gravam.
+                // Com "APROVADO" aqui, reservas aprovadas pelo painel nao contavam
+                // como conflito e o mesmo horario podia ser reservado duas vezes.
+                status: { in: ['PENDENTE', 'APROVADA'] },
                 OR: [
                     { time: args.time },
                     ...(args.endTime ? [{ time: { lte: args.endTime }, endTime: { gte: args.time } }] : [])
@@ -90,7 +108,7 @@ export async function executarSolicitacaoReserva(args, userId) {
 
         // 4. Determinar aprovação automática (RF11)
         const autoApprove = usuario.role === 'PROFESSOR' || usuario.role === 'ADMIN';
-        const status = autoApprove ? 'APROVADO' : 'PENDENTE';
+        const status = autoApprove ? 'APROVADA' : 'PENDENTE';
 
         // 5. Criar reserva
         const novaReserva = await prisma.appointment.create({
@@ -100,7 +118,7 @@ export async function executarSolicitacaoReserva(args, userId) {
                 endTime: args.endTime || null,
                 status: status,
                 userId: uId,
-                equipmentId: eId,
+                equipmentId: equipamento.id,
                 approvedById: autoApprove ? uId : null
             }
         });
@@ -140,7 +158,7 @@ export async function executarSolicitacaoReserva(args, userId) {
             }
         }
 
-        const statusMsg = autoApprove ? 'APROVADO automaticamente' : 'PENDENTE (aguardando aprovação)';
+        const statusMsg = autoApprove ? 'APROVADA automaticamente' : 'PENDENTE (aguardando aprovação)';
         return `Reserva criada com sucesso! Status: ${statusMsg}. Equipamento: ${equipamento.name}, Data: ${args.date}, Horário: ${args.time}.`;
     } catch (error) {
         console.error("❌ ERRO NO PRISMA:", error);
