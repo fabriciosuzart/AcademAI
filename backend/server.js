@@ -150,26 +150,60 @@ function precisaDeFerramentas(mensagemUsuario) {
 
 // --- REPASSA O STREAM DO OLLAMA PARA O CLIENTE ---
 // Usado tanto pela resposta pós-ferramenta quanto pelo RAG direto.
+//
+// O Ollama responde em NDJSON: um objeto JSON por linha. Um chunk da rede NÃO
+// corresponde a uma linha — pode trazer várias coladas ou cortar uma no meio.
+// Por isso acumulamos num buffer e só processamos linhas completas, guardando o
+// resto para o próximo chunk. Fazer JSON.parse direto no chunk estourava, o erro
+// era engolido, e quando a linha perdida era a do 'done' o res.end() nunca
+// acontecia: o cliente ficava preso esperando um fim que não vinha.
 async function repassarStreamOllama(res, ollamaResponse) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    for await (const chunk of ollamaResponse.body) {
-        const line = chunk.toString();
+
+    let buffer = '';
+
+    const processarLinha = (linha) => {
+        const texto = linha.trim();
+        if (!texto) return;
         try {
-            const json = JSON.parse(line);
+            const json = JSON.parse(texto);
             if (json.message?.content) res.write(json.message.content);
-            if (json.done) res.end();
-        } catch (e) { }
+        } catch (e) {
+            console.warn('⚠️ Linha NDJSON ilegível descartada:', texto.slice(0, 120));
+        }
+    };
+
+    try {
+        for await (const chunk of ollamaResponse.body) {
+            buffer += chunk.toString();
+
+            let quebra;
+            while ((quebra = buffer.indexOf('\n')) !== -1) {
+                processarLinha(buffer.slice(0, quebra));
+                buffer = buffer.slice(quebra + 1);
+            }
+        }
+        // Resto sem quebra de linha ao final do stream
+        processarLinha(buffer);
+    } finally {
+        // Encerra ao término do stream, tenha ou não chegado um 'done'.
+        if (!res.writableEnded) res.end();
     }
 }
 
-async function loadDocuments() {
+// Lê os documentos da pasta e devolve os blocos.
+// Quando `apenas` é informado, lê só aquele arquivo — usado após um upload,
+// para não reprocessar o corpus inteiro a cada treino.
+async function loadDocuments(apenas = null) {
+    const blocos = [];
+
     if (!fs.existsSync(DOCUMENTS_PATH)) {
         fs.mkdirSync(DOCUMENTS_PATH);
         console.log("📂 Pasta 'documents' criada.");
-        return;
+        return blocos;
     }
-    const files = fs.readdirSync(DOCUMENTS_PATH);
-    console.log(`📂 Lendo ${files.length} arquivos...`);
+    const files = apenas ? [apenas] : fs.readdirSync(DOCUMENTS_PATH);
+    console.log(`📂 Lendo ${files.length} arquivo(s)...`);
 
     for (const file of files) {
         const filePath = path.join(DOCUMENTS_PATH, file);
@@ -190,7 +224,7 @@ async function loadDocuments() {
                 const cleanText = textContent.replace(/\r/g, '').replace(/\n\s*\n/g, '\n').trim();
                 const chunkSize = 2000;
                 for (let i = 0; i < cleanText.length; i += chunkSize) {
-                    knowledgeBase.push({
+                    blocos.push({
                         source: `Arquivo: ${file}`,
                         text: cleanText.substring(i, i + chunkSize)
                     });
@@ -201,42 +235,112 @@ async function loadDocuments() {
             console.error(`   ❌ Erro ao ler ${file}:`, error.message);
         }
     }
+    return blocos;
 }
 
-async function initAI() {
-    await loadDocuments();
+// Carrega o modelo de embeddings uma única vez por processo.
+// Antes cada upload chamava initAI(), que recriava o pipeline do zero.
+async function garantirEmbedder() {
+    if (embedder) return true;
     console.log("\n🧠 Inicializando Motor de IA...");
     try {
         embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
         console.log("✅ Modelo de Embeddings carregado na memória.");
+        return true;
     } catch (e) {
         console.error("❌ Erro fatal ao carregar modelo Xenova:", e);
-        return;
+        return false;
     }
-    console.log(`🧐 Verificando base de conhecimento: ${knowledgeBase.length} itens.`);
-    if (knowledgeBase.length === 0) {
-        console.warn("⚠️ Base de conhecimento vazia! O RAG não usará arquivos.");
-    }
-    console.log(`📊 Iniciando vetorização de ${knowledgeBase.length} blocos...`);
-    vectorStore = [];
-    for (let i = 0; i < knowledgeBase.length; i++) {
+}
+
+async function vetorizar(blocos) {
+    const vetores = [];
+    for (const bloco of blocos) {
         try {
-            const output = await embedder(knowledgeBase[i].text, { pooling: 'mean', normalize: true });
-            vectorStore.push({ id: i, text: knowledgeBase[i].text, source: knowledgeBase[i].source, vector: output.data });
+            const output = await embedder(bloco.text, { pooling: 'mean', normalize: true });
+            vetores.push({ text: bloco.text, source: bloco.source, vector: output.data });
             process.stdout.write(`.`);
         } catch (e) {
-            console.error(`\n❌ Erro ao processar bloco ${i}:`, e);
+            console.error(`\n❌ Erro ao vetorizar bloco de ${bloco.source}:`, e.message);
         }
     }
-    console.log(`\n✅ Vetorização concluída! Temos ${vectorStore.length} vetores prontos.`);
+    return vetores;
+}
+
+function salvarCache() {
     try {
         fs.writeFileSync(VECTOR_CACHE_PATH, JSON.stringify(vectorStore));
         console.log("💾 Cache salvo no disco.");
     } catch (e) {
         console.error("Erro ao salvar cache:", e);
     }
+}
+
+// O cache só vale se for mais novo que todos os documentos indexados.
+function cacheEstaAtualizado() {
+    if (!fs.existsSync(VECTOR_CACHE_PATH)) return false;
+    if (!fs.existsSync(DOCUMENTS_PATH)) return false;
+
+    const cacheMtime = fs.statSync(VECTOR_CACHE_PATH).mtimeMs;
+    const arquivos = fs.readdirSync(DOCUMENTS_PATH);
+    if (arquivos.length === 0) return false;
+
+    return arquivos.every(f =>
+        fs.statSync(path.join(DOCUMENTS_PATH, f)).mtimeMs <= cacheMtime
+    );
+}
+
+async function initAI() {
+    if (!(await garantirEmbedder())) return;
+
+    // Reaproveita o cache no boot em vez de revetorizar tudo. O arquivo era
+    // gravado a cada vetorização mas nunca lido de volta.
+    if (cacheEstaAtualizado()) {
+        try {
+            const bruto = JSON.parse(fs.readFileSync(VECTOR_CACHE_PATH, 'utf-8'));
+            if (Array.isArray(bruto) && bruto.length > 0) {
+                vectorStore = bruto;
+                knowledgeBase = bruto.map(v => ({ text: v.text, source: v.source }));
+                console.log(`♻️ Cache reaproveitado: ${vectorStore.length} vetores, sem revetorizar.`);
+                console.log("🚀 IA RAG Pronta para perguntas!\n");
+                return;
+            }
+        } catch (e) {
+            console.warn("⚠️ Cache ilegível, refazendo a vetorização:", e.message);
+        }
+    }
+
+    knowledgeBase = await loadDocuments();
+    if (knowledgeBase.length === 0) {
+        console.warn("⚠️ Base de conhecimento vazia! O RAG não usará arquivos.");
+    }
+    console.log(`📊 Iniciando vetorização de ${knowledgeBase.length} blocos...`);
+    vectorStore = await vetorizar(knowledgeBase);
+    console.log(`\n✅ Vetorização concluída! Temos ${vectorStore.length} vetores prontos.`);
+    salvarCache();
     console.log("🚀 IA RAG Pronta para perguntas!\n");
 }
+
+// Indexa UM documento recém-enviado, somando ao que já está em memória.
+// Antes o /api/train zerava tudo e reprocessava o corpus inteiro a cada upload.
+async function indexarDocumento(nomeArquivo) {
+    if (!(await garantirEmbedder())) {
+        throw new Error("Modelo de embeddings indisponível.");
+    }
+    const blocos = await loadDocuments(nomeArquivo);
+    if (blocos.length === 0) {
+        console.warn(`⚠️ Nenhum conteúdo extraído de ${nomeArquivo}.`);
+        return 0;
+    }
+    console.log(`📊 Vetorizando ${blocos.length} blocos novos de ${nomeArquivo}...`);
+    const novosVetores = await vetorizar(blocos);
+    knowledgeBase = knowledgeBase.concat(blocos);
+    vectorStore = vectorStore.concat(novosVetores);
+    console.log(`\n✅ +${novosVetores.length} vetores. Total: ${vectorStore.length}.`);
+    salvarCache();
+    return novosVetores.length;
+}
+
 initAI();
 
 function cosineSimilarity(vecA, vecB) {
@@ -1047,9 +1151,16 @@ app.post('/api/train', authMiddleware, roleMiddleware(['ADMIN']), upload.single(
 
         if (stdout.includes("SUCESSO")) {
             console.log("✅ Conversão concluída pelo Docling.");
-            knowledgeBase = [];
-            await initAI();
-            res.json({ message: "IA Treinada com sucesso!", file: mdFileName });
+            // Indexa só o arquivo recém-convertido. Antes isto zerava a base e
+            // rodava initAI() de novo, recarregando o modelo e revetorizando
+            // todos os documentos — o upload demorava mais a cada treino.
+            const novos = await indexarDocumento(mdFileName);
+            res.json({
+                message: "IA Treinada com sucesso!",
+                file: mdFileName,
+                blocosIndexados: novos,
+                totalVetores: vectorStore.length
+            });
         } else {
             throw new Error(stdout);
         }
