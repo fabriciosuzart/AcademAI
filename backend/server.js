@@ -90,6 +90,20 @@ function precisaDeFerramentas(mensagemUsuario) {
     return temAcao || temEquipamento;
 }
 
+// --- REPASSA O STREAM DO OLLAMA PARA O CLIENTE ---
+// Usado tanto pela resposta pós-ferramenta quanto pelo RAG direto.
+async function repassarStreamOllama(res, ollamaResponse) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    for await (const chunk of ollamaResponse.body) {
+        const line = chunk.toString();
+        try {
+            const json = JSON.parse(line);
+            if (json.message?.content) res.write(json.message.content);
+            if (json.done) res.end();
+        } catch (e) { }
+    }
+}
+
 async function loadDocuments() {
     if (!fs.existsSync(DOCUMENTS_PATH)) {
         fs.mkdirSync(DOCUMENTS_PATH);
@@ -485,6 +499,12 @@ app.post('/api/chat', async (req, res) => {
                     }
                 })
             });
+
+            // Repassa a confirmação da ferramenta e ENCERRA a requisição aqui.
+            // Sem este return a execução cairia no RAG direto abaixo, que não sabe
+            // que a ferramenta rodou — a reserva era gravada mas nunca confirmada.
+            await repassarStreamOllama(res, finalResponse);
+            return;
         }
 
         // --- 5. RAG DIRETO (Continua dentro do TRY) ---
@@ -501,15 +521,7 @@ app.post('/api/chat', async (req, res) => {
             })
         });
 
-        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-        for await (const chunk of responseDirect.body) {
-            const line = chunk.toString();
-            try {
-                const json = JSON.parse(line);
-                if (json.message?.content) res.write(json.message.content);
-                if (json.done) res.end();
-            } catch (e) { }
-        }
+        await repassarStreamOllama(res, responseDirect);
 
     } catch (error) { // <-- Agora o CATCH encontra o TRY corretamente
         console.error("❌ Erro na Rota Chat:", error);
