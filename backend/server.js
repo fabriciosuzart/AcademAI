@@ -217,9 +217,87 @@ app.post('/api/login', async (req, res) => {
         if (!(await bcrypt.compare(password, user.password))) return res.status(401).json({ error: "Senha inválida." });
 
         const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: 86400 });
-        res.json({ auth: true, token, name: user.name, id: user.id, role: user.role });
+        res.json({ auth: true, token, name: user.name, id: user.id, role: user.role, email: user.email, ra: user.ra });
     } catch (error) {
         res.status(500).json({ error: "Erro interno no login." });
+    }
+});
+
+app.get('/api/users', async (req, res) => {
+    try {
+        const users = await prisma.user.findMany({
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                ra: true,
+                role: true,
+                trainings: true
+            }
+        });
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ error: "Erro ao buscar usuários." });
+    }
+});
+
+app.put('/api/users/:id', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id);
+        const { name, email, ra, trainings } = req.body;
+
+        const existingUser = await prisma.user.findUnique({ where: { id: userId } });
+        if (!existingUser) {
+            return res.status(404).json({ error: "Usuário não encontrado." });
+        }
+        if (existingUser.role === 'ADMIN') {
+            return res.status(403).json({ error: "Perfis de administrador não podem ser editados." });
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                name,
+                email,
+                ra: ra || null,
+                trainings: trainings !== undefined ? trainings : existingUser.trainings
+            }
+        });
+        res.json({ message: "Usuário atualizado com sucesso!", user: updatedUser });
+    } catch (error) {
+        res.status(500).json({ error: "Erro ao atualizar usuário." });
+    }
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id);
+        
+        const existingUser = await prisma.user.findUnique({ where: { id: userId } });
+        if (!existingUser) {
+            return res.status(404).json({ error: "Usuário não encontrado." });
+        }
+        if (existingUser.role === 'ADMIN') {
+            return res.status(403).json({ error: "Perfis de administrador não podem ser excluídos." });
+        }
+
+        // Excluir agendamentos relacionados se necessário (se o Prisma onDelete não for cascade)
+        await prisma.appointment.deleteMany({ where: { userId } });
+        
+        await prisma.user.delete({ where: { id: userId } });
+        
+        res.json({ message: "Usuário excluído com sucesso!" });
+    } catch (error) {
+        res.status(500).json({ error: "Erro ao excluir usuário." });
+    }
+});
+
+app.get('/api/equipment', async (req, res) => {
+    try {
+        const equipment = await prisma.equipment.findMany();
+        res.json(equipment);
+    } catch (error) {
+        res.status(500).json({ error: "Erro ao buscar equipamentos." });
     }
 });
 

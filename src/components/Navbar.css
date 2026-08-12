@@ -39,6 +39,7 @@
 .navbar-logo span {
   font-size: 1.6rem;
   font-weight: 800;
+  padding: 0 8px;
   background: linear-gradient(90deg, #38bdf8, #818cf8);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -60,10 +61,10 @@
 
 .nav-link {
   color: #cbd5e1;
-  font-size: 1rem;
+  font-size: 14px;
   font-weight: 600;
   text-decoration: none;
-  padding: 8px 12px;
+  padding: 8px 6px;
   border-radius: 8px;
   transition: all 0.3s ease;
 }

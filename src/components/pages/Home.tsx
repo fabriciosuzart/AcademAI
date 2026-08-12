@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import './Home.css';
 
 const Home: React.FC = () => {
+    const userRole = localStorage.getItem('userRole');
+
     return (
         <div className="home-container">
             <main className="home-main">
@@ -11,15 +13,15 @@ const Home: React.FC = () => {
 
                 <div className="tabs">
                     <Link to="/assistente" className="tab-button active">Interagir com IA</Link>
-                    <Link to="/equipamentos" className="tab-button active">Ver Equipamentos</Link>
-
-                    {/* CORREÇÃO AQUI: Trocamos 'a href' por 'Link to' */}
                     <Link to="/cadastro" className="tab-button active">Cadastre-se Agora</Link>
+                    {userRole === 'ADMIN' && (
+                        <Link to="/admin" className="tab-button admin-tab">Painel Admin</Link>
+                    )}
                 </div>
 
                 <div className="content-box">
                     <h3>O que é o INOVFABLAB?</h3>
-                    <p>Somos um laboratório de fabricação digital (FabLab) onde a criatividade encontra as ferramentas para se transformar em realidade. Aqui, estudantes, pesquisadores e entusiastas podem desenvolver projetos, prototipar ideias e aprender na prática.</p>
+                    <p>Somos um laboratório de fabricação digital (FABLAB) onde a criatividade encontra as ferramentas para se transformar em realidade. Aqui, estudantes, pesquisadores e entusiastas podem desenvolver projetos, prototipar ideias e aprender na prática.</p>
                 </div>
 
                 <h2>Sua Jornada para Criar</h2>
@@ -61,7 +63,7 @@ const Home: React.FC = () => {
                     </ul>
                 </div>
 
-                <p className="slogan">Somos todos INOVFABLAB, Somos todos UNISANTA!</p>
+                <p className="slogan">Somos todos INOVFABLAB, somos todos UNISANTA!</p>
 
             </main>
         </div>
