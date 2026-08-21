@@ -1,5 +1,10 @@
 # Como Executar o projeto
 
+## Pré-requisitos
+
+- **Node.js 22 LTS.** Confira com `node -v` — precisa mostrar `v22.x`. O projeto não instala em versões antigas: o Prisma exige Node 18.18+ e o Vite 7 exige 20.19+. Em Node 16 o `npm install` falha com "Prisma only supports Node.js >= 18.18".
+- **Ollama**, para o assistente de IA responder. Instale em https://ollama.com/download e baixe o modelo com `ollama pull llama3.2`. Sem ele o chat devolve "Erro ao processar consulta.".
+
 Para iniciar o projeto e testar tudo localmente, você precisará abrir **dois terminais** (um para o servidor/backend e outro para a interface/frontend).
 
 Siga os passos abaixo:
@@ -15,11 +20,16 @@ O Backend gerencia os agendamentos, usuários e a conexão com a Inteligência A
    ```bash
    npm install
    ```
-3. **[NOVO]** Sincronize o Banco de Dados e crie os usuários de teste (Seed):
+3. Crie o banco e popule com os cadastros (usuários e equipamentos):
    ```bash
-   npx prisma db push
+   npx prisma migrate deploy
    npx prisma db seed
+   node seedEquipment.cjs
    ```
+   *Use `migrate deploy`, e não `db push`: o projeto tem migrations versionadas, e o `db push` sincroniza o schema por fora delas.*
+   *O `seedEquipment.cjs` também copia as imagens de `seed-assets/` para `uploads/` — sem ele a página de equipamentos aparece sem foto.*
+
+   > O banco chama-se `academai.db`. Se você tem um `inovfablab.db` de antes do rename, pode apagá-lo.
 4. Inicie o servidor:
    ```bash
    node server.js

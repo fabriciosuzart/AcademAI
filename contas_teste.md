@@ -1,6 +1,6 @@
 # 🔐 Contas de Teste (Seed)
 
-Durante o desenvolvimento, configuramos um script de "Seed" (semeadura) do Prisma para injetar usuários automaticamente no banco de dados. Isso facilita os testes das permissões (Middlewares) e do fluxo de aprovação de reservas sem precisar cadastrar contas na mão.
+Durante o desenvolvimento, configuramos um script de "Seed" (semeadura) do Prisma para injetar usuários automaticamente no banco de dados. Rode com `npx prisma db seed` dentro de `backend/` — ele cria estas contas e também os cadastros do laboratório recuperados em `prisma/seed-cadastros.js`. Isso facilita os testes das permissões (Middlewares) e do fluxo de aprovação de reservas sem precisar cadastrar contas na mão.
 
 > Todas as contas abaixo possuem a mesma senha padrão: **`senha123`**
 
@@ -8,8 +8,8 @@ Durante o desenvolvimento, configuramos um script de "Seed" (semeadura) do Prism
 | :--- | :--- | :--- | :--- |
 | **Administrador Geral** | `admin@academai.com` | `ADMIN` | Acesso total ao Painel Admin. Pode cadastrar equipamentos, treinar a IA e aprovar/rejeitar reservas. |
 | **Professor Responsável** | `prof@academai.com` | `PROFESSOR` | Acesso parcial ao Painel Admin. Pode visualizar as pendências e aprovar/rejeitar reservas de equipamentos. |
-| **Aluno Inovador 1** | `aluno1@academai.com` | `ALUNO` | Usuário padrão. Pode navegar, conversar com a IA, solicitar reservas (com justificativa) e acompanhar seu Histórico. |
-| **Aluno Inovador 2** | `aluno2@academai.com` | `ALUNO` | Usuário padrão. Conta extra para testar múltiplos agendamentos concorrentes. |
+| **Aluno 1** | `aluno1@academai.com` | `ALUNO` | Usuário padrão. Pode navegar, conversar com a IA, solicitar reservas (com justificativa) e acompanhar seu Histórico. |
+| **Aluno 2** | `aluno2@academai.com` | `ALUNO` | Usuário padrão. Conta extra para testar múltiplos agendamentos concorrentes. |
 
 ---
 
