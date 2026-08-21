@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { semearCadastros } from './seed-cadastros.js';
 
 const prisma = new PrismaClient();
 
@@ -28,7 +29,7 @@ async function main() {
             isTempPassword: 0
         },
         {
-            name: "Aluno Inovador 1",
+            name: "Aluno 1",
             email: "aluno1@academai.com",
             ra: "ALU001",
             password: passwordHash,
@@ -37,7 +38,7 @@ async function main() {
             isTempPassword: 0
         },
         {
-            name: "Aluno Inovador 2",
+            name: "Aluno 2",
             email: "aluno2@academai.com",
             ra: "ALU002",
             password: passwordHash,
@@ -55,6 +56,8 @@ async function main() {
         });
         console.log(`✅ Usuário ${u.role} (${u.email}) verificado/criado.`);
     }
+
+    await semearCadastros();
 
     console.log("🎉 Seed concluído com sucesso!");
 }
