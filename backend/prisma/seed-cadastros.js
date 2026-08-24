@@ -34,7 +34,7 @@ const usuarios = [
 ];
 
 const equipamentos = [
-    {"id":1,"name":"Impressora 3D Finder","description":"{\"specs\":\"\",\"description\":\"teste 123\",\"requiresTraining\":false}","imagePath":"/uploads/impressora_3D_finder_02.jpg","status":"DISPONÍVEL"},
+    {"id":1,"name":"Impressora 3D Finder 01","description":"{\"specs\":\"\",\"description\":\"teste 123\",\"requiresTraining\":false}","imagePath":"/uploads/impressora_3D_finder_02.jpg","status":"DISPONÍVEL"},
     {"id":3,"name":"Cortadora a Laser","description":"{\"specs\":\"\",\"description\":\"\",\"requiresTraining\":false}","imagePath":"/uploads/cortadora_a_laser.jpeg","status":"DISPONÍVEL"},
     {"id":4,"name":"Prototipadora","description":null,"imagePath":"/uploads/prototipadora.png","status":"in-use"},
     {"id":5,"name":"Bambu Lab A1","description":null,"imagePath":"/uploads/Bambu_LAB_01.png","status":"available"},
@@ -48,7 +48,9 @@ const equipamentos = [
     {"id":13,"name":"Serra Tico-Tico","description":null,"imagePath":"/uploads/Serra_tico-tico_bosch.jpg","status":"in-use"},
     {"id":14,"name":"Máquina de Costura","description":null,"imagePath":"/uploads/maquina_de_costura.jpg","status":"available"},
     {"id":15,"name":"Parafusadeira","description":null,"imagePath":"/uploads/Parafusadeira_e_Furadeira_Bateria.jpg","status":"available"},
-    {"id":16,"name":"Lixadeira Portátil","description":null,"imagePath":"/uploads/Lixadeira_portátil_DEWALT.jpg","status":"available"}
+    {"id":16,"name":"Lixadeira Portátil","description":null,"imagePath":"/uploads/Lixadeira_portátil_DEWALT.jpg","status":"available"},
+    {"id":17,"name":"Impressora 3D Finder 02","description":"{\"specs\":\"\",\"description\":\"teste 123\",\"requiresTraining\":false}","imagePath":"/uploads/impressora_3D_finder_02.jpg","status":"DISPONÍVEL"},
+    {"id":18,"name":"Impressora 3D Finder 03","description":"{\"specs\":\"\",\"description\":\"teste 123\",\"requiresTraining\":false}","imagePath":"/uploads/impressora_3D_finder_02.jpg","status":"DISPONÍVEL"}
 ];
 
 const horariosBloqueados = [];

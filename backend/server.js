@@ -1014,6 +1014,86 @@ app.get('/api/appointments/all-history', authMiddleware, roleMiddleware(['ADMIN'
 });
 
 // GET /api/appointments/:userId (RNF05 - protegido)
+// ATENCAO: rotas literais de /api/appointments precisam vir ANTES da rota
+// parametrica :userId abaixo. O Express casa na ordem de declaracao, entao
+// com :userId antes a palavra 'overview' era lida como id de usuario,
+// parseInt dava NaN e a resposta era 400.
+app.get('/api/appointments/overview', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
+    try {
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+
+        // Calcula início e fim da semana (segunda a domingo)
+        const dayOfWeek = today.getDay();
+        const monday = new Date(today);
+        monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        const mondayStr = monday.toISOString().split('T')[0];
+        const sundayStr = sunday.toISOString().split('T')[0];
+
+        // Reservas do dia
+        const todayAppointments = await prisma.appointment.findMany({
+            where: { date: todayStr },
+            include: {
+                user: { select: { name: true, role: true } },
+                equipment: { select: { name: true } }
+            },
+            orderBy: { time: 'asc' }
+        });
+
+        // Reservas da semana
+        const weekAppointments = await prisma.appointment.findMany({
+            where: { date: { gte: mondayStr, lte: sundayStr } },
+            include: {
+                user: { select: { name: true, role: true } },
+                equipment: { select: { name: true } }
+            },
+            orderBy: [{ date: 'asc' }, { time: 'asc' }]
+        });
+
+        // Pendentes
+        const pendingCount = await prisma.appointment.count({
+            where: { status: 'PENDENTE' }
+        });
+
+        res.json({
+            today: todayStr,
+            weekStart: mondayStr,
+            weekEnd: sundayStr,
+            todayAppointments,
+            weekAppointments,
+            pendingCount
+        });
+    } catch (error) {
+        console.error("❌ Erro no overview:", error);
+        res.status(500).json({ error: "Erro ao carregar visão geral." });
+    }
+});
+
+app.get('/api/appointments/calendar', authMiddleware, roleMiddleware(['ADMIN', 'PROFESSOR']), async (req, res) => {
+    try {
+        const { start, end } = req.query;
+        const where = {};
+        if (start && end) {
+            where.date = { gte: start, lte: end };
+        }
+
+        const appointments = await prisma.appointment.findMany({
+            where,
+            include: {
+                user: { select: { name: true, role: true, email: true } },
+                equipment: { select: { name: true } }
+            },
+            orderBy: [{ date: 'asc' }, { time: 'asc' }]
+        });
+        res.json(appointments);
+    } catch (error) {
+        console.error("❌ Erro no calendário:", error);
+        res.status(500).json({ error: "Erro ao carregar calendário." });
+    }
+});
+
 app.get('/api/appointments/:userId', authMiddleware, async (req, res) => {
     try {
         const userId = parseInt(req.params.userId);
@@ -1331,119 +1411,12 @@ app.post('/api/chat', async (req, res) => {
 // --- PAINEL ADMINISTRATIVO (RF30 / UC14) ---
 
 // GET /api/appointments/overview (Visão geral do dia/semana para admin)
-app.get('/api/appointments/overview', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
-    try {
-        const today = new Date();
-        const todayStr = today.toISOString().split('T')[0];
-
-        // Calcula início e fim da semana (segunda a domingo)
-        const dayOfWeek = today.getDay();
-        const monday = new Date(today);
-        monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-        const sunday = new Date(monday);
-        sunday.setDate(monday.getDate() + 6);
-        const mondayStr = monday.toISOString().split('T')[0];
-        const sundayStr = sunday.toISOString().split('T')[0];
-
-        // Reservas do dia
-        const todayAppointments = await prisma.appointment.findMany({
-            where: { date: todayStr },
-            include: {
-                user: { select: { name: true, role: true } },
-                equipment: { select: { name: true } }
-            },
-            orderBy: { time: 'asc' }
-        });
-
-        // Reservas da semana
-        const weekAppointments = await prisma.appointment.findMany({
-            where: { date: { gte: mondayStr, lte: sundayStr } },
-            include: {
-                user: { select: { name: true, role: true } },
-                equipment: { select: { name: true } }
-            },
-            orderBy: [{ date: 'asc' }, { time: 'asc' }]
-        });
-
-        // Pendentes
-        const pendingCount = await prisma.appointment.count({
-            where: { status: 'PENDENTE' }
-        });
-
-        res.json({
-            today: todayStr,
-            weekStart: mondayStr,
-            weekEnd: sundayStr,
-            todayAppointments,
-            weekAppointments,
-            pendingCount
-        });
-    } catch (error) {
-        console.error("❌ Erro no overview:", error);
-        res.status(500).json({ error: "Erro ao carregar visão geral." });
-    }
-});
 
 // GET /api/appointments/calendar (Todas as reservas para calendário - admin/professor)
-app.get('/api/appointments/calendar', authMiddleware, roleMiddleware(['ADMIN', 'PROFESSOR']), async (req, res) => {
-    try {
-        const { start, end } = req.query;
-        const where = {};
-        if (start && end) {
-            where.date = { gte: start, lte: end };
-        }
-
-        const appointments = await prisma.appointment.findMany({
-            where,
-            include: {
-                user: { select: { name: true, role: true, email: true } },
-                equipment: { select: { name: true } }
-            },
-            orderBy: [{ date: 'asc' }, { time: 'asc' }]
-        });
-        res.json(appointments);
-    } catch (error) {
-        console.error("❌ Erro no calendário:", error);
-        res.status(500).json({ error: "Erro ao carregar calendário." });
-    }
-});
 
 // --- HISTÓRICO COMPLETO (UC10 fluxo alt. 2a) ---
 
 // GET /api/appointments/all-history (Admin vê histórico de todos)
-app.get('/api/appointments/all-history', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
-    try {
-        const { status, date, equipmentId } = req.query;
-        const where = {};
-        if (status) where.status = status;
-        if (date) where.date = date;
-        if (equipmentId) where.equipmentId = parseInt(equipmentId);
-
-        const appointments = await prisma.appointment.findMany({
-            where,
-            include: {
-                user: { select: { name: true, email: true, ra: true, role: true } },
-                equipment: { select: { name: true } }
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 200
-        });
-
-        const formatted = appointments.map(appt => ({
-            id: appt.id, equipment: appt.equipment.name,
-            user: appt.user.name, userEmail: appt.user.email,
-            userRole: appt.user.role,
-            date: appt.date, startTime: appt.time, endTime: appt.endTime || appt.time,
-            status: appt.status, justification: appt.justification,
-            rejectionReason: appt.rejectionReason,
-            createdAt: appt.createdAt
-        }));
-        res.json(formatted);
-    } catch (error) {
-        console.error("❌ Erro no histórico completo:", error);
-        res.status(500).json({ error: "Erro ao buscar histórico." });
-    }
-});
 // --- DATAS BLOQUEADAS (Feriados / Recessos) ---
 app.get('/api/blocked-dates', async (req, res) => {
     try {
