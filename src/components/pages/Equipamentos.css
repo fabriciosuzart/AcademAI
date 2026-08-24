@@ -231,3 +231,11 @@
     flex-grow: 1;
   }
 }
+
+/* Alinhamento dos icones SVG que substituiram os emojis nos rotulos de status */
+.status-badge,
+.card-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

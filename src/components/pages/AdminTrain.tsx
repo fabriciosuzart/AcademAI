@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
+import { BarChart3, CalendarDays, CalendarRange, Users, Printer, Brain,
+         Check, X, Pencil, Trash2, Circle, Ban, User,
+         ArrowLeft, ArrowRight } from 'lucide-react';
 import './AdminTrain.css';
 
 const AdminTrain: React.FC = () => {
@@ -215,7 +218,7 @@ const AdminTrain: React.FC = () => {
     const handleUploadAI = async () => {
         if (!file) return;
         setLoadingAI(true);
-        setMessageAI('⚙️ Processando o arquivo... isso pode levar alguns segundos.');
+        setMessageAI('Processando o arquivo... isso pode levar alguns segundos.');
         setMsgTypeAI('info');
 
         const formData = new FormData();
@@ -224,11 +227,11 @@ const AdminTrain: React.FC = () => {
         try {
             const response = await api.post('/train', formData, { headers: { 'Content-Type': 'multipart/form-data' }});
             if (response.status === 200) {
-                setMessageAI('✅ IA Treinada com sucesso!');
+                setMessageAI('IA Treinada com sucesso!');
                 setMsgTypeAI('success');
             }
         } catch (error: any) {
-            setMessageAI(error.response?.data?.error || '❌ Erro de conexão.');
+            setMessageAI(error.response?.data?.error || 'Erro de conexão.');
             setMsgTypeAI('error');
         } finally {
             setLoadingAI(false);
@@ -253,12 +256,12 @@ const AdminTrain: React.FC = () => {
             
             const response = await api[method](url, formData, { headers: { 'Content-Type': 'multipart/form-data' }});
             if (response.status === 201 || response.status === 200) {
-                setMessageEq(editingEqId ? '✅ Equipamento atualizado com sucesso!' : '✅ Equipamento salvo com sucesso!');
+                setMessageEq(editingEqId ? 'Equipamento atualizado com sucesso!' : 'Equipamento salvo com sucesso!');
                 setEqName(''); setEqDesc(''); setEqImage(null); setEditingEqId(null);
                 fetchEquipments();
             }
         } catch (error: any) {
-            setMessageEq(error.response?.data?.error || '❌ Erro ao salvar.');
+            setMessageEq(error.response?.data?.error || 'Erro ao salvar.');
         } finally {
             setLoadingEq(false);
         }
@@ -351,11 +354,11 @@ const AdminTrain: React.FC = () => {
             <div className="admin-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
                 {userRole === 'ADMIN' && (
                     <button id="admin-tab-overview" onClick={() => setActiveTab('overview')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'overview' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'overview' ? 'white' : 'black', cursor: 'pointer' }}>
-                        📊 Visão Geral
+                        <BarChart3 size={18} aria-hidden="true" /> Visão Geral
                     </button>
                 )}
                 <button id="admin-tab-reservations" onClick={() => setActiveTab('reservations')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'reservations' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'reservations' ? 'white' : 'black', cursor: 'pointer' }}>
-                    📅 Reservas Pendentes
+                    <CalendarDays size={18} aria-hidden="true" /> Reservas Pendentes
                     {pendingReservations.length > 0 && <span style={{ background: '#ef4444', color: 'white', padding: '2px 8px', borderRadius: '12px', marginLeft: '8px', fontSize: '0.8rem' }}>{pendingReservations.length}</span>}
                 </button>
                 {userRole === 'ADMIN' && (
@@ -364,16 +367,16 @@ const AdminTrain: React.FC = () => {
                                 id="admin-tab-calendar"
                                 onClick={() => { setActiveTab('calendar'); fetchCalendar(calendarWeekOffset); }}
                                 style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'calendar' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'calendar' ? 'white' : 'black', cursor: 'pointer' }}>
-                                🗓️ Calendário Global
+                                <CalendarRange size={18} aria-hidden="true" /> Calendário Global
                             </button>
                         <button id="admin-tab-users" onClick={() => setActiveTab('users')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'users' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'users' ? 'white' : 'black', cursor: 'pointer' }}>
-                            👥 Usuários
+                            <Users size={18} aria-hidden="true" /> Usuários
                         </button>
                         <button id="admin-tab-equipment" onClick={() => setActiveTab('equipment')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'equipment' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'equipment' ? 'white' : 'black', cursor: 'pointer' }}>
-                            🖨️ Equipamentos
+                            <Printer size={18} aria-hidden="true" /> Equipamentos
                         </button>
                         <button id="admin-tab-ai" onClick={() => setActiveTab('ai')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'ai' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'ai' ? 'white' : 'black', cursor: 'pointer' }}>
-                            🧠 Treinamento IA
+                            <Brain size={18} aria-hidden="true" /> Treinamento IA
                         </button>
                     </>
                 )}
@@ -445,10 +448,10 @@ const AdminTrain: React.FC = () => {
                                         </div>
                                         <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
                                             <button disabled={loadingRes} onClick={() => handleUpdateReservation(res.id, 'APROVADA')} style={{ background: '#10b981', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
-                                                ✅ Aprovar
+                                                <Check size={16} aria-hidden="true" /> Aprovar
                                             </button>
                                             <button disabled={loadingRes} onClick={() => handleUpdateReservation(res.id, 'REJEITADA')} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
-                                                ❌ Rejeitar
+                                                <X size={16} aria-hidden="true" /> Rejeitar
                                             </button>
                                         </div>
                                     </div>
@@ -484,9 +487,9 @@ const AdminTrain: React.FC = () => {
                             <div>
                                 <label style={{color: 'white'}}>Status:</label>
                                 <select value={eqStatus} onChange={e => setEqStatus(e.target.value)} style={{width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #334155', background: '#1e293b', color: 'white'}}>
-                                    <option value="DISPONÍVEL">🟢 Disponível</option>
-                                    <option value="EM USO">🟠 Em Uso</option>
-                                    <option value="MANUTENÇÃO">🔴 Em Manutenção</option>
+                                    <option value="DISPONÍVEL">Disponível</option>
+                                    <option value="EM USO">Em Uso</option>
+                                    <option value="MANUTENÇÃO">Em Manutenção</option>
                                 </select>
                             </div>
                             <div><label style={{color: 'white'}}>Descrição:</label><textarea value={eqDesc} onChange={e => setEqDesc(e.target.value)} rows={4} style={{width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #334155', background: '#1e293b', color: 'white'}} /></div>
@@ -504,7 +507,7 @@ const AdminTrain: React.FC = () => {
                                         <div style={{ color: 'white', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                             <strong style={{ fontSize: '1.1rem' }}>{eq.name}</strong>
                                             <span style={{ fontSize: '0.85rem', color: eq.status === 'DISPONÍVEL' ? '#10b981' : (eq.status === 'EM USO' || eq.status === 'IN-USE' ? '#fbbf24' : '#ef4444') }}>
-                                                {eq.status === 'DISPONÍVEL' ? '🟢 Disponível' : (eq.status === 'EM USO' || eq.status === 'IN-USE' ? '🟡 Em Uso' : '🔴 Em Manutenção')}
+                                                <><Circle size={9} fill="currentColor" aria-hidden="true" /> {eq.status === 'DISPONÍVEL' ? 'Disponível' : (eq.status === 'EM USO' || eq.status === 'IN-USE' ? 'Em Uso' : 'Em Manutenção')}</>
                                             </span>
                                         </div>
                                         <div style={{ display: 'flex', gap: '8px' }}>
@@ -513,14 +516,14 @@ const AdminTrain: React.FC = () => {
                                                 onClick={() => handleEditClick(eq)}
                                                 style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem' }}
                                             >
-                                                ✏️ Editar
+                                                <Pencil size={15} aria-hidden="true" /> Editar
                                             </button>
                                             <button 
                                                 type="button" 
                                                 onClick={() => handleDeleteEquipment(eq.id, eq.name)}
                                                 style={{ background: 'transparent', color: '#ef4444', border: '1px solid #ef4444', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem' }}
                                             >
-                                                🗑️ Excluir
+                                                <Trash2 size={15} aria-hidden="true" /> Excluir
                                             </button>
                                         </div>
                                     </div>
@@ -536,7 +539,7 @@ const AdminTrain: React.FC = () => {
                                                 border: eq.status === 'DISPONÍVEL' ? '1.5px solid #34d399' : '1px solid rgba(52,211,153,0.3)',
                                                 opacity: eq.status === 'DISPONÍVEL' ? 1 : 0.6
                                             }}
-                                        >🟢 Disponível</button>
+                                        ><Circle size={9} fill="currentColor" aria-hidden="true" /> Disponível</button>
                                         <button
                                             type="button"
                                             onClick={() => handleQuickStatus(eq, 'MANUTENÇÃO')}
@@ -547,7 +550,7 @@ const AdminTrain: React.FC = () => {
                                                 border: eq.status === 'MANUTENÇÃO' ? '1.5px solid #f87171' : '1px solid rgba(248,113,113,0.3)',
                                                 opacity: eq.status === 'MANUTENÇÃO' ? 1 : 0.6
                                             }}
-                                        >🔴 Manutenção</button>
+                                        ><Circle size={9} fill="currentColor" aria-hidden="true" /> Manutenção</button>
                                     </div>
                                 </li>
                             ))}
@@ -559,11 +562,11 @@ const AdminTrain: React.FC = () => {
             {activeTab === 'calendar' && userRole === 'ADMIN' && (
                 <div className="admin-panel" style={{ width: '100%', margin: '0 auto' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-                        <h2 style={{ color: 'white', margin: 0 }}>Calendário Global 🗓️</h2>
+                        <h2 style={{ color: 'white', margin: 0 }}>Calendário Global</h2>
                         <div style={{ display: 'flex', gap: '10px' }}>
                             <button onClick={() => { const w = calendarWeekOffset - 1; setCalendarWeekOffset(w); fetchCalendar(w); }}
                                 style={{ background: '#334155', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}>
-                                ← Semana Anterior
+                                <ArrowLeft size={16} aria-hidden="true" /> Semana Anterior
                             </button>
                             <button onClick={() => { setCalendarWeekOffset(0); fetchCalendar(0); }}
                                 style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}>
@@ -571,7 +574,7 @@ const AdminTrain: React.FC = () => {
                             </button>
                             <button onClick={() => { const w = calendarWeekOffset + 1; setCalendarWeekOffset(w); fetchCalendar(w); }}
                                 style={{ background: '#334155', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}>
-                                Próxima Semana →
+                                Próxima Semana <ArrowRight size={16} aria-hidden="true" />
                             </button>
                         </div>
                     </div>
@@ -598,7 +601,7 @@ const AdminTrain: React.FC = () => {
                                                     {appt.time}{appt.endTime ? ` – ${appt.endTime}` : ''} &bull; {appt.equipment?.name || '—'}
                                                 </span>
                                                 <span style={{ color: '#cbd5e1', fontSize: '0.85rem', display: 'block', marginTop: '4px' }}>
-                                                    👤 {appt.user?.name} ({appt.user?.role})
+                                                    <User size={15} aria-hidden="true" /> {appt.user?.name} ({appt.user?.role})
                                                 </span>
                                             </div>
                                             <span style={{
@@ -620,7 +623,7 @@ const AdminTrain: React.FC = () => {
             {activeTab === 'users' && userRole === 'ADMIN' && (
                 <div className="admin-panel" style={{ width: '100%', margin: '0 auto' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-                        <h2 style={{ color: 'white', margin: 0 }}>Gestão de Usuários 👥</h2>
+                        <h2 style={{ color: 'white', margin: 0 }}>Gestão de Usuários</h2>
                         <input
                             type="text"
                             placeholder="Buscar por nome, e-mail ou RA..."
@@ -648,7 +651,7 @@ const AdminTrain: React.FC = () => {
                                         <div>
                                             <strong style={{ color: 'white', fontSize: '1rem' }}>{u.name}</strong>
                                             <span style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'block' }}>{u.email} {u.ra ? `• RA: ${u.ra}` : ''}</span>
-                                            {!u.isActive && <span style={{ color: '#ef4444', fontSize: '0.75rem' }}>⛔ Conta desativada</span>}
+                                            {!u.isActive && <span style={{ color: '#ef4444', fontSize: '0.75rem' }}><Ban size={13} aria-hidden="true" /> Conta desativada</span>}
                                         </div>
                                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                                             {/* Alterar perfil (RF04) */}
@@ -675,7 +678,9 @@ const AdminTrain: React.FC = () => {
                                                     border: u.isActive ? '1px solid #ef4444' : 'none',
                                                     padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem'
                                                 }}>
-                                                {u.isActive ? '⛔ Desativar' : '✅ Ativar'}
+                                                {u.isActive
+                                                  ? <><Ban size={15} aria-hidden="true" /> Desativar</>
+                                                  : <><Check size={15} aria-hidden="true" /> Ativar</>}
                                             </button>
                                         </div>
                                     </div>

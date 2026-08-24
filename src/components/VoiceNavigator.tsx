@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axios';
+import { Bell, CheckCircle2, XCircle, HelpCircle, Volume2, Mic, Mail, Lock, Bot,
+         ClipboardList, Zap, Map, KeyRound, Circle, AlertTriangle,
+         type LucideIcon } from 'lucide-react';
 import './VoiceNavigator.css';
 
 // =====================================================
@@ -140,30 +143,30 @@ function getHelpSections(pathname: string) {
     if (pathname === '/admin') {
         return [
             {
-                title: '📋 Abrir aba',
+                Icone: ClipboardList, title: 'Abrir aba',
                 tags: ['visão geral', 'reservas', 'calendário', 'usuários', 'equipamentos', 'treinar IA'],
             },
             {
-                title: '⚡ Ações rápidas',
+                Icone: Zap, title: 'Ações rápidas',
                 tags: ['aprovar', 'rejeitar'],
             },
             {
-                title: '🗺️ Sair do painel',
+                Icone: Map, title: 'Sair do painel',
                 tags: ['início', 'equipamentos', 'assistente', 'perfil'],
             },
         ];
     }
     return [
         {
-            title: '🗺️ Navegar para',
+            Icone: Map, title: 'Navegar para',
             tags: ['início', 'equipamentos', 'disponibilidade', 'assistente', 'perfil', 'agendamento', 'documentação', 'contato', 'notificações', 'login', 'cadastro'],
         },
         {
-            title: '🤖 Pedir à IA',
+            Icone: Bot, title: 'Pedir à IA',
             tags: ['reservar [equipamento]', 'agendar [horário]', 'quais equipamentos', 'cancelar reserva'],
         },
         {
-            title: '🔐 No login',
+            Icone: KeyRound, title: 'No login',
             tags: ['email', 'senha', 'entrar'],
         },
     ];
@@ -191,7 +194,13 @@ function playActivationBeep() {
 
 const VoiceNavigator: React.FC = () => {
     const [isListening, setIsListening] = useState(false);
-    const [status, setStatus] = useState<string>('');
+    // O status carrega icone + texto. Antes o icone era um emoji embutido na
+    // propria string, o que impedia troca-lo por SVG sem mudar o formato.
+    const [status, setStatus] = useState<{ Icone: LucideIcon | null; texto: string }>({ Icone: null, texto: '' });
+
+    // Atalho: mostrarStatus(Icone, 'texto') no lugar de mostrarStatus(null, 'emoji texto')
+    const mostrarStatus = (Icone: LucideIcon | null, texto: string) => setStatus({ Icone, texto });
+    const limparStatus = () => setStatus({ Icone: null, texto: '' });
     const [statusFading, setStatusFading] = useState(false);
     const [showTtsWarning, setShowTtsWarning] = useState(false);
     const [showHelp, setShowHelp] = useState(false);
@@ -215,7 +224,7 @@ const VoiceNavigator: React.FC = () => {
         tentativasSemEntenderRef.current += 1;
         if (tentativasSemEntenderRef.current >= MAX_TENTATIVAS_SEM_ENTENDER) {
             tentativasSemEntenderRef.current = 0;
-            setStatus('❌ Não consegui entender. Pressione M para tentar de novo.');
+            mostrarStatus(XCircle, 'Não consegui entender. Pressione M para tentar de novo.');
             return;
         }
         setTimeout(() => startRecordingRef.current(), atraso);
@@ -239,7 +248,7 @@ const VoiceNavigator: React.FC = () => {
         statusTimerRef.current = setTimeout(() => {
             setStatusFading(true);
             setTimeout(() => {
-                setStatus('');
+                limparStatus();
                 setStatusFading(false);
             }, 400);
         }, delay);
@@ -304,10 +313,10 @@ const VoiceNavigator: React.FC = () => {
                 const latest = unread[unread.length - 1]; // Assume order by ID
                 const typeLabel = latest.type.replace('_', ' ');
                 speak(`Você tem ${unread.length} ${unread.length > 1 ? 'notificações não lidas' : 'notificação não lida'}. A mais recente é de ${typeLabel}. ${latest.message}`);
-                setStatus(`🔔 ${unread.length} não lidas!`);
+                mostrarStatus(Bell, `${unread.length} não lidas!`);
             } else {
                 speak("Você não tem nenhuma notificação nova no momento.");
-                setStatus("✅ Nenhuma notificação");
+                mostrarStatus(CheckCircle2, "Nenhuma notificação");
             }
             clearStatus(5000);
         } catch (error) {
@@ -335,13 +344,13 @@ const VoiceNavigator: React.FC = () => {
     // ── Função auxiliar de gravação com TTS integrado ─────────
     const listenWithNativeSpeech = useCallback((
         onResult: (text: string, confidence?: number) => void,
-        listeningStatus = '🎤 Ouvindo...',
+        listeningStatus = 'Ouvindo...',
         onStartSpeak = ''
     ) => {
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         if (!SpeechRecognition) {
             speak('Seu navegador não suporta reconhecimento de voz nativo.');
-            setStatus('❌ Navegador não suportado');
+            mostrarStatus(XCircle, 'Navegador não suportado');
             isListeningRef.current = false;
             setIsListening(false);
             return;
@@ -360,7 +369,7 @@ const VoiceNavigator: React.FC = () => {
             recognition.onstart = () => {
                 isListeningRef.current = true;
                 setIsListening(true);
-                setStatus(listeningStatus);
+                mostrarStatus(Mic, listeningStatus);
             };
 
             recognition.onresult = (event: any) => {
@@ -373,13 +382,13 @@ const VoiceNavigator: React.FC = () => {
             recognition.onerror = (event: any) => {
                 if (event.error === 'no-speech') {
                     speak('Não ouvi nada. Pressione M e tente novamente.');
-                    setStatus('❌ Nada ouvido');
+                    mostrarStatus(XCircle, 'Nada ouvido');
                     clearStatus(4000);
                 } else if (event.error === 'aborted') {
-                    setStatus('');
+                    limparStatus();
                 } else {
                     speak('Erro no microfone.');
-                    setStatus('❌ Erro no microfone');
+                    mostrarStatus(XCircle, 'Erro no microfone');
                     clearStatus(3000);
                 }
             };
@@ -413,7 +422,7 @@ const VoiceNavigator: React.FC = () => {
             .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
             .trim();
 
-        console.log('🎤 Comando ouvido:', lower, 'Confiança:', confidence);
+        console.log('Comando ouvido:', lower, 'Confiança:', confidence);
 
         // ── Tratar Confirmação Pendente ────────────────────────
         if (pendingConfirmation) {
@@ -432,7 +441,7 @@ const VoiceNavigator: React.FC = () => {
         const executeOrConfirm = (commandName: string, action: () => void) => {
             if (confidence !== undefined && confidence < 0.65) {
                 speak(`Você disse ${commandName}? Diga sim ou não.`, () => setTimeout(() => startRecordingRef.current(), 350));
-                setStatus(`❓ Confirma "${commandName}"?`);
+                mostrarStatus(HelpCircle, `Confirma "${commandName}"?`);
                 setPendingConfirmation({ text: commandName, action });
             } else {
                 action();
@@ -443,7 +452,7 @@ const VoiceNavigator: React.FC = () => {
         const notifKeywords = ['ler notificacoes', 'ler notificação', 'ler notificacao', 'minhas notificacoes', 'tenho notificacoes', 'tenho notificação'];
         if (notifKeywords.some(kw => lower.includes(kw))) {
             executeOrConfirm('ler notificações', () => {
-                setStatus('🔊 Checando notificações...');
+                mostrarStatus(Volume2, 'Checando notificações...');
                 checkNotifications();
             });
             return;
@@ -452,7 +461,7 @@ const VoiceNavigator: React.FC = () => {
         const readScreenKeywords = ['ler tela', 'resumo', 'o que tem aqui', 'informacoes', 'informacao', 'le a tela'];
         if (readScreenKeywords.some(kw => lower.includes(kw))) {
             executeOrConfirm('ler tela', () => {
-                setStatus('🔊 Lendo tela...');
+                mostrarStatus(Volume2, 'Lendo tela...');
                 window.dispatchEvent(new Event('voice-read-screen'));
             });
             return;
@@ -506,11 +515,11 @@ const VoiceNavigator: React.FC = () => {
         // ── Login: preenchimento de campos ──────────────────
         if (isLoginContext) {
             if (lower.includes('email') || lower.includes('e-mail') || lower.includes('correio')) {
-                setStatus('🎤 Preparando para ouvir e-mail...');
+                mostrarStatus(Mic, 'Preparando para ouvir e-mail...');
                 listenWithNativeSpeech(
                     (emailText) => {
                         if (emailText) {
-                            setStatus(`📧 E-mail: "${emailText}"`);
+                            mostrarStatus(Mail, `E-mail: "${emailText}"`);
                             window.dispatchEvent(new CustomEvent('voice-fill-field', {
                                 detail: {
                                     field: 'email',
@@ -528,17 +537,17 @@ const VoiceNavigator: React.FC = () => {
                             speak('Não entendi.', () => reescutar(300));
                         }
                     },
-                    '📧 Diga seu e-mail...',
+                    'Diga seu e-mail...',
                     'Diga seu e-mail agora.',
                 );
                 return;
             }
             if (lower.includes('senha') || lower.includes('password') || lower.includes('codigo')) {
-                setStatus('🎤 Preparando para ouvir senha...');
+                mostrarStatus(Mic, 'Preparando para ouvir senha...');
                 listenWithNativeSpeech(
                     (senhaText) => {
                         if (senhaText) {
-                            setStatus('🔒 Senha capturada');
+                            mostrarStatus(Lock, 'Senha capturada');
                             window.dispatchEvent(new CustomEvent('voice-fill-field', {
                                 detail: {
                                     field: 'password',
@@ -556,7 +565,7 @@ const VoiceNavigator: React.FC = () => {
                             speak('Não entendi.', () => reescutar(300));
                         }
                     },
-                    '🔒 Diga sua senha...',
+                    'Diga sua senha...',
                     'Diga sua senha agora.',
                 );
                 return;
@@ -581,7 +590,7 @@ const VoiceNavigator: React.FC = () => {
             // Ação: aprovar primeira reserva pendente
             if (lower.includes('aprovar') || lower.includes('approve')) {
                 speak('Aprovando a primeira reserva pendente.');
-                setStatus('✅ Aprovando reserva...');
+                mostrarStatus(CheckCircle2, 'Aprovando reserva...');
                 window.dispatchEvent(new CustomEvent('voice-admin-action', { detail: { action: 'approve-first' } }));
                 clearStatus(3000);
                 return;
@@ -589,7 +598,7 @@ const VoiceNavigator: React.FC = () => {
             // Ação: rejeitar primeira reserva pendente
             if (lower.includes('rejeitar') || lower.includes('reject') || lower.includes('recusar')) {
                 speak('Rejeitando a primeira reserva pendente.');
-                setStatus('❌ Rejeitando reserva...');
+                mostrarStatus(XCircle, 'Rejeitando reserva...');
                 window.dispatchEvent(new CustomEvent('voice-admin-action', { detail: { action: 'reject-first' } }));
                 clearStatus(3000);
                 return;
@@ -598,7 +607,7 @@ const VoiceNavigator: React.FC = () => {
             for (const tabItem of ADMIN_TABS) {
                 if (tabItem.keywords.some(kw => fuzzyIncludes(lower, kw))) {
                     speak(`Abrindo ${tabItem.label}.`);
-                    setStatus(`✅ "${text}" → ${tabItem.label}`);
+                    mostrarStatus(CheckCircle2, `"${text}" → ${tabItem.label}`);
                     window.dispatchEvent(new CustomEvent('voice-admin-tab', { detail: { tab: tabItem.tab } }));
                     clearStatus(4000);
                     return;
@@ -610,7 +619,7 @@ const VoiceNavigator: React.FC = () => {
         // ── Comandos de IA (reservar, agendar, etc.) ─────────
         const aiKeywords = ['reservar', 'agendar', 'marcar', 'cancelar reserva', 'quais equipamentos', 'quero reservar'];
         if (aiKeywords.some(kw => lower.startsWith(kw))) {
-            setStatus('🤖 Encaminhando para IA...');
+            mostrarStatus(Bot, 'Encaminhando para IA...');
             speak('Encaminhando seu pedido para a Inteligência Artificial.');
             sessionStorage.setItem('pending_voice_command', text);
             if (locationRef.current !== '/assistente') {
@@ -628,7 +637,7 @@ const VoiceNavigator: React.FC = () => {
             if (matched) {
                 executeOrConfirm(route.label, () => {
                     speak(`Navegando para ${route.label}.`);
-                    setStatus(`✅ "${text}" → ${route.label}`);
+                    mostrarStatus(CheckCircle2, `"${text}" → ${route.label}`);
                     navigate(route.path);
                     clearStatus(4000);
                 });
@@ -638,7 +647,7 @@ const VoiceNavigator: React.FC = () => {
 
         // ── Nenhum comando reconhecido ────────────────────────
         speak('Não reconheci o comando. Pressione M e tente novamente.');
-        setStatus(`❌ "${text}"`);
+        mostrarStatus(XCircle, `"${text}"`);
         clearStatus(5000);
     }, [navigate, speak, listenWithNativeSpeech, clearStatus, pendingConfirmation]);
 
@@ -649,15 +658,15 @@ const VoiceNavigator: React.FC = () => {
         listenWithNativeSpeech(
             (text) => {
                 if (text) {
-                    setStatus(`"${text}"`);
+                    mostrarStatus(null, `"${text}"`);
                     processCommand(text);
                 } else {
                     speak('Não consegui entender. Pressione M e tente novamente.');
-                    setStatus('❌ Não entendi.');
+                    mostrarStatus(XCircle, 'Não entendi.');
                     clearStatus(5000);
                 }
             },
-            '🎤 Ouvindo...',
+            'Ouvindo...',
         );
     }, [listenWithNativeSpeech, processCommand, speak, clearStatus]);
 
@@ -681,7 +690,7 @@ const VoiceNavigator: React.FC = () => {
             if (e.key === 'Escape') {
                 if (recognitionRef.current) {
                     recognitionRef.current.abort();
-                    setStatus('');
+                    limparStatus();
                     setIsListening(false);
                     isListeningRef.current = false;
                 }
@@ -713,7 +722,7 @@ const VoiceNavigator: React.FC = () => {
             const text = (e as CustomEvent).detail?.text;
             if (text) {
                 speak(text);
-                setStatus(`🔊 ${text}`);
+                mostrarStatus(Volume2, `${text}`);
                 clearStatus(4000);
             }
         };
@@ -738,9 +747,10 @@ const VoiceNavigator: React.FC = () => {
             <div className="voice-navigator-container">
 
             {/* Status bubble com animação de saída */}
-            {status && !isListening && (
+            {status.texto && !isListening && (
                 <div className={`voice-status-bubble${statusFading ? ' fade-out' : ''}`}>
-                    {status}
+                    {status.Icone && <status.Icone size={16} aria-hidden="true" />}
+                    <span>{status.texto}</span>
                 </div>
             )}
 
@@ -750,10 +760,13 @@ const VoiceNavigator: React.FC = () => {
                 {/* Painel de ajuda — contextual por página */}
                 {showHelp && (
                     <div id="voice-help-panel" className="voice-help-panel" role="dialog" aria-label="Comandos de voz disponíveis">
-                        <h4>🎙️ Comandos Disponíveis</h4>
+                        <h4><Mic size={18} aria-hidden="true" /> Comandos Disponíveis</h4>
                         {getHelpSections(locationRef.current).map((section) => (
                             <div key={section.title} className="voice-help-section">
-                                <div className="voice-help-section-title">{section.title}</div>
+                                <div className="voice-help-section-title">
+                                    <section.Icone size={15} aria-hidden="true" />
+                                    <span>{section.title}</span>
+                                </div>
                                 <div className="voice-help-tags">
                                     {section.tags.map(tag => (
                                         <span key={tag} className="voice-help-tag">"{tag}"</span>
@@ -770,7 +783,7 @@ const VoiceNavigator: React.FC = () => {
                 {/* Tooltip de onboarding (primeira visita) */}
                 {showOnboarding && (
                     <div className="voice-onboarding-tooltip" role="tooltip">
-                        🎤 Pressione <strong>M</strong> para controlar por voz!
+                        <Mic size={16} aria-hidden="true" /> Pressione <strong>M</strong> para controlar por voz!
                     </div>
                 )}
 
@@ -794,7 +807,7 @@ const VoiceNavigator: React.FC = () => {
                     aria-label={isListening ? 'Microfone ativo. Pressione Escape para cancelar.' : 'Ativar comandos de voz. Atalho: tecla M'}
                     aria-pressed={isListening}
                 >
-                    {isListening ? '🔴' : '🎤'}
+                    {isListening ? <Circle size={20} fill="currentColor" aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
                 </button>
             </div>
 
@@ -807,7 +820,7 @@ const VoiceNavigator: React.FC = () => {
             {showTtsWarning && (
                 <div className="tts-warning-banner" role="alert">
                     <p className="tts-warning-banner__title">
-                        ⚠️ Aviso de Privacidade — Síntese de Voz
+                        <AlertTriangle size={16} aria-hidden="true" /> Aviso de Privacidade — Síntese de Voz
                     </p>
                     <p className="tts-warning-banner__text">
                         O reconhecimento e a síntese de voz usam a <strong>Web Speech API</strong> do
