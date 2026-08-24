@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Navbar.css';
-import logoImage from '../assets/images/logofablab.png'; 
+import { GraduationCap, Bell } from 'lucide-react';
 
 const Navbar: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -23,7 +23,7 @@ const Navbar: React.FC = () => {
     <nav className="navbar" role="navigation" aria-label="Menu principal">
       <div className="navbar-container">
         <Link to="/" className="navbar-logo" onClick={closeMobileMenu}>
-          <img src={logoImage} alt="AcademAI Logo" className="logo-image" />
+          <GraduationCap className="logo-image" strokeWidth={2} aria-hidden="true" />
           <span>AcademAI</span>
         </Link>
 
@@ -47,15 +47,15 @@ const Navbar: React.FC = () => {
             <Link to="/contato" className="nav-link" onClick={closeMobileMenu} aria-label="Formulário de contato">Contato</Link>
           </li>
 
-          {/* LÓGICA DE LOGIN / LOGOUT 👇 */}
+          {/* LÓGICA DE LOGIN / LOGOUT */}
           <li className="nav-item">
             {userName ? (
               <div className="user-nav-box">
                 <Link to="/perfil" className="nav-user-name" style={{ textDecoration: 'none', color: '#004aad', fontWeight: 'bold' }} onClick={closeMobileMenu}>
                   Olá, {userName.split(' ')[0]}
                 </Link>
-                <Link to="/notificacoes" className="nav-link" onClick={closeMobileMenu} style={{ padding: '0 10px' }} aria-label="Ver Notificações" title="Notificações">
-                  🔔
+                <Link to="/notificacoes" className="nav-link nav-icon-link" onClick={closeMobileMenu} aria-label="Ver Notificações" title="Notificações">
+                  <Bell size={20} aria-hidden="true" />
                 </Link>
                 <button className="logout-btn" onClick={handleLogout} aria-label="Sair da conta">Sair</button>
               </div>
