@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import './Disponibilidade.css';
 
 interface Equipment {
@@ -176,9 +177,9 @@ const Disponibilidade: React.FC = () => {
                             aria-labelledby="filter-label"
                         >
                             <option value="all">Todos</option>
-                            <option value="DISPONÍVEL">🟢 Disponíveis</option>
-                            <option value="EM USO">🟠 Em Uso</option>
-                            <option value="MANUTENÇÃO">🔴 Manutenção</option>
+                            <option value="DISPONÍVEL">Disponíveis</option>
+                            <option value="EM USO">Em Uso</option>
+                            <option value="MANUTENÇÃO">Manutenção</option>
                         </select>
                     </div>
 
@@ -211,7 +212,7 @@ const Disponibilidade: React.FC = () => {
                 <section className="disp-main" aria-label="Calendário de disponibilidade">
                     {!selectedEquipment ? (
                         <div className="disp-empty-state">
-                            <span className="empty-icon">📅</span>
+                            <span className="empty-icon"><CalendarDays size={40} aria-hidden="true" /></span>
                             <h2>Selecione um recurso</h2>
                             <p>Escolha um equipamento na lista ao lado para consultar a disponibilidade.</p>
                         </div>
@@ -230,14 +231,14 @@ const Disponibilidade: React.FC = () => {
                                         onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
                                         aria-label="Mês anterior"
                                     >
-                                        ◀
+                                        <ChevronLeft size={20} aria-hidden="true" />
                                     </button>
                                     <h3>{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</h3>
                                     <button
                                         onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
                                         aria-label="Próximo mês"
                                     >
-                                        ▶
+                                        <ChevronRight size={20} aria-hidden="true" />
                                     </button>
                                 </div>
 

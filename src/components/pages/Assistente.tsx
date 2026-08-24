@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Bot, User, Brain, Volume2, VolumeX, Mic, Square, Send } from 'lucide-react';
 import './Assistente.css';
 
 interface Message {
@@ -77,7 +78,7 @@ const Assistente: React.FC = () => {
     setMessages(prev => [...prev, {
       id: Date.now(),
       sender: 'ai',
-      text: "🛑 Geração interrompida pelo usuário."
+      text: "Geração interrompida pelo usuário."
     }]);
   };
 
@@ -212,19 +213,23 @@ const Assistente: React.FC = () => {
         <div className="chat-history" aria-live="polite" aria-label="Histórico de mensagens do chat">
           {messages.map((msg) => (
             <div key={msg.id} className={`message ${msg.sender}`}>
-              <div className="avatar">{msg.sender === 'ai' ? '🤖' : '👤'}</div>
+              <div className="avatar">
+                {msg.sender === 'ai'
+                  ? <Bot size={20} aria-hidden="true" />
+                  : <User size={20} aria-hidden="true" />}
+              </div>
               <div className="message-content">
                 {/* Se for IA e o texto estiver vazio, mostra o indicador, senão mostra o texto */}
                 <p>
                   {msg.sender === 'ai' && msg.text === '' ? (
-                    <span className="blinking-cursor">Pensando... 🧠</span>
+                    <span className="blinking-cursor"><Brain size={16} aria-hidden="true" /> Pensando...</span>
                   ) : (
                     msg.text
                   )}
                 </p>
 
                 {msg.sender === 'ai' && msg.text !== '' && (
-                  <button type="button" className="speak-btn" onClick={() => speak(msg.text)} title="Ouvir resposta" aria-label="Ouvir resposta da Inteligência Artificial em áudio">🔊</button>
+                  <button type="button" className="speak-btn" onClick={() => speak(msg.text)} title="Ouvir resposta" aria-label="Ouvir resposta da Inteligência Artificial em áudio"><Volume2 size={16} aria-hidden="true" /></button>
                 )}
               </div>
             </div>
@@ -244,7 +249,7 @@ const Assistente: React.FC = () => {
                 title={isSpeechEnabled ? "Desativar fala automática" : "Ativar fala automática"}
                 aria-label={isSpeechEnabled ? "Desativar leitura em voz alta automática" : "Ativar leitura em voz alta automática das mensagens da Inteligência Artificial"}
               >
-                {isSpeechEnabled ? '🔊' : '🔇'}
+                {isSpeechEnabled ? <Volume2 size={20} aria-hidden="true" /> : <VolumeX size={20} aria-hidden="true" />}
               </button>
 
               <button
@@ -255,7 +260,7 @@ const Assistente: React.FC = () => {
                 title={isListening ? "Parar gravação" : "Falar no microfone"}
                 aria-label={isListening ? "Parar de ouvir o microfone" : "Iniciar reconhecimento de voz pelo microfone"}
               >
-                {isListening ? '🛑' : '🎙️'}
+                {isListening ? <Square size={20} aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
               </button>
 
               <textarea
@@ -286,7 +291,7 @@ const Assistente: React.FC = () => {
                   disabled={!input.trim()}
                   aria-label="Enviar mensagem digitada"
                 >
-                  ➤
+                  <Send size={20} aria-hidden="true" />
                 </button>
               )}
 

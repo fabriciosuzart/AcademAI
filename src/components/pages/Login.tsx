@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Mail, Lock, KeyRound, Sparkles, ArrowLeft, AlertTriangle } from 'lucide-react';
 import './Login.css';
 
 const Login: React.FC = () => {
@@ -21,7 +22,7 @@ const Login: React.FC = () => {
   // Formata e-mail ditado
   const formatSpokenEmail = (text: string): string => {
     let result = text.toLowerCase().trim();
-    console.log('📧 Texto bruto do Whisper:', result);
+    console.log('Texto bruto do Whisper:', result);
 
     result = result.replace(/\b(arouba|aroba|arroba|a rouba|a roba|at sign)\b/gi, ' @ ');
     result = result.replace(/\b(ponto|pontos|dot)\b/gi, ' . ');
@@ -87,7 +88,7 @@ const Login: React.FC = () => {
       emailResult = cleanUser + '@' + bestDomain;
     }
 
-    console.log('📧 E-mail formatado:', emailResult);
+    console.log('E-mail formatado:', emailResult);
     return emailResult;
   };
 
@@ -100,12 +101,12 @@ const Login: React.FC = () => {
       if (field === 'email') {
         const formatted = formatSpokenEmail(text);
         setEmail(formatted);
-        setVoiceStatus(`✅ E-mail: ${formatted}`);
+        setVoiceStatus(`E-mail: ${formatted}`);
         if (onFormatted) onFormatted(formatted);
       } else if (field === 'password') {
         const cleanPwd = text.replace(/\s+/g, '');
         setPassword(cleanPwd);
-        setVoiceStatus('✅ Senha preenchida');
+        setVoiceStatus('Senha preenchida');
         if (onFormatted) onFormatted(cleanPwd);
       }
       setTimeout(() => setVoiceStatus(''), 5000);
@@ -171,7 +172,7 @@ const Login: React.FC = () => {
       });
 
       if (res.ok) {
-        alert("✅ Senha atualizada com sucesso! Entrando...");
+        alert("Senha atualizada com sucesso! Entrando...");
         setShowChangePasswordModal(false);
         navigate('/');
       } else {
@@ -214,7 +215,7 @@ const Login: React.FC = () => {
                 <div className="login-field">
                   <label htmlFor="login-email">E-mail Institucional</label>
                   <div className="input-wrapper">
-                    <span className="input-icon">✉️</span>
+                    <span className="input-icon"><Mail size={18} aria-hidden="true" /></span>
                     <input
                       id="login-email"
                       type="email"
@@ -230,7 +231,7 @@ const Login: React.FC = () => {
                 <div className="login-field">
                   <label htmlFor="login-password">Senha</label>
                   <div className="input-wrapper">
-                    <span className="input-icon">🔒</span>
+                    <span className="input-icon"><Lock size={18} aria-hidden="true" /></span>
                     <input
                       id="login-password"
                       type="password"
@@ -249,7 +250,7 @@ const Login: React.FC = () => {
                   </div>
                 </div>
                 <button type="submit" className="login-button" aria-label="Botão para entrar na conta">
-                  ✦ Entrar
+                  <Sparkles size={18} aria-hidden="true" /> Entrar
                 </button>
                 <p className="login-footer-text">
                   Não tem cadastro? <Link to="/cadastro" className="signup-link" aria-label="Link para a página de cadastro">Criar conta</Link>
@@ -264,7 +265,7 @@ const Login: React.FC = () => {
                 <div className="login-field">
                   <label htmlFor="recover-email">E-mail</label>
                   <div className="input-wrapper">
-                    <span className="input-icon">✉️</span>
+                    <span className="input-icon"><Mail size={18} aria-hidden="true" /></span>
                     <input
                       id="recover-email"
                       type="email"
@@ -278,10 +279,10 @@ const Login: React.FC = () => {
                   </div>
                 </div>
                 <button type="submit" className="login-button" aria-label="Botão para enviar e-mail de recuperação">
-                  ✦ Enviar E-mail
+                  <Sparkles size={18} aria-hidden="true" /> Enviar E-mail
                 </button>
                 <button type="button" className="back-login-btn" onClick={() => setIsRecovering(false)} aria-label="Cancelar recuperação e voltar ao login">
-                  ← Voltar ao Login
+                  <ArrowLeft size={16} aria-hidden="true" /> Voltar ao Login
                 </button>
               </form>
             </>
@@ -294,20 +295,20 @@ const Login: React.FC = () => {
       {showChangePasswordModal && (
         <div className="password-modal-overlay">
           <div className="password-modal">
-            <h2>⚠️ Nova Senha</h2>
+            <h2><AlertTriangle size={22} aria-hidden="true" /> Nova Senha</h2>
             <p>Você acessou com uma senha temporária. Defina sua nova senha definitiva abaixo:</p>
 
             <div className="login-field" style={{ marginBottom: '15px' }}>
               <label htmlFor="new-password">Nova Senha</label>
               <div className="input-wrapper">
-                <span className="input-icon">🔒</span>
+                <span className="input-icon"><Lock size={18} aria-hidden="true" /></span>
                 <input id="new-password" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" aria-label="Digite a nova senha definitiva" />
               </div>
             </div>
             <div className="login-field" style={{ marginBottom: '25px' }}>
               <label htmlFor="confirm-password">Confirmar Nova Senha</label>
               <div className="input-wrapper">
-                <span className="input-icon">🔑</span>
+                <span className="input-icon"><KeyRound size={18} aria-hidden="true" /></span>
                 <input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Digite novamente" aria-label="Confirme a nova senha definitiva" />
               </div>
             </div>

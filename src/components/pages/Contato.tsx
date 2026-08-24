@@ -45,11 +45,11 @@ const Contato: React.FC = () => {
 
 {/*          <div className="contato-info">
                 <div className="info-box">
-                    <h3>📍 Onde Estamos</h3>
+                    <h3>Onde Estamos</h3>
                     <p>Laboratório<br/>Universidade Santa Cecília (Unisanta)</p>
                 </div>
                 <div className="info-box">
-                    <h3>🕒 Horário</h3>
+                    <h3>Horário</h3>
                     <p>Segunda a Sexta<br/>08:00 às 21:00</p>
                 </div>
             </div>
