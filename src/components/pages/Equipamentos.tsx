@@ -5,6 +5,35 @@ import api from '../../api/axios';
 import './Equipamentos.css';
 import { Circle } from 'lucide-react';
 
+// Agrupa unidades do mesmo modelo num card so. "Bambu Lab A1" e "A2" viram
+// "Bambu Lab" com 2 unidades. Mesma reducao que o painel admin ja usava, para
+// as duas telas contarem a mesma historia.
+//
+// A deteccao e por sufixo no nome (01, 02, A1...). Funciona no acervo atual,
+// mas e fragil: um "Arduino Uno R3" viraria "Arduino Uno R". O certo a medio
+// prazo e um campo de modelo no banco, em vez de adivinhar pelo nome.
+function agruparPorModelo(itens: any[]): any[] {
+  const grupos: Record<string, any> = {};
+
+  for (const item of itens) {
+    const modelo = item.name.replace(/\s*(0\d|A\d|\d+)$/i, '').trim();
+    if (!grupos[modelo]) {
+      grupos[modelo] = { ...item, name: modelo, quantidade: 1, unidades: [item] };
+    } else {
+      grupos[modelo].quantidade += 1;
+      grupos[modelo].unidades.push(item);
+      // O grupo aparece como disponivel se ao menos uma unidade estiver.
+      if (ehDisponivel(item.status)) grupos[modelo].status = item.status;
+    }
+  }
+  return Object.values(grupos);
+}
+
+function ehDisponivel(status: string) {
+  const s = (status || '').toUpperCase();
+  return s === 'DISPONÍVEL' || s === 'DISPONIVEL' || s === 'AVAILABLE';
+}
+
 const Equipamentos: React.FC = () => {
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
@@ -18,7 +47,7 @@ const Equipamentos: React.FC = () => {
     const loadEquipments = async () => {
       try {
         const res = await api.get('/equipment');
-        setEquipamentos(res.data);
+        setEquipamentos(agruparPorModelo(res.data));
       } catch (error) {
         console.error("Erro ao carregar equipamentos:", error);
       } finally {
@@ -114,7 +143,13 @@ const Equipamentos: React.FC = () => {
                 
                 <div className="card-content">
                     <h3>{item.name}</h3>
-                    
+
+                    {item.quantidade > 1 && (
+                      <p className="card-unidades">
+                        {item.quantidade} unidades — escolha qual reservar nos detalhes
+                      </p>
+                    )}
+
                     <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: 'auto' }}>
                         <button 
                             onClick={() => navigate(`/equipamento/${item.id}`)}

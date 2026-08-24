@@ -14,13 +14,27 @@ const EquipamentoDetalhes: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-
+    // Outras maquinas do mesmo modelo. Cada uma tem agenda propria, entao a
+    // reserva precisa apontar para uma unidade concreta, nunca para o grupo.
+    const [unidades, setUnidades] = useState<any[]>([]);
+    const [unidadeSelecionada, setUnidadeSelecionada] = useState<number | null>(null);
 
     useEffect(() => {
         const fetchDetails = async () => {
             try {
                 const res = await api.get(`/equipment/${id}`);
                 setEquipment(res.data);
+                setUnidadeSelecionada(res.data.id);
+
+                // Descobre as irmas pelo mesmo nome-base do agrupamento da listagem
+                const todos = await api.get('/equipment');
+                const modelo = (nome: string) => nome.replace(/\s*(0\d|A\d|\d+)$/i, '').trim();
+                const alvo = modelo(res.data.name);
+                setUnidades(
+                    todos.data
+                        .filter((e: any) => modelo(e.name) === alvo)
+                        .sort((a: any, b: any) => a.name.localeCompare(b.name))
+                );
             } catch (err: any) {
                 setError(err.response?.data?.error || 'Equipamento não encontrado.');
             } finally {
@@ -105,14 +119,38 @@ const EquipamentoDetalhes: React.FC = () => {
                     </div>
 
 
+                    {/* Quando o modelo tem mais de uma maquina, a reserva e sempre
+                        contra uma unidade concreta — cada uma tem agenda propria. */}
+                    {unidades.length > 1 && (
+                        <div className="unidades-picker">
+                            <h3>Escolha a unidade</h3>
+                            <div className="unidades-lista">
+                                {unidades.map((u) => (
+                                    <button
+                                        key={u.id}
+                                        type="button"
+                                        className={`unidade-btn${u.id === unidadeSelecionada ? ' ativa' : ''}`}
+                                        onClick={() => setUnidadeSelecionada(u.id)}
+                                        aria-pressed={u.id === unidadeSelecionada}
+                                    >
+                                        <Circle size={9} fill="currentColor" aria-hidden="true" />
+                                        <span>{u.name}</span>
+                                        <small>{getStatusInfo(u.status).label}</small>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="action-area">
                         <button
                             className="primary-btn"
                             onClick={() => {
+                                const alvo = unidadeSelecionada ?? equipment.id;
                                 if (isLoggedIn) {
-                                    navigate('/agendamento', { state: { equipmentId: equipment.id } });
+                                    navigate('/agendamento', { state: { equipmentId: alvo } });
                                 } else {
-                                    navigate('/login', { state: { from: 'agendamento', equipmentId: equipment.id } });
+                                    navigate('/login', { state: { from: 'agendamento', equipmentId: alvo } });
                                 }
                             }}
                         >

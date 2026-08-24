@@ -239,3 +239,10 @@
   align-items: center;
   gap: 6px;
 }
+
+/* Aviso de multiplas unidades no card agrupado */
+.card-unidades {
+  margin: -10px 0 16px;
+  font-size: 0.82rem;
+  color: #94a3b8;
+}

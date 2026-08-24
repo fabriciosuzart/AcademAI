@@ -238,3 +238,51 @@
     font-weight: 600;
     color: #94a3b8;
 }
+
+/* Seletor de unidade — aparece quando o modelo tem mais de uma maquina */
+.unidades-picker {
+    margin: 24px 0 8px;
+}
+
+.unidades-picker h3 {
+    font-size: 1rem;
+    margin: 0 0 12px;
+    color: #e2e8f0;
+}
+
+.unidades-lista {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.unidade-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #cbd5e1;
+    font: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.unidade-btn:hover {
+    border-color: rgba(56, 189, 248, 0.5);
+    color: #f1f5f9;
+}
+
+.unidade-btn.ativa {
+    background: rgba(56, 189, 248, 0.14);
+    border-color: #38bdf8;
+    color: #f8fafc;
+}
+
+.unidade-btn small {
+    color: #94a3b8;
+    font-size: 0.75rem;
+}
