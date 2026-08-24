@@ -1095,7 +1095,10 @@ const Perfil: React.FC = () => {
                           style={{
                             width: "100%",
                             height: "100%",
-                            objectFit: "cover",
+                            // 'contain' + fundo branco: as imagens sao normalizadas
+                            // em quadrado branco, entao nada precisa ser cortado.
+                            objectFit: "contain",
+                            background: "#ffffff",
                           }}
                         />
                       ) : (
