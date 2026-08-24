@@ -31,9 +31,25 @@
   gap: 10px;
 }
 
+/* Marca em SVG (lucide), no lugar do PNG redimensionado que perdia nitidez.
+   Usa o mesmo par de cores do wordmark ao lado, para os dois se lerem juntos. */
 .logo-image {
-  height: 45px;
-  width: auto;
+  height: 38px;
+  width: 38px;
+  flex-shrink: 0;
+  color: #38bdf8;
+}
+
+.navbar-logo:hover .logo-image {
+  color: #818cf8;
+  transition: color 0.25s ease;
+}
+
+/* Links da navbar que sao so icone: alinham com o texto vizinho */
+.nav-icon-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
 }
 
 .navbar-logo span {
