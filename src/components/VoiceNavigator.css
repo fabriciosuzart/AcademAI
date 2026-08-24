@@ -18,6 +18,11 @@
    Status Bubble
    ================================================ */
 .voice-status-bubble {
+  /* flex: alinha o icone SVG com o texto do status, que antes eram uma
+     string unica com emoji embutido. */
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: rgba(15, 23, 42, 0.92);
   color: #38bdf8;
   padding: 10px 18px;
@@ -207,6 +212,9 @@
 }
 
 .voice-help-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: #64748b;
   font-family: 'Inter', sans-serif;
   font-size: 0.7rem;
