@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import './EquipamentoDetalhes.css';
+import { ArrowLeft, Circle, Wrench } from 'lucide-react';
 
 const EquipamentoDetalhes: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -77,14 +78,14 @@ const EquipamentoDetalhes: React.FC = () => {
     return (
         <div className="details-container">
             <button className="back-btn" onClick={() => navigate('/equipamentos')}>
-                ← Voltar
+                <ArrowLeft size={18} aria-hidden="true" /> Voltar
             </button>
 
             <div className="details-card">
                 <div className="details-image-wrapper">
                     <img src={imageUrl} alt={equipment.name} className="details-image" />
                     <span className={`status-badge ${statusClass}`}>
-                        ● {statusLabel}
+                        <Circle size={10} fill="currentColor" aria-hidden="true" /> {statusLabel}
                     </span>
                 </div>
 
@@ -95,7 +96,7 @@ const EquipamentoDetalhes: React.FC = () => {
                         <h3>Descrição e Especificações</h3>
                         {parsedSpecs && (
                             <p style={{ color: '#38bdf8', fontWeight: 600, marginBottom: '8px' }}>
-                                🔧 {parsedSpecs}
+                                <Wrench size={18} aria-hidden="true" /> {parsedSpecs}
                             </p>
                         )}
                         <p>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import './Equipamentos.css';
+import { Circle } from 'lucide-react';
 
 const Equipamentos: React.FC = () => {
   const navigate = useNavigate();
@@ -79,9 +80,9 @@ const Equipamentos: React.FC = () => {
         <div className="filter-controls">
             <select onChange={(e) => setFilterStatus(e.target.value)} value={filterStatus}>
                 <option value="all">Todos os Equipamentos</option>
-                <option value="DISPONÍVEL">🟢 Disponíveis Hoje</option>
-                <option value="EM USO">🟠 Em Uso</option>
-                <option value="MANUTENÇÃO">🔴 Em Manutenção</option>
+                <option value="DISPONÍVEL">Disponíveis Hoje</option>
+                <option value="EM USO">Em Uso</option>
+                <option value="MANUTENÇÃO">Em Manutenção</option>
             </select>
             
             <select onChange={(e) => setSortOrder(e.target.value)} value={sortOrder}>
@@ -107,7 +108,7 @@ const Equipamentos: React.FC = () => {
                     />
                     
                     <span className={`status-badge ${getStatusInfo(item.status).className}`}>
-                        ● {getStatusInfo(item.status).label}
+                        <Circle size={10} fill="currentColor" aria-hidden="true" /> {getStatusInfo(item.status).label}
                     </span>
                 </div>
                 

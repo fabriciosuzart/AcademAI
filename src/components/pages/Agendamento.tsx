@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api/axios';
+import { CalendarDays, CheckCircle2 } from 'lucide-react';
 import CalendarPicker from '../CalendarPicker';
 import './Agendamento.css';
 
@@ -94,7 +95,7 @@ const Agendamento: React.FC = () => {
         <div className="agendamento-page">
             <div className="schedule-card">
                 <div className="schedule-header">
-                    <h1>📅 Solicitar Reserva</h1>
+                    <h1><CalendarDays size={26} aria-hidden="true" /> Solicitar Reserva</h1>
                     <p>Preencha os dados e informe a justificativa para avaliação do professor.</p>
                 </div>
 
@@ -117,7 +118,7 @@ const Agendamento: React.FC = () => {
                                         value={item.id}
                                         disabled={item.status === 'MANUTENÇÃO'}
                                     >
-                                        {item.status === 'DISPONÍVEL' ? '🟢' : item.status === 'MANUTENÇÃO' ? '🔴' : '🟠'} {item.name} {item.status === 'MANUTENÇÃO' ? '(Bloqueado)' : ''}
+                                        {item.name} {item.status === 'MANUTENÇÃO' ? '(Bloqueado)' : ''}
                                     </option>
                                 ))}
                             </select>
@@ -141,7 +142,7 @@ const Agendamento: React.FC = () => {
                         )}
                         {date && time && (
                             <p style={{ color: '#10b981', marginTop: '10px', fontWeight: 'bold' }}>
-                                ✅ Selecionado: {date.split('-').reverse().join('/')} às {time}
+                                <CheckCircle2 size={18} aria-hidden="true" /> Selecionado: {date.split('-').reverse().join('/')} às {time}
                             </p>
                         )}
                     </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { User, Mail, GraduationCap, Tag, Lock, KeyRound, Sparkles } from 'lucide-react';
 import './Cadastro.css';
 
 const Cadastro: React.FC = () => {
@@ -100,7 +101,7 @@ const Cadastro: React.FC = () => {
                         <div className="signup-field">
                             <label htmlFor="fullName">Nome Completo</label>
                             <div className="input-wrapper">
-                                <span className="input-icon">👤</span>
+                                <span className="input-icon"><User size={18} aria-hidden="true" /></span>
                                 <input
                                     type="text"
                                     id="fullName"
@@ -118,7 +119,7 @@ const Cadastro: React.FC = () => {
                             <div className="signup-field">
                                 <label htmlFor="email">E-mail Institucional</label>
                                 <div className="input-wrapper">
-                                    <span className="input-icon">✉️</span>
+                                    <span className="input-icon"><Mail size={18} aria-hidden="true" /></span>
                                     <input
                                         type="email"
                                         id="email"
@@ -134,7 +135,7 @@ const Cadastro: React.FC = () => {
                             <div className="signup-field">
                                 <label htmlFor="ra">RA (Matrícula)</label>
                                 <div className="input-wrapper">
-                                    <span className="input-icon">🎓</span>
+                                    <span className="input-icon"><GraduationCap size={18} aria-hidden="true" /></span>
                                     <input
                                         type="text"
                                         id="ra"
@@ -154,7 +155,7 @@ const Cadastro: React.FC = () => {
                                 <label htmlFor="role">Perfil</label>
                                 {/* RF01/RN08 — apenas Estudante no cadastro público; Professor e Admin são atribuídos pelo administrador */}
                                 <div className="input-wrapper select-wrapper">
-                                    <span className="input-icon">🏷️</span>
+                                    <span className="input-icon"><Tag size={18} aria-hidden="true" /></span>
                                     <select
                                         id="role"
                                         value={formData.role}
@@ -176,7 +177,7 @@ const Cadastro: React.FC = () => {
                             <div className="signup-field">
                                 <label htmlFor="password">Criar Senha</label>
                                 <div className="input-wrapper">
-                                    <span className="input-icon">🔒</span>
+                                    <span className="input-icon"><Lock size={18} aria-hidden="true" /></span>
                                     <input
                                         type="password"
                                         id="password"
@@ -192,7 +193,7 @@ const Cadastro: React.FC = () => {
                             <div className="signup-field">
                                 <label htmlFor="confirmPassword">Confirmar Senha</label>
                                 <div className="input-wrapper">
-                                    <span className="input-icon">🔑</span>
+                                    <span className="input-icon"><KeyRound size={18} aria-hidden="true" /></span>
                                     <input
                                         type="password"
                                         id="confirmPassword"
@@ -208,7 +209,7 @@ const Cadastro: React.FC = () => {
                         </div>
 
                         <button type="submit" className="signup-button" aria-label="Botão para confirmar e cadastrar agora">
-                            ✦ Cadastrar Agora
+                            <Sparkles size={18} aria-hidden="true" /> Cadastrar Agora
                         </button>
 
                         <div className="auth-link">

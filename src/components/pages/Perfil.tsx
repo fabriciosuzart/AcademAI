@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
+import { Check, Circle, User } from "lucide-react";
 import "./Perfil.css";
 
 const trainingModules = [
@@ -508,12 +509,12 @@ const Perfil: React.FC = () => {
       });
       const data = await res.json();
       if (res.ok) {
-        alert("✅ " + data.message);
+        alert(data.message);
         setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
       } else {
-        alert("❌ Erro: " + data.error);
+        alert("Erro: " + data.error);
       }
     } catch (error) {
       alert("Erro de conexão com o servidor.");
@@ -765,11 +766,11 @@ const Perfil: React.FC = () => {
                           : "#ef4444",
                       }}
                     >
-                      ●
+                      <Circle size={10} fill="currentColor" aria-hidden="true" />
                     </span>
                     <span>{training}</span>
                     {completedTrainings[index] && (
-                      <span className="training-check">✓</span>
+                      <span className="training-check"><Check size={14} aria-hidden="true" /></span>
                     )}
                   </li>
                 ))}
@@ -916,7 +917,7 @@ const Perfil: React.FC = () => {
                         <strong>{appt.equipment?.name || appt.equipment || "Agendamento"}</strong>
                         {viewAllAppointments && appt.user && (
                           <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '2px', marginBottom: '4px' }}>
-                            👤 {appt.user || appt.user?.name} ({appt.userRole || appt.user?.role})
+                            <User size={16} aria-hidden="true" /> {appt.user || appt.user?.name} ({appt.userRole || appt.user?.role})
                           </div>
                         )}
                         <p>
@@ -1541,7 +1542,7 @@ const Perfil: React.FC = () => {
                           }
                         }}
                       >
-                        {isSelected && <span className="check-icon">✓</span>}
+                        {isSelected && <span className="check-icon"><Check size={14} aria-hidden="true" /></span>}
                         {module}
                       </button>
                     );
