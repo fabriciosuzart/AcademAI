@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Navbar.css';
-import { GraduationCap, Bell, ShieldCheck } from 'lucide-react';
+import { GraduationCap, Bell } from 'lucide-react';
 
 const Navbar: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -9,9 +9,6 @@ const Navbar: React.FC = () => {
 
   // Recupera os dados do usuário salvos no login
   const userName = localStorage.getItem('userName');
-  const userRole = localStorage.getItem('userRole');
-  const podeVerPainel = userRole === 'ADMIN' || userRole === 'PROFESSOR';
-  const rotuloPainel = userRole === 'ADMIN' ? 'Painel do administrador' : 'Painel do professor';
 
   const closeMobileMenu = () => setIsMenuOpen(false);
 
@@ -49,24 +46,6 @@ const Navbar: React.FC = () => {
           <li className="nav-item">
             <Link to="/contato" className="nav-link" onClick={closeMobileMenu} aria-label="Formulário de contato">Contato</Link>
           </li>
-
-          {/* Painel administrativo: quatro telas (visao geral, reservas pendentes,
-              calendario global e treinamento da IA) so existem la dentro, e ate
-              aqui a unica porta era uma pilula na Home. */}
-          {podeVerPainel && (
-            <li className="nav-item">
-              <Link
-                to="/admin"
-                className="nav-link nav-link-admin"
-                onClick={closeMobileMenu}
-                title={rotuloPainel}
-                aria-label={rotuloPainel}
-              >
-                <ShieldCheck size={18} aria-hidden="true" />
-                Painel
-              </Link>
-            </li>
-          )}
 
           {/* LÓGICA DE LOGIN / LOGOUT */}
           <li className="nav-item">

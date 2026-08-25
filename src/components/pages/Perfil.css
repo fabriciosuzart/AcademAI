@@ -1381,3 +1381,19 @@
   background: #1e293b;
   color: #e2e8f0;
 }
+
+/* Entrada do painel administrativo. Vive na fileira de abas porque e ali que
+   as funcoes de administracao ja moram, mas NAO e uma aba: navega para outra
+   pagina. Por isso o acento e a seta — para nao parecer que troca o conteudo
+   deste painel como as vizinhas fazem. */
+.panel-tab-link {
+  gap: 6px;
+  color: #7dd3fc;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.panel-tab-link:hover {
+  color: #f8fafc;
+  border-color: rgba(56, 189, 248, 0.5);
+}
