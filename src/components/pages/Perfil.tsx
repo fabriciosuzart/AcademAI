@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
-import { Check, Circle, User } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowUpRight, Check, Circle, ShieldCheck, User } from "lucide-react";
 import "./Perfil.css";
 import { STATUS, OPCOES_STATUS, classeStatus, ehManutencao, rotuloStatus } from "../../utils/status";
 import { agruparPorModelo } from "../../utils/equipamentos";
@@ -407,6 +408,9 @@ const Perfil: React.FC = () => {
   };
 
   const isAdmin = userRole === "ADMIN";
+  // O professor nao administra cadastro (por isso nao ve as abas de usuarios e
+  // equipamentos), mas aprova reservas — e essa tela so existe no painel.
+  const podeVerPainel = isAdmin || userRole === "PROFESSOR";
 
   useEffect(() => {
     if (isAdmin) {
@@ -816,6 +820,19 @@ const Perfil: React.FC = () => {
             >
               Configurações
             </button>
+
+            {/* Sai da pagina, ao contrario das outras abas — por isso o
+                destaque e a seta. O painel guarda as quatro telas que nao
+                moram aqui: visao geral, reservas pendentes, calendario e IA.
+                O professor so enxerga Reservas Pendentes la dentro; a trava
+                por papel ja existe no proprio painel. */}
+            {podeVerPainel && (
+              <Link to="/admin" className="panel-tab panel-tab-link">
+                <ShieldCheck size={15} aria-hidden="true" />
+                Painel
+                <ArrowUpRight size={14} aria-hidden="true" />
+              </Link>
+            )}
           </div>
 
           {activeTab === "agendamentos" ? (
