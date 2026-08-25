@@ -1397,3 +1397,90 @@
   color: #f8fafc;
   border-color: rgba(56, 189, 248, 0.5);
 }
+
+/* ── Aba de treinamento da IA ─────────────────────────────────── */
+.treino-ajuda {
+  color: #94a3b8;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  margin: 0 0 14px;
+}
+
+.treino-msg {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.treino-msg-info {
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+}
+
+.treino-msg-success {
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  color: #4ade80;
+}
+
+.treino-msg-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.doc-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.doc-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.doc-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.doc-info strong {
+  color: #f1f5f9;
+  font-size: 0.92rem;
+  word-break: break-all;
+}
+
+.doc-info span {
+  color: #94a3b8;
+  font-size: 0.78rem;
+}
+
+/* Com seis itens (Agendamentos, Usuarios, Equipamentos, Treinamento IA,
+   Configuracoes e o link do Painel) a fileira aperta. Rola na horizontal em
+   vez de espremer os rotulos ate quebrarem. */
+.panel-tabs {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.panel-tab {
+  flex: 1 0 auto;
+  white-space: nowrap;
+  font-size: 0.88rem;
+  padding: 10px 10px;
+}

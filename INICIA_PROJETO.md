@@ -65,7 +65,41 @@ O Frontend é a interface visual onde você irá navegar, acessar o perfil e fal
 
 ---
 
+## Passo 3: A base de conhecimento da IA (opcional)
+
+A assistente responde com base em documentos, não em conhecimento próprio. Sem
+documento nenhum ela não tem o que dizer sobre o laboratório.
+
+O projeto já vem com uma **base inicial versionada** em `backend/documents/` —
+sobre o laboratório, regras de uso, equipamentos e como agendar. Ela é lida
+automaticamente quando o backend sobe, sem instalar nada além do que o
+`npm install` já traz.
+
+Para **enviar novos documentos** pela interface, entre como administrador e vá
+em **Perfil → Treinamento IA**. Lá dá para subir arquivos, ver o que já está
+indexado e remover o que não vale mais.
+
+Formatos aceitos: **PDF, DOCX, MD e TXT**.
+
+> **PDF e DOCX exigem Python + Docling.** A conversão desses dois formatos é
+> feita pelo `backend/converter.py`. Se você só for usar `.md` e `.txt`, pode
+> pular esta instalação.
+>
+> ```bash
+> pip install docling
+> ```
+>
+> Sem o Docling, o upload de PDF ou DOCX falha com "Falha ao processar
+> documento"; os demais formatos continuam funcionando.
+
+Na primeira vez que o backend sobe, ele baixa o modelo de embeddings
+(`Xenova/all-MiniLM-L6-v2`, cerca de 90 MB) e vetoriza os documentos. Isso leva
+alguns minutos e **exige internet**. Depois disso o resultado fica em
+`backend/vector_cache.json` e as próximas inicializações são imediatas.
+
+---
+
 ### Observações
-- **Painel Admin:** Para acessar o painel de administrador, você deve fazer o login com um e-mail de administrador definido no banco de dados. A senha e as permissões são checadas pelo backend.
+- **Painel Admin:** Para acessar o painel de administrador, você deve fazer o login com um e-mail de administrador definido no banco de dados. A senha e as permissões são checadas pelo backend. O acesso fica em **Perfil → Painel**, visível para administradores e professores.
 - **Inteligência Artificial (IA):** O assistente "Falar com IA" se comunica com o `server.js` do backend, portanto, se o backend não estiver rodando, a IA não irá responder.
 - **Microfone:** O reconhecimento de fala (voz) para conversar com a IA funciona melhor no navegador **Google Chrome**.

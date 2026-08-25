@@ -49,6 +49,13 @@ interface AdminUser {
   isActive?: boolean;
 }
 
+interface DocumentoIA {
+  nome: string;
+  tamanho: number;
+  modificadoEm: string;
+  blocos: number;
+}
+
 interface EquipmentItem {
   id: string | number;
   name: string;
@@ -78,10 +85,20 @@ const Perfil: React.FC = () => {
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [equipmentItems, setEquipmentItems] = useState<EquipmentItem[]>([]);
   const [activeTab, setActiveTab] = useState<
-    "agendamentos" | "usuarios" | "equipamentos" | "configuracoes"
+    "agendamentos" | "usuarios" | "equipamentos" | "treinamento" | "configuracoes"
   >("agendamentos");
   // Papel escolhido no seletor, ainda nao salvo, indexado pelo id do usuario.
   const [userRoleEdit, setUserRoleEdit] = useState<Record<string, string>>({});
+
+  // Treinamento da IA (RAG). Veio do painel admin, onde a tela era cega: subia
+  // o arquivo e nunca mais se sabia o que a assistente tinha lido.
+  const [file, setFile] = useState<File | null>(null);
+  const [loadingAI, setLoadingAI] = useState(false);
+  const [messageAI, setMessageAI] = useState("");
+  const [msgTypeAI, setMsgTypeAI] = useState<"success" | "error" | "info">("info");
+  const [documentos, setDocumentos] = useState<DocumentoIA[]>([]);
+  const [totalVetores, setTotalVetores] = useState(0);
+  const [loadingDocs, setLoadingDocs] = useState(false);
 
   // Estado das Vozes (Jarvis Mode)
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -258,6 +275,79 @@ const Perfil: React.FC = () => {
       console.error("Erro ao alterar perfil", error);
       alert("Erro ao alterar perfil: " + (error.response?.data?.error || "Erro de conexão."));
     }
+  };
+
+  // ── Treinamento da IA ────────────────────────────────────────────
+  const fetchDocumentos = async () => {
+    setLoadingDocs(true);
+    try {
+      const res = await api.get("/train/documents");
+      setDocumentos(res.data.documentos || []);
+      setTotalVetores(res.data.totalVetores || 0);
+    } catch (error) {
+      console.error("Erro ao listar documentos da IA", error);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+      setMessageAI(`Arquivo selecionado: ${e.target.files[0].name}`);
+      setMsgTypeAI("info");
+    }
+  };
+
+  const handleUploadAI = async () => {
+    if (!file) return;
+    setLoadingAI(true);
+    setMessageAI("Processando o arquivo... isso pode levar alguns segundos.");
+    setMsgTypeAI("info");
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await api.post("/train", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      // O backend ja devolvia estes numeros; a tela antiga os descartava e
+      // escrevia so "IA Treinada com sucesso!".
+      const { blocosIndexados, totalVetores: total } = res.data || {};
+      setMessageAI(
+        blocosIndexados !== undefined
+          ? `Documento indexado: ${blocosIndexados} bloco(s) novo(s), ${total} no total.`
+          : "Documento indexado com sucesso!",
+      );
+      setMsgTypeAI("success");
+      setFile(null);
+      await fetchDocumentos();
+    } catch (error: any) {
+      setMessageAI(error.response?.data?.error || "Erro de conexão.");
+      setMsgTypeAI("error");
+    } finally {
+      setLoadingAI(false);
+    }
+  };
+
+  const handleDeleteDocumento = async (nome: string) => {
+    if (!window.confirm(`Remover "${nome}" da base de conhecimento?\nA assistente deixará de responder com base nele.`)) return;
+    try {
+      const res = await api.delete(`/train/documents/${encodeURIComponent(nome)}`);
+      setMessageAI(`"${nome}" removido (-${res.data.vetoresRemovidos} blocos).`);
+      setMsgTypeAI("success");
+      await fetchDocumentos();
+    } catch (error: any) {
+      setMessageAI(error.response?.data?.error || "Erro ao remover documento.");
+      setMsgTypeAI("error");
+    }
+  };
+
+  const formatarTamanho = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const handleDeleteEquipment = async (id: number, name: string) => {
@@ -811,6 +901,13 @@ const Perfil: React.FC = () => {
                 >
                   Equipamentos
                 </button>
+                <button
+                  type="button"
+                  className={`panel-tab ${activeTab === "treinamento" ? "active" : ""}`}
+                  onClick={() => { setActiveTab("treinamento"); fetchDocumentos(); }}
+                >
+                  Treinamento IA
+                </button>
               </>
             )}
             <button
@@ -1258,6 +1355,77 @@ const Perfil: React.FC = () => {
                     +
                   </button>
                 </div>
+              </div>
+            </div>
+          ) : activeTab === "treinamento" ? (
+            <div className="panel-content treinamento-panel">
+              <div className="admin-panel-header">
+                <div>
+                  <h2>Treinamento da IA</h2>
+                  <p>
+                    {documentos.length} documento(s) na base &middot; {totalVetores} bloco(s) indexado(s)
+                  </p>
+                </div>
+              </div>
+
+              <div className="settings-card">
+                <h3>Enviar documento</h3>
+                <p className="treino-ajuda">
+                  A assistente responde a partir destes arquivos. Formatos aceitos:
+                  <strong> PDF, DOCX, MD e TXT</strong>. PDF e DOCX passam pela conversão
+                  do Docling (Python); MD e TXT são lidos direto.
+                </p>
+                <input
+                  type="file"
+                  className="sleek-input"
+                  accept=".pdf,.docx,.md,.txt"
+                  onChange={handleFileChange}
+                />
+                <button
+                  type="button"
+                  className="save-btn"
+                  onClick={handleUploadAI}
+                  disabled={!file || loadingAI}
+                >
+                  {loadingAI ? "Processando..." : "Treinar IA"}
+                </button>
+                {messageAI && (
+                  <p className={`treino-msg treino-msg-${msgTypeAI}`}>{messageAI}</p>
+                )}
+              </div>
+
+              <div className="settings-card">
+                <h3>O que a assistente já leu</h3>
+                {loadingDocs ? (
+                  <p className="treino-ajuda">Carregando documentos...</p>
+                ) : documentos.length === 0 ? (
+                  <p className="treino-ajuda">
+                    Nenhum documento na base. Sem eles a assistente não tem o que
+                    responder sobre o laboratório.
+                  </p>
+                ) : (
+                  <ul className="doc-lista">
+                    {documentos.map((doc) => (
+                      <li key={doc.nome} className="doc-item">
+                        <div className="doc-info">
+                          <strong>{doc.nome}</strong>
+                          <span>
+                            {formatarTamanho(doc.tamanho)} &middot; {doc.blocos} bloco(s) &middot;{" "}
+                            {new Date(doc.modificadoEm).toLocaleDateString("pt-BR")}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="ghost-btn small danger"
+                          onClick={() => handleDeleteDocumento(doc.nome)}
+                          title="Remover da base de conhecimento"
+                        >
+                          Remover
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
           ) : (

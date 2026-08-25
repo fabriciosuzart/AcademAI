@@ -192,6 +192,32 @@ async function repassarStreamOllama(res, ollamaResponse) {
     }
 }
 
+// Cada bloco carrega a origem no formato "Arquivo: nome.md" (ver loadDocuments).
+// Essas duas funcoes sao o unico lugar que conhece esse formato.
+const sourceDoArquivo = (nome) => `Arquivo: ${nome}`;
+const nomeDoSource = (source) => String(source || '').replace(/^Arquivo:\s*/, '');
+
+// Resolve o nome vindo da URL para um caminho seguro dentro de documents/.
+// Sem isso, um ".." no parametro viraria caminho para fora da pasta e o unlink
+// apagaria outro arquivo do projeto. Devolve null quando o nome nao serve.
+function caminhoSeguroDoDocumento(nomeBruto) {
+    const nome = String(nomeBruto || '');
+    if (!nome || nome === '.' || nome === '..') return null;
+
+    // Recusa em vez de "consertar": um nome com barra ou ".." nunca e legitimo
+    // aqui, e reduzi-lo silenciosamente ao basename devolveria 404 em vez de
+    // dizer que o pedido estava errado.
+    if (nome !== path.basename(nome)) return null;
+    if (nome.includes('/') || nome.includes('\\') || nome.includes('\0')) return null;
+
+    const raiz = path.resolve(DOCUMENTS_PATH);
+    const destino = path.resolve(raiz, nome);
+    if (destino !== path.join(raiz, nome)) return null;
+    if (!destino.startsWith(raiz + path.sep)) return null;
+
+    return { nome, caminho: destino };
+}
+
 // Lê os documentos da pasta e devolve os blocos.
 // Quando `apenas` é informado, lê só aquele arquivo — usado após um upload,
 // para não reprocessar o corpus inteiro a cada treino.
@@ -226,7 +252,7 @@ async function loadDocuments(apenas = null) {
                 const chunkSize = 2000;
                 for (let i = 0; i < cleanText.length; i += chunkSize) {
                     blocos.push({
-                        source: `Arquivo: ${file}`,
+                        source: sourceDoArquivo(file),
                         text: cleanText.substring(i, i + chunkSize)
                     });
                 }
@@ -286,9 +312,30 @@ function cacheEstaAtualizado() {
     const arquivos = fs.readdirSync(DOCUMENTS_PATH);
     if (arquivos.length === 0) return false;
 
-    return arquivos.every(f =>
+    const todosMaisVelhos = arquivos.every(f =>
         fs.statSync(path.join(DOCUMENTS_PATH, f)).mtimeMs <= cacheMtime
     );
+    if (!todosMaisVelhos) return false;
+
+    // Comparar so as datas nao detecta REMOCAO: apagado um documento, os que
+    // sobram continuam mais velhos que o cache, e os vetores do arquivo que
+    // sumiu seguiriam vivos — a IA citaria um documento inexistente. Por isso
+    // o conjunto de arquivos tambem precisa bater com o que o cache indexou.
+    try {
+        const bruto = JSON.parse(fs.readFileSync(VECTOR_CACHE_PATH, 'utf-8'));
+        if (!Array.isArray(bruto)) return false;
+        const noCache = new Set(bruto.map(v => nomeDoSource(v.source)));
+        const emDisco = new Set(arquivos);
+        if (noCache.size !== emDisco.size) return false;
+        for (const nome of noCache) {
+            if (!emDisco.has(nome)) return false;
+        }
+    } catch (e) {
+        console.warn('⚠️ Cache ilegível ao comparar documentos:', e.message);
+        return false;
+    }
+
+    return true;
 }
 
 async function initAI() {
@@ -1262,6 +1309,79 @@ app.post('/api/train', authMiddleware, roleMiddleware(['ADMIN']), upload.single(
     } catch (error) {
         console.error("❌ Erro no treinamento:", error);
         res.status(500).json({ error: "Falha ao processar documento." });
+    }
+});
+
+// Lista o que a IA ja leu. Ate aqui a tela de treinamento era uma via de mao
+// unica: subia-se um arquivo e nunca mais se sabia o que estava indexado.
+app.get('/api/train/documents', authMiddleware, roleMiddleware(['ADMIN']), (req, res) => {
+    try {
+        if (!fs.existsSync(DOCUMENTS_PATH)) {
+            return res.json({ documentos: [], totalVetores: 0 });
+        }
+
+        // Quantos blocos cada arquivo gerou, contados pela origem dos blocos.
+        const blocosPorArquivo = {};
+        for (const bloco of knowledgeBase) {
+            const nome = nomeDoSource(bloco.source);
+            blocosPorArquivo[nome] = (blocosPorArquivo[nome] || 0) + 1;
+        }
+
+        const documentos = fs.readdirSync(DOCUMENTS_PATH)
+            .filter(nome => {
+                const alvo = caminhoSeguroDoDocumento(nome);
+                return alvo && fs.statSync(alvo.caminho).isFile();
+            })
+            .map(nome => {
+                const info = fs.statSync(path.join(DOCUMENTS_PATH, nome));
+                return {
+                    nome,
+                    tamanho: info.size,
+                    modificadoEm: info.mtime,
+                    blocos: blocosPorArquivo[nome] || 0
+                };
+            })
+            .sort((a, b) => a.nome.localeCompare(b.nome));
+
+        res.json({ documentos, totalVetores: vectorStore.length });
+    } catch (error) {
+        console.error('❌ Erro ao listar documentos:', error);
+        res.status(500).json({ error: 'Erro ao listar documentos.' });
+    }
+});
+
+// Remove um documento da base. Precisa tirar das TRES pontas: do disco, da
+// memoria (knowledgeBase e vectorStore) e do cache em disco — senao o
+// documento volta a valer no proximo restart.
+app.delete('/api/train/documents/:nome', authMiddleware, roleMiddleware(['ADMIN']), (req, res) => {
+    try {
+        const alvo = caminhoSeguroDoDocumento(req.params.nome);
+        if (!alvo) {
+            return res.status(400).json({ error: 'Nome de arquivo inválido.' });
+        }
+        if (!fs.existsSync(alvo.caminho)) {
+            return res.status(404).json({ error: 'Documento não encontrado.' });
+        }
+
+        fs.unlinkSync(alvo.caminho);
+
+        const source = sourceDoArquivo(alvo.nome);
+        const antes = vectorStore.length;
+        knowledgeBase = knowledgeBase.filter(b => b.source !== source);
+        vectorStore = vectorStore.filter(v => v.source !== source);
+        const removidos = antes - vectorStore.length;
+        salvarCache();
+
+        console.log(`🗑️ Documento removido: ${alvo.nome} (-${removidos} vetores)`);
+        res.json({
+            message: 'Documento removido com sucesso!',
+            arquivo: alvo.nome,
+            vetoresRemovidos: removidos,
+            totalVetores: vectorStore.length
+        });
+    } catch (error) {
+        console.error('❌ Erro ao remover documento:', error);
+        res.status(500).json({ error: 'Erro ao remover documento.' });
     }
 });
 
