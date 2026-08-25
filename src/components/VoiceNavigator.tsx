@@ -103,7 +103,7 @@ const ROUTES: { keywords: string[]; path: string; label: string }[] = [
     },
     {
         keywords: ['admin', 'administrador', 'administracao', 'painel', 'dashboard'],
-        path: '/admin', label: 'painel do administrador'
+        path: '/perfil', label: 'administração no seu perfil'
     },
 ];
 
@@ -118,7 +118,6 @@ const PAGE_NAMES: Record<string, string> = {
     '/contato': 'Contato',
     '/login': 'Login',
     '/cadastro': 'Cadastro',
-    '/admin': 'Painel de Controle',
     '/disponibilidade': 'Disponibilidade',
     '/notificacoes': 'Notificações',
     '/nova-senha': 'Nova senha',
@@ -127,34 +126,36 @@ const PAGE_NAMES: Record<string, string> = {
 // =====================================================
 // Abas do painel admin/professor com keywords de voz
 // =====================================================
-// 'destino' aponta para outra pagina quando a aba nao mora mais no painel:
-// gestao de usuarios e de equipamentos passaram para o perfil.
-const ADMIN_TABS: { keywords: string[]; tab: string; label: string; adminOnly?: boolean; destino?: string }[] = [
+// Todas estas abas vivem no perfil desde que o painel /admin foi aposentado.
+const ADMIN_TABS: { keywords: string[]; tab: string; label: string; adminOnly?: boolean }[] = [
+    // Numeros, aprovacoes e agenda da semana vivem na mesma aba agora.
     { keywords: ['visao geral', 'visão geral', 'overview', 'geral', 'resumo', 'dashboard'], tab: 'overview', label: 'visão geral', adminOnly: true },
-    { keywords: ['reservas', 'reservas pendentes', 'aprovacoes', 'aprovações', 'pendentes', 'aprovar reservas'], tab: 'reservations', label: 'reservas pendentes' },
-    { keywords: ['calendario', 'calendário', 'calendario global', 'agenda', 'agenda global', 'semana'], tab: 'calendar', label: 'calendário global', adminOnly: true },
-    { keywords: ['usuarios', 'usuários', 'gestao', 'gestão', 'pessoas', 'membros'], tab: 'users', label: 'gestão de usuários', adminOnly: true, destino: '/perfil' },
-    { keywords: ['inventario', 'inventário', 'gerenciar equipamentos'], tab: 'equipment', label: 'gestão de equipamentos', adminOnly: true, destino: '/perfil' },
-    { keywords: ['ia', 'inteligencia', 'inteligência', 'treinar', 'treinamento', 'treino'], tab: 'ai', label: 'treinamento da IA', adminOnly: true, destino: '/perfil' },
+    { keywords: ['reservas', 'reservas pendentes', 'aprovacoes', 'aprovações', 'pendentes', 'aprovar reservas'], tab: 'overview', label: 'reservas pendentes' },
+    { keywords: ['calendario', 'calendário', 'agenda', 'agenda global', 'semana'], tab: 'overview', label: 'agenda da semana', adminOnly: true },
+    { keywords: ['usuarios', 'usuários', 'gestao', 'gestão', 'pessoas', 'membros'], tab: 'usuarios', label: 'gestão de usuários', adminOnly: true },
+    { keywords: ['inventario', 'inventário', 'gerenciar equipamentos'], tab: 'equipamentos', label: 'gestão de equipamentos', adminOnly: true },
+    // 'ia' sozinho nao entra: e substring de "inicial", entao "pagina inicial"
+    // abria o treinamento em vez de ir para a home.
+    { keywords: ['treinar ia', 'treinamento', 'treinar', 'treino', 'inteligencia', 'inteligência'], tab: 'treinamento', label: 'treinamento da IA', adminOnly: true },
 ];
 
 // =====================================================
 // Painel de ajuda — seções contextuais por página
 // =====================================================
 function getHelpSections(pathname: string) {
-    if (pathname === '/admin') {
+    if (pathname === '/perfil') {
         return [
             {
                 Icone: ClipboardList, title: 'Abrir aba',
-                tags: ['visão geral', 'reservas', 'calendário'],
+                tags: ['agendamentos', 'visão geral', 'reservas', 'usuários', 'equipamentos', 'treinar IA', 'configurações'],
             },
             {
                 Icone: Zap, title: 'Ações rápidas',
                 tags: ['aprovar', 'rejeitar'],
             },
             {
-                Icone: Map, title: 'Sair do painel',
-                tags: ['início', 'equipamentos', 'assistente', 'perfil'],
+                Icone: Map, title: 'Sair do perfil',
+                tags: ['início', 'equipamentos', 'assistente', 'disponibilidade'],
             },
         ];
     }
@@ -335,7 +336,7 @@ const VoiceNavigator: React.FC = () => {
         let msg = pageName;
         if (location.pathname === '/login') {
             msg += '. Diga email ou senha.';
-        } else if (location.pathname === '/admin') {
+        } else if (location.pathname === '/perfil') {
             msg += '. Diga o nome de uma aba.';
         } else {
             msg += '.';
@@ -587,7 +588,14 @@ const VoiceNavigator: React.FC = () => {
         }
 
         // ── Admin / Professor: navegação por abas e ações ────
-        const isAdminContext = locationRef.current === '/admin';
+        // O papel precisa entrar na conta: o /admin era barrado pela propria
+        // rota, mas o /perfil e de todo mundo. Sem isto, um aluno dizendo
+        // "calendario" ouvia "Abrindo agenda da semana" e nao ia a lugar nenhum,
+        // em vez de navegar para /disponibilidade.
+        const papelAtual = localStorage.getItem('userRole');
+        const isAdminContext =
+            locationRef.current === '/perfil' &&
+            (papelAtual === 'ADMIN' || papelAtual === 'PROFESSOR');
         if (isAdminContext) {
             // Ação: aprovar primeira reserva pendente
             if (lower.includes('aprovar') || lower.includes('approve')) {
@@ -610,11 +618,7 @@ const VoiceNavigator: React.FC = () => {
                 if (tabItem.keywords.some(kw => fuzzyIncludes(lower, kw))) {
                     speak(`Abrindo ${tabItem.label}.`);
                     mostrarStatus(CheckCircle2, `"${text}" → ${tabItem.label}`);
-                    if (tabItem.destino) {
-                        navigate(tabItem.destino);
-                    } else {
-                        window.dispatchEvent(new CustomEvent('voice-admin-tab', { detail: { tab: tabItem.tab } }));
-                    }
+                    window.dispatchEvent(new CustomEvent('voice-admin-tab', { detail: { tab: tabItem.tab } }));
                     clearStatus(4000);
                     return;
                 }
