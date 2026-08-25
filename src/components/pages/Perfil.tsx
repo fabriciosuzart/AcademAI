@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import { Check, Circle, User } from "lucide-react";
 import "./Perfil.css";
+import { STATUS, OPCOES_STATUS, classeStatus, ehManutencao, rotuloStatus } from "../../utils/status";
+import { agruparPorModelo } from "../../utils/equipamentos";
 
 const trainingModules = [
   "Impressora 3D Finder",
@@ -126,7 +128,7 @@ const Perfil: React.FC = () => {
   const [editEquipmentSpecs, setEditEquipmentSpecs] = useState("");
   const [editEquipmentDescription, setEditEquipmentDescription] = useState("");
   const [editEquipmentQuantity, setEditEquipmentQuantity] = useState(1);
-  const [editEquipmentStatus, setEditEquipmentStatus] = useState("available");
+  const [editEquipmentStatus, setEditEquipmentStatus] = useState<string>(STATUS.DISPONIVEL);
   const [editEquipmentRequiresTraining, setEditEquipmentRequiresTraining] =
     useState(false);
 
@@ -136,7 +138,7 @@ const Perfil: React.FC = () => {
   const [addEquipmentSpecs, setAddEquipmentSpecs] = useState("");
   const [addEquipmentDescription, setAddEquipmentDescription] = useState("");
   const [addEquipmentQuantity, setAddEquipmentQuantity] = useState(1);
-  const [addEquipmentStatus, setAddEquipmentStatus] = useState("available");
+  const [addEquipmentStatus, setAddEquipmentStatus] = useState<string>(STATUS.DISPONIVEL);
   const [addEquipmentRequiresTraining, setAddEquipmentRequiresTraining] =
     useState(false);
   const [addEquipmentImageFile, setAddEquipmentImageFile] =
@@ -348,29 +350,19 @@ const Perfil: React.FC = () => {
       const data = await res.json();
       if (!Array.isArray(data)) return;
 
-      const grouped = data.reduce(
-        (acc: any, item: any) => {
-          const baseName = item.name.replace(/\s*(0\d|A\d|\d+)$/i, "").trim();
-          if (!acc[baseName]) {
-            acc[baseName] = {
-              id: item.id,
-              name: baseName,
-              description: item.description,
-              status: item.status,
-              imagePath: item.imagePath || item.img,
-              quantity: 1,
-              items: [item],
-            };
-          } else {
-            acc[baseName].quantity = (acc[baseName].quantity || 1) + 1;
-            acc[baseName].items.push(item);
-          }
-          return acc;
-        },
-        {} as Record<string, EquipmentItem>,
-      );
+      // Mesmo agrupamento do catalogo publico, para as duas telas contarem a
+      // mesma historia. O grupo vem do campo `modelo`, nao de regex no nome.
+      const grupos = agruparPorModelo(data).map((g) => ({
+        id: g.unidades[0].id,
+        name: g.name,
+        description: g.description,
+        status: g.status,
+        imagePath: g.imagePath || g.img,
+        quantity: g.quantidade,
+        items: g.unidades,
+      }));
 
-      setEquipmentItems(Object.values(grouped));
+      setEquipmentItems(grupos as EquipmentItem[]);
     } catch (e) {
       console.error("Erro ao buscar/agrupar equipamentos do admin:", e);
     }
@@ -481,22 +473,6 @@ const Perfil: React.FC = () => {
     );
   });
 
-  const getStatusClass = (status: string) => {
-    const normalized = status?.toLowerCase?.();
-    if (normalized?.includes("disp") || normalized === "available")
-      return "available";
-    if (normalized?.includes("uso") || normalized === "in-use") return "in-use";
-    return "maintenance";
-  };
-
-  const formatStatusText = (status: string) => {
-    const normalized = status?.toLowerCase?.();
-    if (normalized?.includes("disp") || normalized === "available")
-      return "Disponível";
-    if (normalized?.includes("uso") || normalized === "in-use") return "Em uso";
-    return "Em manutenção";
-  };
-
   const needsTraining = (item: EquipmentItem) => {
     const parsed = parseEquipmentDescription(item.description);
     return (
@@ -546,8 +522,7 @@ const Perfil: React.FC = () => {
 
   const handleToggleStatus = async (item: any) => {
     try {
-      const isMaintenance = getStatusClass(item.status) === "maintenance";
-      const newStatus = isMaintenance ? "DISPONÍVEL" : "MANUTENÇÃO";
+      const newStatus = ehManutencao(item.status) ? STATUS.DISPONIVEL : STATUS.MANUTENCAO;
 
       const formData = new FormData();
       formData.append('name', item.name);
@@ -612,7 +587,7 @@ const Perfil: React.FC = () => {
     setEditEquipmentSpecs("");
     setEditEquipmentDescription("");
     setEditEquipmentQuantity(1);
-    setEditEquipmentStatus("available");
+    setEditEquipmentStatus(STATUS.DISPONIVEL);
     setEditEquipmentRequiresTraining(false);
   };
 
@@ -650,7 +625,7 @@ const Perfil: React.FC = () => {
     setAddEquipmentSpecs("");
     setAddEquipmentDescription("");
     setAddEquipmentQuantity(1);
-    setAddEquipmentStatus("available");
+    setAddEquipmentStatus(STATUS.DISPONIVEL);
     setAddEquipmentRequiresTraining(false);
     setAddEquipmentImageFile(null);
     setAddEquipmentImagePreview(null);
@@ -1169,9 +1144,9 @@ const Perfil: React.FC = () => {
                           </span>
                         )}
                         <span
-                          className={`status-pill ${getStatusClass(item.status)}`}
+                          className={`status-pill ${classeStatus(item.status)}`}
                         >
-                          {formatStatusText(item.status).toUpperCase()}
+                          {rotuloStatus(item.status).toUpperCase()}
                         </span>
                         {needsTraining(item) && (
                           <span className="equipment-tag training">TREINO</span>
@@ -1225,15 +1200,15 @@ const Perfil: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          className={`ghost-btn small icon-only ${getStatusClass(item.status) === "maintenance" ? "play-btn" : "pause-btn"}`}
+                          className={`ghost-btn small icon-only ${ehManutencao(item.status) ? "play-btn" : "pause-btn"}`}
                           onClick={() => handleGroupPauseClick(item)}
                           title={
-                            getStatusClass(item.status) === "maintenance"
+                            ehManutencao(item.status)
                               ? "Disponibilizar"
                               : "Pausar para Manutenção"
                           }
                         >
-                          {getStatusClass(item.status) === "maintenance" ? (
+                          {ehManutencao(item.status) ? (
                             <svg
                               width="14"
                               height="14"
@@ -1734,9 +1709,9 @@ const Perfil: React.FC = () => {
                     onChange={(e) => setEditEquipmentStatus(e.target.value)}
                     style={{ cursor: "pointer" }}
                   >
-                    <option value="available">Disponível</option>
-                    <option value="in-use">Em uso</option>
-                    <option value="maintenance">Em manutenção</option>
+                    {OPCOES_STATUS.map(({ valor, rotulo }) => (
+                      <option key={valor} value={valor}>{rotulo}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -2002,14 +1977,10 @@ const Perfil: React.FC = () => {
               <div className="form-group">
                 <label className="sleek-label">STATUS ATUAL</label>
                 <div className="status-radio-group">
-                  {[
-                    { value: "available", label: "DISPONÍVEL" },
-                    { value: "in-use", label: "EM USO" },
-                    { value: "maintenance", label: "EM MANUTENÇÃO" },
-                  ].map((opt) => (
+                  {OPCOES_STATUS.map(({ valor, rotulo }) => ({ value: valor, label: rotulo.toUpperCase() })).map((opt) => (
                     <label
                       key={opt.value}
-                      className={`status-radio-pill ${addEquipmentStatus === opt.value ? "selected-" + opt.value : ""}`}
+                      className={`status-radio-pill ${addEquipmentStatus === opt.value ? "selected-" + classeStatus(opt.value) : ""}`}
                       style={{ cursor: "pointer" }}
                     >
                       <input
@@ -2105,20 +2076,20 @@ const Perfil: React.FC = () => {
                         marginTop: "4px",
                       }}
                     >
-                      Status: {formatStatusText(unit.status)}
+                      Status: {rotuloStatus(unit.status)}
                     </div>
                   </div>
                   <button
                     type="button"
-                    className={`ghost-btn small icon-only ${getStatusClass(unit.status) === "maintenance" ? "play-btn" : "pause-btn"}`}
+                    className={`ghost-btn small icon-only ${ehManutencao(unit.status) ? "play-btn" : "pause-btn"}`}
                     onClick={() => handleToggleStatus(unit)}
                     title={
-                      getStatusClass(unit.status) === "maintenance"
+                      ehManutencao(unit.status)
                         ? "Disponibilizar"
                         : "Pausar para Manutenção"
                     }
                   >
-                    {getStatusClass(unit.status) === "maintenance" ? (
+                    {ehManutencao(unit.status) ? (
                       <svg
                         width="14"
                         height="14"

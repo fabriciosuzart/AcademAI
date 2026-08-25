@@ -4,6 +4,7 @@ import api from '../../api/axios';
 import { CalendarDays, CheckCircle2 } from 'lucide-react';
 import CalendarPicker from '../CalendarPicker';
 import './Agendamento.css';
+import { ehManutencao } from '../../utils/status';
 
 const Agendamento: React.FC = () => {
     const navigate = useNavigate();
@@ -116,9 +117,9 @@ const Agendamento: React.FC = () => {
                                     <option 
                                         key={item.id} 
                                         value={item.id}
-                                        disabled={item.status === 'MANUTENÇÃO'}
+                                        disabled={ehManutencao(item.status)}
                                     >
-                                        {item.name} {item.status === 'MANUTENÇÃO' ? '(Bloqueado)' : ''}
+                                        {item.name} {ehManutencao(item.status) ? '(Bloqueado)' : ''}
                                     </option>
                                 ))}
                             </select>

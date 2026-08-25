@@ -16,11 +16,10 @@ const prisma = new PrismaClient();
 // Reservas ficam de fora de proposito: sao dado transacional e poluiriam um
 // ambiente novo. O historico delas segue recuperavel pelo git.
 //
-// ATENCAO: o campo status dos equipamentos vem com tres grafias diferentes
-// ("DISPONIVEL", "available", "in-use"), preservadas como estavam no banco. O
-// filtro de /equipamentos compara por igualdade exata contra DISPONIVEL/EM USO/
-// MANUTENCAO, entao hoje ele nao casa com boa parte dos registros. E um bug
-// anterior a este arquivo; padronizar o vocabulario merece mudanca propria.
+// O campo status ja vem no vocabulario canonico (DISPONIVEL / EM_USO /
+// MANUTENCAO). Ele chegou a ter tres grafias convivendo aqui, herdadas do
+// banco; a migration normaliza_status_equipamento acertou os dados e o
+// modulo backend/status.js e a unica fonte desses valores agora.
 
 const SENHA_PADRAO = 'senha123';
 
@@ -34,23 +33,23 @@ const usuarios = [
 ];
 
 const equipamentos = [
-    {"id":1,"name":"Impressora 3D Finder 01","description":"{\"specs\":\"\",\"description\":\"teste 123\",\"requiresTraining\":false}","imagePath":"/uploads/impressora_3D_finder_02.jpg","status":"DISPONÍVEL"},
-    {"id":3,"name":"Cortadora a Laser","description":"{\"specs\":\"\",\"description\":\"\",\"requiresTraining\":false}","imagePath":"/uploads/cortadora_a_laser.jpeg","status":"DISPONÍVEL"},
-    {"id":4,"name":"Prototipadora","description":null,"imagePath":"/uploads/prototipadora.png","status":"in-use"},
-    {"id":5,"name":"Bambu Lab A1","description":null,"imagePath":"/uploads/Bambu_LAB_01.png","status":"available"},
-    {"id":6,"name":"Bambu Lab A2","description":null,"imagePath":"/uploads/Bambu_LAB_02.png","status":"available"},
-    {"id":7,"name":"Micro Retífica","description":"{\"specs\":\"\",\"description\":\"\",\"requiresTraining\":false}","imagePath":"/uploads/micro_retífica.jpg","status":"DISPONÍVEL"},
-    {"id":8,"name":"Plotter de Recorte","description":null,"imagePath":"/uploads/plotter_de_recorte.jpg","status":"in-use"},
-    {"id":9,"name":"X1 Carbon Combo","description":null,"imagePath":"/uploads/X1_CARBON_COMBO_IMPRESSORA_3D.jpg","status":"available"},
-    {"id":10,"name":"Estação de Solda 01","description":null,"imagePath":"/uploads/ESTACAO_DE_SOLDA.jpg","status":"available"},
-    {"id":11,"name":"Estação de Solda 02","description":null,"imagePath":"/uploads/ESTACAO_DE_SOLDA.jpg","status":"available"},
-    {"id":12,"name":"Furadeira de Bancada","description":null,"imagePath":"/uploads/furadeira_de_bancada.jpg","status":"in-use"},
-    {"id":13,"name":"Serra Tico-Tico","description":null,"imagePath":"/uploads/Serra_tico-tico_bosch.jpg","status":"in-use"},
-    {"id":14,"name":"Máquina de Costura","description":null,"imagePath":"/uploads/maquina_de_costura.jpg","status":"available"},
-    {"id":15,"name":"Parafusadeira","description":null,"imagePath":"/uploads/Parafusadeira_e_Furadeira_Bateria.jpg","status":"available"},
-    {"id":16,"name":"Lixadeira Portátil","description":null,"imagePath":"/uploads/Lixadeira_portátil_DEWALT.jpg","status":"available"},
-    {"id":17,"name":"Impressora 3D Finder 02","description":"{\"specs\":\"\",\"description\":\"teste 123\",\"requiresTraining\":false}","imagePath":"/uploads/impressora_3D_finder_02.jpg","status":"DISPONÍVEL"},
-    {"id":18,"name":"Impressora 3D Finder 03","description":"{\"specs\":\"\",\"description\":\"teste 123\",\"requiresTraining\":false}","imagePath":"/uploads/impressora_3D_finder_02.jpg","status":"DISPONÍVEL"}
+    {"id":1,"name":"Impressora 3D Finder 01","modelo":"Impressora 3D Finder","description":"{\"specs\":\"\",\"description\":\"teste 123\",\"requiresTraining\":false}","imagePath":"/uploads/impressora_3D_finder_02.jpg","status":"DISPONIVEL"},
+    {"id":3,"name":"Cortadora a Laser","modelo":"Cortadora a Laser","description":"{\"specs\":\"\",\"description\":\"\",\"requiresTraining\":false}","imagePath":"/uploads/cortadora_a_laser.jpeg","status":"DISPONIVEL"},
+    {"id":4,"name":"Prototipadora","modelo":"Prototipadora","description":null,"imagePath":"/uploads/prototipadora.png","status":"EM_USO"},
+    {"id":5,"name":"Bambu Lab A1","modelo":"Bambu Lab","description":null,"imagePath":"/uploads/Bambu_LAB_01.png","status":"DISPONIVEL"},
+    {"id":6,"name":"Bambu Lab A2","modelo":"Bambu Lab","description":null,"imagePath":"/uploads/Bambu_LAB_02.png","status":"DISPONIVEL"},
+    {"id":7,"name":"Micro Retífica","modelo":"Micro Retífica","description":"{\"specs\":\"\",\"description\":\"\",\"requiresTraining\":false}","imagePath":"/uploads/micro_retífica.jpg","status":"DISPONIVEL"},
+    {"id":8,"name":"Plotter de Recorte","modelo":"Plotter de Recorte","description":null,"imagePath":"/uploads/plotter_de_recorte.jpg","status":"EM_USO"},
+    {"id":9,"name":"X1 Carbon Combo","modelo":"X1 Carbon Combo","description":null,"imagePath":"/uploads/X1_CARBON_COMBO_IMPRESSORA_3D.jpg","status":"DISPONIVEL"},
+    {"id":10,"name":"Estação de Solda 01","modelo":"Estação de Solda","description":null,"imagePath":"/uploads/ESTACAO_DE_SOLDA.jpg","status":"DISPONIVEL"},
+    {"id":11,"name":"Estação de Solda 02","modelo":"Estação de Solda","description":null,"imagePath":"/uploads/ESTACAO_DE_SOLDA.jpg","status":"DISPONIVEL"},
+    {"id":12,"name":"Furadeira de Bancada","modelo":"Furadeira de Bancada","description":null,"imagePath":"/uploads/furadeira_de_bancada.jpg","status":"EM_USO"},
+    {"id":13,"name":"Serra Tico-Tico","modelo":"Serra Tico-Tico","description":null,"imagePath":"/uploads/Serra_tico-tico_bosch.jpg","status":"EM_USO"},
+    {"id":14,"name":"Máquina de Costura","modelo":"Máquina de Costura","description":null,"imagePath":"/uploads/maquina_de_costura.jpg","status":"DISPONIVEL"},
+    {"id":15,"name":"Parafusadeira","modelo":"Parafusadeira","description":null,"imagePath":"/uploads/Parafusadeira_e_Furadeira_Bateria.jpg","status":"DISPONIVEL"},
+    {"id":16,"name":"Lixadeira Portátil","modelo":"Lixadeira Portátil","description":null,"imagePath":"/uploads/Lixadeira_portátil_DEWALT.jpg","status":"DISPONIVEL"},
+    {"id":17,"name":"Impressora 3D Finder 02","modelo":"Impressora 3D Finder","description":"{\"specs\":\"\",\"description\":\"teste 123\",\"requiresTraining\":false}","imagePath":"/uploads/impressora_3D_finder_02.jpg","status":"DISPONIVEL"},
+    {"id":18,"name":"Impressora 3D Finder 03","modelo":"Impressora 3D Finder","description":"{\"specs\":\"\",\"description\":\"teste 123\",\"requiresTraining\":false}","imagePath":"/uploads/impressora_3D_finder_02.jpg","status":"DISPONIVEL"}
 ];
 
 const horariosBloqueados = [];
