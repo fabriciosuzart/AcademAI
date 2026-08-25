@@ -1014,6 +1014,32 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
             return res.status(403).json({ error: "Professores só podem aprovar ou rejeitar reservas de estudantes." });
         }
 
+        // Aprovar so e permitido se o dia continuar livre. O bloqueio e checado
+        // na criacao, mas a reserva fica pendente por um tempo: se o dia for
+        // bloqueado no meio (feriado decretado, manutencao programada), aprovar
+        // sem reconferir confirmaria uma reserva num dia fechado.
+        // Rejeitar segue permitido — a data bloqueada e ate um motivo para isso.
+        if (status === 'APROVADA') {
+            const diaBloqueado = await prisma.blockedDate.findFirst({
+                where: {
+                    date: appointment.date,
+                    OR: [{ equipmentId: null }, { equipmentId: appointment.equipmentId }]
+                }
+            });
+            if (diaBloqueado) {
+                return res.status(409).json({
+                    error: `Não é possível aprovar: a data ${appointment.date} foi bloqueada depois do pedido. Motivo: ${diaBloqueado.reason || 'Feriado/Recesso'}. Rejeite a reserva ou remova o bloqueio.`
+                });
+            }
+
+            const equipamento = await prisma.equipment.findUnique({ where: { id: appointment.equipmentId } });
+            if (equipamento && ehManutencao(equipamento.status)) {
+                return res.status(409).json({
+                    error: `Não é possível aprovar: ${equipamento.name} entrou em manutenção depois do pedido. Rejeite a reserva ou libere o equipamento.`
+                });
+            }
+        }
+
         const updateData = {
             status,
             approvedById: req.userId
