@@ -134,7 +134,9 @@ const ADMIN_TABS: { keywords: string[]; tab: string; label: string; adminOnly?: 
     { keywords: ['calendario', 'calendário', 'agenda', 'agenda global', 'semana'], tab: 'overview', label: 'agenda da semana', adminOnly: true },
     { keywords: ['usuarios', 'usuários', 'gestao', 'gestão', 'pessoas', 'membros'], tab: 'usuarios', label: 'gestão de usuários', adminOnly: true },
     { keywords: ['inventario', 'inventário', 'gerenciar equipamentos'], tab: 'equipamentos', label: 'gestão de equipamentos', adminOnly: true },
-    { keywords: ['ia', 'inteligencia', 'inteligência', 'treinar', 'treinamento', 'treino'], tab: 'treinamento', label: 'treinamento da IA', adminOnly: true },
+    // 'ia' sozinho nao entra: e substring de "inicial", entao "pagina inicial"
+    // abria o treinamento em vez de ir para a home.
+    { keywords: ['treinar ia', 'treinamento', 'treinar', 'treino', 'inteligencia', 'inteligência'], tab: 'treinamento', label: 'treinamento da IA', adminOnly: true },
 ];
 
 // =====================================================
@@ -586,7 +588,14 @@ const VoiceNavigator: React.FC = () => {
         }
 
         // ── Admin / Professor: navegação por abas e ações ────
-        const isAdminContext = locationRef.current === '/perfil';
+        // O papel precisa entrar na conta: o /admin era barrado pela propria
+        // rota, mas o /perfil e de todo mundo. Sem isto, um aluno dizendo
+        // "calendario" ouvia "Abrindo agenda da semana" e nao ia a lugar nenhum,
+        // em vez de navegar para /disponibilidade.
+        const papelAtual = localStorage.getItem('userRole');
+        const isAdminContext =
+            locationRef.current === '/perfil' &&
+            (papelAtual === 'ADMIN' || papelAtual === 'PROFESSOR');
         if (isAdminContext) {
             // Ação: aprovar primeira reserva pendente
             if (lower.includes('aprovar') || lower.includes('approve')) {
@@ -609,8 +618,6 @@ const VoiceNavigator: React.FC = () => {
                 if (tabItem.keywords.some(kw => fuzzyIncludes(lower, kw))) {
                     speak(`Abrindo ${tabItem.label}.`);
                     mostrarStatus(CheckCircle2, `"${text}" → ${tabItem.label}`);
-                    // Se ainda nao estiver no perfil, navega antes de trocar a aba.
-                    if (locationRef.current !== '/perfil') navigate('/perfil');
                     window.dispatchEvent(new CustomEvent('voice-admin-tab', { detail: { tab: tabItem.tab } }));
                     clearStatus(4000);
                     return;
