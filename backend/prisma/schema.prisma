@@ -37,9 +37,13 @@ model RefreshToken {
 model Equipment {
   id           Int           @id @default(autoincrement())
   name         String
+  // Nome do grupo ("Bambu Lab"); as unidades sao "Bambu Lab 01", "02"...
+  // Antes disso o agrupamento era adivinhado por regex sobre o nome, em sete
+  // lugares diferentes — inclusive na rota que apaga unidades.
+  modelo       String
   description  String?
   imagePath    String?
-  status       String        @default("DISPONÍVEL")
+  status       String        @default("DISPONIVEL")
   appointments Appointment[]
   blockedDates BlockedDate[]
 }

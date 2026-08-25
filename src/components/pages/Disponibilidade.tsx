@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import './Disponibilidade.css';
+import { classeStatus, ehDisponivel, normalizarStatus, rotuloStatus, OPCOES_STATUS } from '../../utils/status';
 
 interface Equipment {
     id: number;
@@ -67,7 +68,7 @@ const Disponibilidade: React.FC = () => {
 
     const filteredEquipments = equipments.filter(eq => {
         if (filterType === 'all') return true;
-        return eq.status === filterType;
+        return normalizarStatus(eq.status) === filterType;
     });
 
     // Calendar logic
@@ -177,9 +178,9 @@ const Disponibilidade: React.FC = () => {
                             aria-labelledby="filter-label"
                         >
                             <option value="all">Todos</option>
-                            <option value="DISPONÍVEL">Disponíveis</option>
-                            <option value="EM USO">Em Uso</option>
-                            <option value="MANUTENÇÃO">Manutenção</option>
+                            {OPCOES_STATUS.map(({ valor, rotulo }) => (
+                                <option key={valor} value={valor}>{rotulo}</option>
+                            ))}
                         </select>
                     </div>
 
@@ -197,10 +198,10 @@ const Disponibilidade: React.FC = () => {
                                         setSelectedEquipment(eq.id);
                                         setSelectedDate(null);
                                     }}
-                                    aria-label={`${eq.name}, status: ${eq.status}`}
+                                    aria-label={`${eq.name}, status: ${rotuloStatus(eq.status)}`}
                                     aria-pressed={selectedEquipment === eq.id}
                                 >
-                                    <span className={`eq-status-dot ${eq.status === 'DISPONÍVEL' ? 'available' : eq.status === 'EM USO' ? 'in-use' : 'maintenance'}`} />
+                                    <span className={`eq-status-dot ${classeStatus(eq.status)}`} />
                                     <span className="eq-name">{eq.name}</span>
                                 </button>
                             ))
@@ -220,8 +221,8 @@ const Disponibilidade: React.FC = () => {
                         <>
                             <div className="disp-resource-header">
                                 <h2>{selectedEquipmentData?.name}</h2>
-                                <span className={`disp-status-badge ${selectedEquipmentData?.status === 'DISPONÍVEL' ? 'available' : 'unavailable'}`}>
-                                    {selectedEquipmentData?.status}
+                                <span className={`disp-status-badge ${ehDisponivel(selectedEquipmentData?.status) ? 'available' : 'unavailable'}`}>
+                                    {rotuloStatus(selectedEquipmentData?.status)}
                                 </span>
                             </div>
 

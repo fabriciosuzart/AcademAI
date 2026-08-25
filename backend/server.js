@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { authMiddleware, roleMiddleware } from './middlewares/auth.js';
+import { STATUS, ehManutencao } from './status.js';
 import { pipeline } from '@xenova/transformers';
 import fetch from 'node-fetch';
 import fs from 'fs';
@@ -685,6 +686,13 @@ app.get('/api/equipment/:id', async (req, res) => {
     }
 });
 
+// Nome de uma unidade dentro do modelo: unidade unica fica com o nome do
+// modelo; a partir de duas, ganha sufixo numerado ("Bambu Lab 01").
+function nomeDaUnidade(modelo, indice, total) {
+    if (total === 1) return modelo;
+    return `${modelo} ${String(indice + 1).padStart(2, '0')}`;
+}
+
 app.post('/api/equipment', authMiddleware, roleMiddleware(['ADMIN']), upload.single('image'), async (req, res) => {
     try {
         const { name, description, status, specs, quantity, requiresTraining } = req.body;
@@ -694,15 +702,21 @@ app.post('/api/equipment', authMiddleware, roleMiddleware(['ADMIN']), upload.sin
             requiresTraining: requiresTraining === true || requiresTraining === 'true'
         });
         const newQuantity = parseInt(quantity) || 1;
-        const baseName = name ? name.replace(/\s*(0\d|A\d|\d+)$/i, '').trim() : name;
-        const getUnitName = (base, index, total) => {
-            if (total === 1) return base;
-            return `${base} ${String(index + 1).padStart(2, '0')}`;
-        };
+        // O nome digitado pelo admin JA e o modelo. As unidades derivam dele,
+        // entao nao ha nada para adivinhar por regex.
+        const modelo = (name || '').trim();
+        if (!modelo) return res.status(400).json({ error: "O nome do equipamento é obrigatório." });
+
         const created = [];
         for (let i = 0; i < newQuantity; i++) {
             const unit = await prisma.equipment.create({
-                data: { name: getUnitName(baseName, i, newQuantity), description: fullDescription, imagePath, status: status || 'available' }
+                data: {
+                    name: nomeDaUnidade(modelo, i, newQuantity),
+                    modelo,
+                    description: fullDescription,
+                    imagePath,
+                    status: status || STATUS.DISPONIVEL
+                }
             });
             created.push(unit);
         }
@@ -720,12 +734,13 @@ app.put('/api/equipment/:id', authMiddleware, roleMiddleware(['ADMIN']), upload.
         const target = await prisma.equipment.findUnique({ where: { id: equipmentId } });
         if (!target) return res.status(404).json({ error: "Equipamento não encontrado." });
 
-        const originalBaseName = target.name.replace(/\s*(0\d|A\d|\d+)$/i, '').trim();
-        const allEquipment = await prisma.equipment.findMany();
-        const groupItems = allEquipment.filter(item => {
-            const itemBase = item.name.replace(/\s*(0\d|A\d|\d+)$/i, '').trim();
-            return itemBase.toLowerCase() === originalBaseName.toLowerCase();
-        }).sort((a, b) => a.id - b.id);
+        // O grupo vem do campo 'modelo', nao de adivinhacao sobre o nome. Isso
+        // importa aqui em especial: mais abaixo esta rota apaga unidades, e
+        // antes ela decidia quais apagar por casamento de regex.
+        const groupItems = await prisma.equipment.findMany({
+            where: { modelo: target.modelo },
+            orderBy: { id: 'asc' }
+        });
 
         const fullDescription = JSON.stringify({
             specs: specs || '', description: description || '',
@@ -734,19 +749,19 @@ app.put('/api/equipment/:id', authMiddleware, roleMiddleware(['ADMIN']), upload.
         let newImagePath = target.imagePath;
         if (req.file) newImagePath = `/uploads/${req.file.filename}`;
         const newQuantity = parseInt(quantity) || groupItems.length || 1;
-        const newBaseName = name ? name.replace(/\s*(0\d|A\d|\d+)$/i, '').trim() : originalBaseName;
-        const getUnitName = (base, index, total) => total === 1 ? base : `${base} ${String(index + 1).padStart(2, '0')}`;
+        // Renomear o grupo e renomear o modelo: as unidades derivam dele.
+        const novoModelo = name ? name.trim() : target.modelo;
 
         if (newQuantity >= groupItems.length) {
             for (let i = 0; i < groupItems.length; i++) {
                 await prisma.equipment.update({
                     where: { id: groupItems[i].id },
-                    data: { name: getUnitName(newBaseName, i, newQuantity), description: fullDescription, status: status || groupItems[i].status, imagePath: newImagePath }
+                    data: { name: nomeDaUnidade(novoModelo, i, newQuantity), modelo: novoModelo, description: fullDescription, status: status || groupItems[i].status, imagePath: newImagePath }
                 });
             }
             for (let i = groupItems.length; i < newQuantity; i++) {
                 await prisma.equipment.create({
-                    data: { name: getUnitName(newBaseName, i, newQuantity), description: fullDescription, status: status || 'available', imagePath: newImagePath }
+                    data: { name: nomeDaUnidade(novoModelo, i, newQuantity), modelo: novoModelo, description: fullDescription, status: status || STATUS.DISPONIVEL, imagePath: newImagePath }
                 });
             }
         } else {
@@ -762,7 +777,7 @@ app.put('/api/equipment/:id', authMiddleware, roleMiddleware(['ADMIN']), upload.
             for (let i = 0; i < newQuantity; i++) {
                 await prisma.equipment.update({
                     where: { id: groupItems[i].id },
-                    data: { name: getUnitName(newBaseName, i, newQuantity), description: fullDescription, status: status || groupItems[i].status, imagePath: newImagePath }
+                    data: { name: nomeDaUnidade(novoModelo, i, newQuantity), modelo: novoModelo, description: fullDescription, status: status || groupItems[i].status, imagePath: newImagePath }
                 });
             }
             await prisma.appointment.deleteMany({ where: { equipmentId: { in: idsToDelete } } });
@@ -816,7 +831,7 @@ app.post('/api/schedule', authMiddleware, async (req, res) => {
 
         const equipment = await prisma.equipment.findUnique({ where: { id: eqId } });
         if (!equipment) return res.status(404).json({ error: "Equipamento não encontrado." });
-        if (equipment.status === 'MANUTENÇÃO') {
+        if (ehManutencao(equipment.status)) {
             return res.status(403).json({ error: "Este equipamento está bloqueado para uso no momento e não aceita reservas." });
         }
 

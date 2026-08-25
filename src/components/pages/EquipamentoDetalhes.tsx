@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import './EquipamentoDetalhes.css';
 import { ArrowLeft, Circle, Wrench } from 'lucide-react';
+import { classeStatus, rotuloStatus } from '../../utils/status';
+import { unidadesDoMesmoModelo } from '../../utils/equipamentos';
 
 const EquipamentoDetalhes: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -26,15 +28,9 @@ const EquipamentoDetalhes: React.FC = () => {
                 setEquipment(res.data);
                 setUnidadeSelecionada(res.data.id);
 
-                // Descobre as irmas pelo mesmo nome-base do agrupamento da listagem
+                // Irmas do mesmo modelo: cada uma tem agenda propria.
                 const todos = await api.get('/equipment');
-                const modelo = (nome: string) => nome.replace(/\s*(0\d|A\d|\d+)$/i, '').trim();
-                const alvo = modelo(res.data.name);
-                setUnidades(
-                    todos.data
-                        .filter((e: any) => modelo(e.name) === alvo)
-                        .sort((a: any, b: any) => a.name.localeCompare(b.name))
-                );
+                setUnidades(unidadesDoMesmoModelo(todos.data, res.data));
             } catch (err: any) {
                 setError(err.response?.data?.error || 'Equipamento não encontrado.');
             } finally {
@@ -48,7 +44,7 @@ const EquipamentoDetalhes: React.FC = () => {
     useEffect(() => {
         const handleReadScreen = () => {
             if (!equipment) return;
-            const { label } = getStatusInfo(equipment.status);
+            const label = rotuloStatus(equipment.status);
             const text = `Detalhes de ${equipment.name}. O status atual é ${label}. ${equipment.description ? 'Descrição: ' + equipment.description : 'Sem descrição.'}`;
             window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text } }));
         };
@@ -56,27 +52,13 @@ const EquipamentoDetalhes: React.FC = () => {
         return () => window.removeEventListener('voice-read-screen', handleReadScreen);
     }, [equipment]);
 
-    // Traduz status do banco para português
-    const getStatusInfo = (status: string): { label: string; className: string } => {
-        const s = (status || '').toUpperCase().trim();
-        if (s === 'DISPONÍVEL' || s === 'DISPONIVEL' || s === 'AVAILABLE') {
-            return { label: 'Disponível', className: 'available' };
-        }
-        if (s === 'EM USO' || s === 'IN USE' || s === 'INUSE' || s === 'IN-USE') {
-            return { label: 'Em Uso', className: 'in-use' };
-        }
-        if (s === 'MANUTENÇÃO' || s === 'MANUTENCAO' || s === 'MAINTENANCE') {
-            return { label: 'Manutenção', className: 'maintenance' };
-        }
-        return { label: status, className: 'in-use' };
-    };
-
 
     if (loading) return <div className="details-container"><p style={{color:'white', textAlign:'center'}}>Carregando detalhes...</p></div>;
     if (error || !equipment) return <div className="details-container"><p className="error-text">{error}</p></div>;
 
     const imageUrl = equipment.imagePath ? `http://localhost:3000${equipment.imagePath}` : 'https://via.placeholder.com/600x400?text=Sem+Imagem';
-    const { label: statusLabel, className: statusClass } = getStatusInfo(equipment.status);
+    const statusLabel = rotuloStatus(equipment.status);
+    const statusClass = classeStatus(equipment.status);
 
     // Faz parse da descrição que fica salva como JSON no banco
     let parsedDescription = '';
@@ -135,7 +117,7 @@ const EquipamentoDetalhes: React.FC = () => {
                                     >
                                         <Circle size={9} fill="currentColor" aria-hidden="true" />
                                         <span>{u.name}</span>
-                                        <small>{getStatusInfo(u.status).label}</small>
+                                        <small>{rotuloStatus(u.status)}</small>
                                     </button>
                                 ))}
                             </div>
