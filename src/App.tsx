@@ -1,6 +1,6 @@
 import './App.css';
 import Navbar from './components/Navbar';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import LoginModal from './components/LoginModal';
 
 // --- IMPORTAÇÃO DAS PÁGINAS ---
@@ -13,7 +13,6 @@ import Contato from './components/pages/Contato';
 import Login from './components/pages/Login';
 import Cadastro from './components/pages/Cadastro';
 import Agendamento from './components/pages/Agendamento';
-import AdminTrain from './components/pages/AdminTrain'; // <-- Nova tela do Admin 23/04/2026
 import Perfil from './components/pages/Perfil';
 import Disponibilidade from './components/pages/Disponibilidade';
 import NovaSenha from './components/pages/NovaSenha';
@@ -42,11 +41,13 @@ function App() {
             <Route path='/cadastro' element={<Cadastro />} />
             <Route path='/agendamento' element={<Agendamento />} />
             <Route path='/perfil' element={<Perfil />} />
+            {/* O painel foi aposentado; quem tiver /admin salvo cai no perfil,
+                que e onde a administracao vive agora. */}
+            <Route path='/admin' element={<Navigate to='/perfil' replace state={{ aba: 'overview' }} />} />
             <Route path='/nova-senha' element={<NovaSenha />} />
             <Route path='/notificacoes' element={<Notificacoes />} />
             
             {/* Rotas de Administração */}
-            <Route path='/admin' element={<AdminTrain />} />
           </Routes>
       </main>
     </>
