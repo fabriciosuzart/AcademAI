@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
-import { Link } from "react-router-dom";
-import { ArrowUpRight, Check, Circle, ShieldCheck, User } from "lucide-react";
+import { Check, Circle, User } from "lucide-react";
 import "./Perfil.css";
 import { STATUS, OPCOES_STATUS, classeStatus, ehManutencao, rotuloStatus } from "../../utils/status";
 import { agruparPorModelo } from "../../utils/equipamentos";
@@ -85,10 +84,25 @@ const Perfil: React.FC = () => {
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [equipmentItems, setEquipmentItems] = useState<EquipmentItem[]>([]);
   const [activeTab, setActiveTab] = useState<
-    "agendamentos" | "usuarios" | "equipamentos" | "treinamento" | "configuracoes"
+    | "agendamentos"
+    | "overview"
+    | "usuarios"
+    | "equipamentos"
+    | "treinamento"
+    | "configuracoes"
   >("agendamentos");
   // Papel escolhido no seletor, ainda nao salvo, indexado pelo id do usuario.
   const [userRoleEdit, setUserRoleEdit] = useState<Record<string, string>>({});
+
+  // Telas que vieram do painel /admin, aposentado: toda a administracao do
+  // laboratorio passa a viver aqui, numa tela so.
+  const [overviewData, setOverviewData] = useState<any>(null);
+  const [loadingOverview, setLoadingOverview] = useState(false);
+  const [pendingReservations, setPendingReservations] = useState<any[]>([]);
+  const [loadingRes, setLoadingRes] = useState(false);
+  const [calendarAppointments, setCalendarAppointments] = useState<any[]>([]);
+  const [loadingCalendar, setLoadingCalendar] = useState(false);
+  const [calendarWeekOffset, setCalendarWeekOffset] = useState(0);
 
   // Treinamento da IA (RAG). Veio do painel admin, onde a tela era cega: subia
   // o arquivo e nunca mais se sabia o que a assistente tinha lido.
@@ -277,6 +291,127 @@ const Perfil: React.FC = () => {
     }
   };
 
+  // ── Navegacao por voz das abas administrativas ───────────────────
+  // Estes listeners viviam no painel /admin; vieram junto com as telas.
+  useEffect(() => {
+    const abasDoAdmin = ["overview", "usuarios", "equipamentos", "treinamento"];
+    const abasDoProfessor = ["overview"];
+
+    const handleVoiceTab = (e: Event) => {
+      const { tab } = (e as CustomEvent).detail as { tab: string };
+      const role = localStorage.getItem("userRole");
+      const permitidas =
+        role === "ADMIN" ? abasDoAdmin : role === "PROFESSOR" ? abasDoProfessor : [];
+      if (!permitidas.includes(tab)) {
+        console.warn("Aba de voz não permitida para este perfil:", tab);
+        return;
+      }
+      setActiveTab(tab as any);
+      if (tab === "overview") {
+        fetchPendingReservations();
+        if (role === "ADMIN") {
+          fetchOverview();
+          fetchCalendar(calendarWeekOffset);
+        }
+      }
+      if (tab === "treinamento") fetchDocumentos();
+    };
+
+    const handleVoiceAction = (e: Event) => {
+      const { action } = (e as CustomEvent).detail as { action: string };
+      if (pendingReservations.length === 0) return;
+      if (action === "approve-first" || action === "reject-first") {
+        setActiveTab("overview");
+        handleUpdateReservation(
+          pendingReservations[0].id,
+          action === "approve-first" ? "APROVADA" : "REJEITADA",
+        );
+      }
+    };
+
+    window.addEventListener("voice-admin-tab", handleVoiceTab);
+    window.addEventListener("voice-admin-action", handleVoiceAction);
+    return () => {
+      window.removeEventListener("voice-admin-tab", handleVoiceTab);
+      window.removeEventListener("voice-admin-action", handleVoiceAction);
+    };
+  }, [pendingReservations, calendarWeekOffset]);
+
+  // ── Operacao do laboratorio (vinha do painel /admin) ─────────────
+  const fetchOverview = async () => {
+    setLoadingOverview(true);
+    try {
+      const res = await api.get("/appointments/overview");
+      setOverviewData(res.data);
+    } catch (error) {
+      console.error("Erro ao buscar visão geral", error);
+    } finally {
+      setLoadingOverview(false);
+    }
+  };
+
+  const fetchPendingReservations = async () => {
+    try {
+      const res = await api.get("/appointments/pending");
+      setPendingReservations(Array.isArray(res.data) ? res.data : []);
+    } catch (error) {
+      console.error("Erro ao buscar reservas pendentes", error);
+    }
+  };
+
+  const fetchCalendar = async (weekOffset = 0) => {
+    setLoadingCalendar(true);
+    try {
+      const today = new Date();
+      today.setDate(today.getDate() + weekOffset * 7);
+      const dayOfWeek = today.getDay();
+      const monday = new Date(today);
+      monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+      const friday = new Date(monday);
+      friday.setDate(monday.getDate() + 4);
+
+      const start = monday.toISOString().split("T")[0];
+      const end = friday.toISOString().split("T")[0];
+
+      const res = await api.get("/appointments/all-history");
+      const all = Array.isArray(res.data) ? res.data : [];
+      setCalendarAppointments(
+        all.filter(
+          (a: any) =>
+            a.date >= start && a.date <= end &&
+            ["APROVADA", "PENDENTE"].includes(a.status),
+        ),
+      );
+    } catch (error) {
+      console.error("Erro ao buscar calendário", error);
+    } finally {
+      setLoadingCalendar(false);
+    }
+  };
+
+  const handleUpdateReservation = async (
+    id: number,
+    status: "APROVADA" | "REJEITADA",
+  ) => {
+    let rejectionReason = "";
+    if (status === "REJEITADA") {
+      const reason = prompt("Por favor, informe a justificativa para a rejeição:");
+      if (reason === null) return;
+      rejectionReason = reason;
+    }
+    setLoadingRes(true);
+    try {
+      await api.put(`/appointments/${id}/status`, { status, rejectionReason });
+      await fetchPendingReservations();
+      const uid = localStorage.getItem("userId");
+      if (uid) fetchAppointments(uid, viewAllAppointments);
+    } catch (error: any) {
+      alert(error.response?.data?.error || "Erro ao atualizar reserva.");
+    } finally {
+      setLoadingRes(false);
+    }
+  };
+
   // ── Treinamento da IA ────────────────────────────────────────────
   const fetchDocumentos = async () => {
     setLoadingDocs(true);
@@ -388,6 +523,12 @@ const Perfil: React.FC = () => {
       fetchAppointments(userId, false);
       fetchStats(userId);
     }
+
+    // Quem aprova reservas precisa da contagem logo na entrada, para o
+    // marcador da aba aparecer sem precisar abri-la.
+    if (role === "ADMIN" || role === "PROFESSOR") {
+      fetchPendingReservations();
+    }
   }, []);
 
   // Recarrega agendamentos ao mudar o toggle
@@ -498,9 +639,9 @@ const Perfil: React.FC = () => {
   };
 
   const isAdmin = userRole === "ADMIN";
-  // O professor nao administra cadastro (por isso nao ve as abas de usuarios e
-  // equipamentos), mas aprova reservas — e essa tela so existe no painel.
-  const podeVerPainel = isAdmin || userRole === "PROFESSOR";
+  // O professor nao administra cadastro (por isso nao ve usuarios, equipamentos
+  // nem treinamento da IA), mas aprova reservas.
+  const podeAprovar = isAdmin || userRole === "PROFESSOR";
 
   useEffect(() => {
     if (isAdmin) {
@@ -893,6 +1034,28 @@ const Perfil: React.FC = () => {
               Agendamentos
               <span className="tab-badge">{appointments.length}</span>
             </button>
+            {/* Operacao do laboratorio, vinda do painel /admin aposentado.
+                Numeros, aprovacoes e agenda da semana sao recortes das mesmas
+                reservas, entao dividem uma aba so em vez de tres. */}
+            {podeAprovar && (
+              <button
+                type="button"
+                className={`panel-tab ${activeTab === "overview" ? "active" : ""}`}
+                onClick={() => {
+                  setActiveTab("overview");
+                  fetchPendingReservations();
+                  if (isAdmin) {
+                    fetchOverview();
+                    fetchCalendar(calendarWeekOffset);
+                  }
+                }}
+              >
+                {isAdmin ? "Visão Geral" : "Reservas Pendentes"}
+                {pendingReservations.length > 0 && (
+                  <span className="tab-badge-alerta">{pendingReservations.length}</span>
+                )}
+              </button>
+            )}
             {isAdmin && (
               <>
                 <button
@@ -925,19 +1088,6 @@ const Perfil: React.FC = () => {
             >
               Configurações
             </button>
-
-            {/* Sai da pagina, ao contrario das outras abas — por isso o
-                destaque e a seta. O painel guarda as quatro telas que nao
-                moram aqui: visao geral, reservas pendentes, calendario e IA.
-                O professor so enxerga Reservas Pendentes la dentro; a trava
-                por papel ja existe no proprio painel. */}
-            {podeVerPainel && (
-              <Link to="/admin" className="panel-tab panel-tab-link">
-                <ShieldCheck size={15} aria-hidden="true" />
-                Painel
-                <ArrowUpRight size={14} aria-hidden="true" />
-              </Link>
-            )}
           </div>
 
           {activeTab === "agendamentos" ? (
@@ -1076,6 +1226,175 @@ const Perfil: React.FC = () => {
                   ))
                 )}
               </ul>
+            </div>
+          ) : activeTab === "overview" ? (
+            <div className="panel-content">
+              <div className="admin-panel-header">
+                <div>
+                  <h2>{isAdmin ? "Visão geral" : "Reservas pendentes"}</h2>
+                  <p>
+                    {isAdmin
+                      ? "O movimento do laboratório: números, aprovações e a agenda da semana."
+                      : "Reservas aguardando sua decisão."}
+                  </p>
+                </div>
+              </div>
+
+              {/* Números e calendário são exclusivos do ADMIN porque as rotas
+                  /appointments/overview e /all-history exigem esse papel. O
+                  professor recebe só o bloco de aprovações. */}
+              {isAdmin && (
+                loadingOverview || !overviewData ? (
+                  <p className="treino-ajuda">Carregando dados...</p>
+                ) : (
+                  <div className="visao-numeros">
+                    <div className="numero-card">
+                      <span>Reservas hoje</span>
+                      <strong>{overviewData.todayAppointments?.length ?? 0}</strong>
+                    </div>
+                    <div className="numero-card">
+                      <span>Reservas na semana</span>
+                      <strong>{overviewData.weekAppointments?.length ?? 0}</strong>
+                    </div>
+                    <div className="numero-card alerta">
+                      <span>Pendentes</span>
+                      <strong>{overviewData.pendingCount ?? 0}</strong>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* Aprovações: a parte acionável, logo depois dos números. */}
+              <div className="settings-card">
+                <h3>
+                  Aprovações pendentes
+                  {pendingReservations.length > 0 && (
+                    <span className="tab-badge-alerta">{pendingReservations.length}</span>
+                  )}
+                </h3>
+                {pendingReservations.length === 0 ? (
+                  <p className="treino-ajuda">Nenhuma reserva pendente no momento.</p>
+                ) : (
+                  <ul className="pendentes-lista">
+                    {pendingReservations.map((res) => (
+                      <li key={res.id} className="pendente-item">
+                        <div className="pendente-info">
+                          <strong>
+                            {res.user?.name}{" "}
+                            <span className="pendente-ra">R.A. {res.user?.ra || "—"}</span>
+                          </strong>
+                          <span>{res.equipment?.name}</span>
+                          <span>
+                            {res.date?.split("-").reverse().join("/")} às {res.time}
+                          </span>
+                          {res.justification && (
+                            <p className="pendente-justificativa">"{res.justification}"</p>
+                          )}
+                        </div>
+                        <div className="pendente-acoes">
+                          <button
+                            type="button"
+                            className="ghost-btn small success"
+                            disabled={loadingRes}
+                            onClick={() => handleUpdateReservation(res.id, "APROVADA")}
+                          >
+                            Aprovar
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost-btn small danger"
+                            disabled={loadingRes}
+                            onClick={() => handleUpdateReservation(res.id, "REJEITADA")}
+                          >
+                            Rejeitar
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* Agenda da semana, fechando a visão do laboratório. */}
+              {isAdmin && (
+                <div className="settings-card">
+                  <div className="calendario-cabecalho">
+                    <h3>Agenda da semana</h3>
+                    <div className="semana-nav">
+                      <button
+                        type="button"
+                        className="ghost-btn small"
+                        onClick={() => { const w = calendarWeekOffset - 1; setCalendarWeekOffset(w); fetchCalendar(w); }}
+                      >
+                        Anterior
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost-btn small"
+                        onClick={() => { setCalendarWeekOffset(0); fetchCalendar(0); }}
+                      >
+                        Hoje
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost-btn small"
+                        onClick={() => { const w = calendarWeekOffset + 1; setCalendarWeekOffset(w); fetchCalendar(w); }}
+                      >
+                        Próxima
+                      </button>
+                    </div>
+                  </div>
+
+                  {loadingCalendar ? (
+                    <p className="treino-ajuda">Carregando agenda...</p>
+                  ) : calendarAppointments.length === 0 ? (
+                    <p className="treino-ajuda">
+                      Nenhuma reserva aprovada ou pendente nesta semana.
+                    </p>
+                  ) : (
+                    <ul className="doc-lista">
+                      {[...calendarAppointments]
+                        // O sort antigo usava a.time, que nao existe nesta rota:
+                        // com duas reservas no mesmo dia, estourava a renderizacao.
+                        .sort(
+                          (a: any, b: any) =>
+                            (a.date || "").localeCompare(b.date || "") ||
+                            (a.startTime || "").localeCompare(b.startTime || ""),
+                        )
+                        .map((appt: any) => {
+                          const dia = new Date(appt.date + "T12:00:00").toLocaleDateString(
+                            "pt-BR",
+                            { weekday: "long", day: "2-digit", month: "2-digit" },
+                          );
+                          const aprovada = appt.status === "APROVADA";
+                          return (
+                            <li key={appt.id} className="doc-item">
+                              <div className="doc-info">
+                                {/* Esta rota devolve equipment e user como TEXTO,
+                                    nao como objeto — o codigo antigo lia
+                                    equipment.name e mostrava vazio. */}
+                                <strong style={{ textTransform: "capitalize" }}>{dia}</strong>
+                                <span>
+                                  {appt.startTime}
+                                  {appt.endTime && appt.endTime !== appt.startTime
+                                    ? ` – ${appt.endTime}`
+                                    : ""}{" "}
+                                  &middot; {appt.equipment || "—"}
+                                </span>
+                                <span>
+                                  {appt.user} ({appt.userRole})
+                                </span>
+                              </div>
+                              <span className={`status-pill ${aprovada ? "disponivel" : "manutencao"}`}>
+                                {appt.status}
+                              </span>
+                            </li>
+                          );
+                        })}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
           ) : activeTab === "usuarios" ? (
             <div className="panel-content admin-users-panel">

@@ -13,7 +13,6 @@ import Contato from './components/pages/Contato';
 import Login from './components/pages/Login';
 import Cadastro from './components/pages/Cadastro';
 import Agendamento from './components/pages/Agendamento';
-import AdminTrain from './components/pages/AdminTrain'; // <-- Nova tela do Admin 23/04/2026
 import Perfil from './components/pages/Perfil';
 import Disponibilidade from './components/pages/Disponibilidade';
 import NovaSenha from './components/pages/NovaSenha';
@@ -46,7 +45,6 @@ function App() {
             <Route path='/notificacoes' element={<Notificacoes />} />
             
             {/* Rotas de Administração */}
-            <Route path='/admin' element={<AdminTrain />} />
           </Routes>
       </main>
     </>

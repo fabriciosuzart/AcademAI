@@ -1470,17 +1470,148 @@
   font-size: 0.78rem;
 }
 
-/* Com seis itens (Agendamentos, Usuarios, Equipamentos, Treinamento IA,
-   Configuracoes e o link do Painel) a fileira aperta. Rola na horizontal em
-   vez de espremer os rotulos ate quebrarem. */
+/* Com o painel /admin aposentado, o administrador ve oito abas. Rolagem
+   horizontal escondia as ultimas fora da tela; quebrar em duas linhas mostra
+   todas de uma vez. */
 .panel-tabs {
-  overflow-x: auto;
-  scrollbar-width: thin;
+  flex-wrap: wrap;
+  row-gap: 2px;
 }
 
 .panel-tab {
-  flex: 1 0 auto;
+  flex: 0 1 auto;
   white-space: nowrap;
-  font-size: 0.88rem;
-  padding: 10px 10px;
+  font-size: 0.86rem;
+  padding: 10px 12px;
+}
+
+/* ── Telas que vieram do painel /admin, aposentado ───────────── */
+
+/* Marcador de pendencias na aba: numero em destaque, ao contrario do
+   .tab-badge de Agendamentos, que e apenas informativo (e hoje esta oculto). */
+.tab-badge-alerta {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.visao-numeros {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.numero-card {
+  flex: 1;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  text-align: center;
+}
+
+.numero-card span {
+  color: #94a3b8;
+  font-size: 0.82rem;
+}
+
+.numero-card strong {
+  color: #f1f5f9;
+  font-size: 1.9rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.numero-card.alerta strong {
+  color: #fbbf24;
+}
+
+.pendentes-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pendente-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-left: 4px solid #fbbf24;
+}
+
+.pendente-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pendente-info strong {
+  color: #f1f5f9;
+  font-size: 0.98rem;
+}
+
+.pendente-ra {
+  color: #94a3b8;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.pendente-info span {
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.pendente-justificativa {
+  margin: 6px 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.pendente-acoes {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.semana-nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Cabecalho da agenda da semana, dentro do card de visao geral */
+.calendario-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.calendario-cabecalho h3 {
+  margin: 0;
 }
