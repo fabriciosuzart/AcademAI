@@ -44,18 +44,26 @@ const equipamentosData = [
 
 async function main() {
   copiarImagensDoSeed();
-  await prisma.equipment.deleteMany();
+
+  // upsert por id, nao deleteMany + create. O apagao anterior era destrutivo
+  // por natureza: levava junto os horarios bloqueados (BlockedDate tem
+  // onDelete: Cascade) e so nao levava as reservas porque a chave estrangeira
+  // do Appointment barrava a operacao inteira com erro. Rodar duas vezes agora
+  // nao duplica nem apaga nada.
   for (const eq of equipamentosData) {
-    await prisma.equipment.create({
-      data: {
-        id: eq.id,
-        name: eq.name,
-        status: eq.status,
-        imagePath: eq.imagePath,
-      }
+    const dados = {
+      name: eq.name,
+      modelo: eq.modelo,
+      status: eq.status,
+      imagePath: eq.imagePath,
+    };
+    await prisma.equipment.upsert({
+      where: { id: eq.id },
+      update: dados,
+      create: { id: eq.id, ...dados },
     });
   }
-  console.log('Seed completed.');
+  console.log(`Seed completed. ${equipamentosData.length} equipamentos.`);
 }
 
 main()
