@@ -77,6 +77,8 @@ const Perfil: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
     "agendamentos" | "usuarios" | "equipamentos" | "configuracoes"
   >("agendamentos");
+  // Papel escolhido no seletor, ainda nao salvo, indexado pelo id do usuario.
+  const [userRoleEdit, setUserRoleEdit] = useState<Record<string, string>>({});
 
   // Estado das Vozes (Jarvis Mode)
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -231,6 +233,27 @@ const Perfil: React.FC = () => {
       }
     } catch (error) {
       alert("Erro de conexão ao alterar status.");
+    }
+  };
+
+  // Alterar o papel do usuario (RF04). Vinha do painel admin, que era a unica
+  // tela capaz de fazer isso — o perfil editava tudo menos o papel.
+  const handleChangeRole = async (userId: string | number) => {
+    const chave = String(userId);
+    const novoPapel = userRoleEdit[chave];
+    if (!novoPapel) return;
+    try {
+      await api.put(`/users/${userId}`, { role: novoPapel });
+      setUserRoleEdit((prev) => {
+        const copia = { ...prev };
+        delete copia[chave];
+        return copia;
+      });
+      await fetchAdminUsers();
+      alert("Perfil atualizado com sucesso!");
+    } catch (error: any) {
+      console.error("Erro ao alterar perfil", error);
+      alert("Erro ao alterar perfil: " + (error.response?.data?.error || "Erro de conexão."));
     }
   };
 
@@ -997,6 +1020,7 @@ const Perfil: React.FC = () => {
                       <th>Usuário</th>
                       <th>E-mail</th>
                       <th>R.A.</th>
+                      <th>Perfil</th>
                       <th>Status</th>
                       <th>Ações</th>
                     </tr>
@@ -1006,7 +1030,37 @@ const Perfil: React.FC = () => {
                       <tr key={user.id}>
                         <td className="user-name-cell">{user.name}</td>
                         <td>{user.email}</td>
-                        <td>{user.ra}</td>
+                        <td>
+                          <div className="role-cell">
+                            <select
+                              className="role-select"
+                              value={userRoleEdit[String(user.id)] ?? user.role ?? "ALUNO"}
+                              disabled={user.role === "ADMIN"}
+                              title={
+                                user.role === "ADMIN"
+                                  ? "O perfil de um administrador não pode ser alterado"
+                                  : "Alterar perfil de acesso"
+                              }
+                              onChange={(e) =>
+                                setUserRoleEdit((prev) => ({ ...prev, [String(user.id)]: e.target.value }))
+                              }
+                            >
+                              <option value="ALUNO">Estudante</option>
+                              <option value="PROFESSOR">Professor</option>
+                              <option value="ADMIN">Administrador</option>
+                            </select>
+                            {userRoleEdit[String(user.id)] &&
+                              userRoleEdit[String(user.id)] !== user.role && (
+                              <button
+                                type="button"
+                                className="ghost-btn small success"
+                                onClick={() => handleChangeRole(user.id)}
+                              >
+                                Salvar
+                              </button>
+                            )}
+                          </div>
+                        </td>
                         <td>
                           <span className={`status-pill ${user.isActive === false ? 'manutencao' : 'disponivel'}`}>
                             {user.isActive === false ? 'DESATIVADO' : 'ATIVO'}

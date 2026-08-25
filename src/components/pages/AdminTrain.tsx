@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
-import { BarChart3, CalendarDays, CalendarRange, Users, Printer, Brain,
-         Check, X, Pencil, Trash2, Circle, Ban, User,
+import { BarChart3, CalendarDays, CalendarRange, Brain,
+         Check, X, User, ShieldAlert,
          ArrowLeft, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import './AdminTrain.css';
 
 const AdminTrain: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'overview' | 'reservations' | 'equipment' | 'ai' | 'users' | 'calendar'>(
+    // Usuarios e equipamentos ficam no perfil; aqui sobra o que e so do painel.
+    const [activeTab, setActiveTab] = useState<'overview' | 'reservations' | 'ai' | 'calendar'>(
         localStorage.getItem('userRole') === 'ADMIN' ? 'overview' : 'reservations'
     );
     
@@ -21,25 +23,9 @@ const AdminTrain: React.FC = () => {
     const [messageAI, setMessageAI] = useState('');
     const [msgTypeAI, setMsgTypeAI] = useState<'success' | 'error' | 'info'>('info');
     
-    // --- ESTADOS PARA EQUIPAMENTOS ---
-    const [equipments, setEquipments] = useState<any[]>([]);
-    const [eqName, setEqName] = useState('');
-    const [eqDesc, setEqDesc] = useState('');
-    const [eqStatus, setEqStatus] = useState('DISPONÍVEL');
-    const [eqImage, setEqImage] = useState<File | null>(null);
-    const [loadingEq, setLoadingEq] = useState(false);
-    const [messageEq, setMessageEq] = useState('');
-    const [editingEqId, setEditingEqId] = useState<number | null>(null);
-
     // --- ESTADOS PARA RESERVAS ---
     const [pendingReservations, setPendingReservations] = useState<any[]>([]);
     const [loadingRes, setLoadingRes] = useState(false);
-
-    // --- ESTADOS PARA USUÁRIOS (RF30) ---
-    const [users, setUsers] = useState<any[]>([]);
-    const [loadingUsers, setLoadingUsers] = useState(false);
-    const [userRoleEdit, setUserRoleEdit] = useState<Record<number, string>>({});
-    const [userSearch, setUserSearch] = useState('');
 
     // --- ESTADOS PARA CALENDÁRIO GLOBAL (RF30) ---
     const [calendarAppointments, setCalendarAppointments] = useState<any[]>([]);
@@ -48,20 +34,23 @@ const AdminTrain: React.FC = () => {
 
     const navigate = useNavigate();
 
-    // Proteção de Rota
+    // Proteção de Rota. O papel so chega depois do primeiro render, entao
+    // 'roleLido' evita tratar o instante inicial como visitante anonimo.
     const [userRole, setUserRole] = useState<string | null>(null);
+    const [roleLido, setRoleLido] = useState(false);
 
     useEffect(() => {
         const role = localStorage.getItem('userRole');
         setUserRole(role);
-        if (role !== 'ADMIN' && role !== 'PROFESSOR') {
-            alert('Acesso negado. Apenas administradores ou professores.');
-            navigate('/');
+        setRoleLido(true);
+        if (!role) {
+            // Sem sessao nao e infracao: manda logar e volta pra ca depois.
+            navigate('/login', { state: { from: '/admin' } });
+        } else if (role !== 'ADMIN' && role !== 'PROFESSOR') {
+            // Logado sem permissao: a tela abaixo explica, sem alert() nem redirect.
         } else {
             if (role === 'ADMIN') {
-                fetchEquipments();
                 fetchOverview();
-                fetchUsers();
             }
             fetchPendingReservations();
         }
@@ -69,7 +58,7 @@ const AdminTrain: React.FC = () => {
 
     // ── Listeners de navegação por voz (VoiceNavigator) ───────────────────────────────────
     useEffect(() => {
-        const validAdminTabs = ['overview', 'reservations', 'calendar', 'users', 'equipment', 'ai'];
+        const validAdminTabs = ['overview', 'reservations', 'calendar', 'ai'];
         const validProfessorTabs = ['reservations'];
 
         const handleVoiceTab = (e: Event) => {
@@ -122,59 +111,12 @@ const AdminTrain: React.FC = () => {
         }
     };
 
-    const fetchEquipments = async () => {
-        try {
-            const res = await api.get('/equipment');
-            setEquipments(res.data);
-        } catch (error) {
-            console.error("Erro ao buscar equipamentos");
-        }
-    };
-
     const fetchPendingReservations = async () => {
         try {
             const res = await api.get('/appointments/pending');
             setPendingReservations(res.data);
         } catch (error) {
             console.error("Erro ao buscar reservas pendentes");
-        }
-    };
-
-    // --- FUNÇÕES DE USUÁRIOS ---
-    const fetchUsers = async () => {
-        setLoadingUsers(true);
-        try {
-            const res = await api.get('/users');
-            setUsers(Array.isArray(res.data) ? res.data : []);
-            // Inicializa o mapa de edição de role com valores atuais
-            const roleMap: Record<number, string> = {};
-            res.data.forEach((u: any) => { roleMap[u.id] = u.role; });
-            setUserRoleEdit(roleMap);
-        } catch (error) {
-            console.error("Erro ao buscar usuários");
-        } finally {
-            setLoadingUsers(false);
-        }
-    };
-
-    const handleToggleActive = async (user: any) => {
-        if (!window.confirm(`${user.isActive ? 'Desativar' : 'Ativar'} a conta de ${user.name}?`)) return;
-        try {
-            await api.put(`/users/${user.id}/toggle-active`);
-            fetchUsers();
-        } catch (error: any) {
-            alert(error.response?.data?.error || 'Erro ao alterar status.');
-        }
-    };
-
-    const handleChangeRole = async (userId: number) => {
-        const newRole = userRoleEdit[userId];
-        try {
-            await api.put(`/users/${userId}`, { role: newRole });
-            alert('Perfil atualizado com sucesso!');
-            fetchUsers();
-        } catch (error: any) {
-            alert(error.response?.data?.error || 'Erro ao alterar perfil.');
         }
     };
 
@@ -238,92 +180,6 @@ const AdminTrain: React.FC = () => {
         }
     };
 
-    // --- FUNÇÕES DE EQUIPAMENTOS ---
-    const handleAddEquipment = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoadingEq(true);
-        setMessageEq(editingEqId ? 'Atualizando equipamento...' : 'Salvando equipamento...');
-
-        const formData = new FormData();
-        formData.append('name', eqName);
-        formData.append('description', eqDesc);
-        formData.append('status', eqStatus);
-        if (eqImage) formData.append('image', eqImage);
-
-        try {
-            const url = editingEqId ? `/equipment/${editingEqId}` : '/equipment';
-            const method = editingEqId ? 'put' : 'post';
-            
-            const response = await api[method](url, formData, { headers: { 'Content-Type': 'multipart/form-data' }});
-            if (response.status === 201 || response.status === 200) {
-                setMessageEq(editingEqId ? 'Equipamento atualizado com sucesso!' : 'Equipamento salvo com sucesso!');
-                setEqName(''); setEqDesc(''); setEqImage(null); setEditingEqId(null);
-                fetchEquipments();
-            }
-        } catch (error: any) {
-            setMessageEq(error.response?.data?.error || 'Erro ao salvar.');
-        } finally {
-            setLoadingEq(false);
-        }
-    };
-
-    const handleEditClick = (eq: any) => {
-        setEditingEqId(eq.id);
-        setEqName(eq.name);
-        setEqStatus(eq.status);
-        try {
-            const parsedDesc = JSON.parse(eq.description);
-            setEqDesc(parsedDesc.description || '');
-        } catch (e) {
-            setEqDesc(eq.description || '');
-        }
-        setEqImage(null);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-
-    const handleCancelEdit = () => {
-        setEditingEqId(null);
-        setEqName('');
-        setEqDesc('');
-        setEqStatus('DISPONÍVEL');
-        setEqImage(null);
-        setMessageEq('');
-    };
-
-    const handleDeleteEquipment = async (id: number, name: string) => {
-        if (!window.confirm(`Tem certeza que deseja excluir o equipamento "${name}"?\nEsta ação apagará também o histórico de reservas associadas a ele.`)) return;
-        
-        try {
-            const response = await api.delete(`/equipment/${id}`);
-            if (response.status === 200) {
-                alert('Equipamento excluído com sucesso!');
-                if (editingEqId === id) handleCancelEdit();
-                fetchEquipments();
-            }
-        } catch (error: any) {
-            alert(error.response?.data?.error || 'Erro ao excluir equipamento.');
-        }
-    };
-
-    const handleQuickStatus = async (eq: any, newStatus: string) => {
-        if (newStatus === eq.status) return;
-        try {
-            let parsedDesc: any = {};
-            try { parsedDesc = JSON.parse(eq.description || '{}'); } catch { /* ignore */ }
-            const formData = new FormData();
-            formData.append('name', eq.name);
-            formData.append('status', newStatus);
-            formData.append('description', parsedDesc.description || '');
-            formData.append('specs', parsedDesc.specs || '');
-            formData.append('requiresTraining', parsedDesc.requiresTraining ? 'true' : 'false');
-            formData.append('quantity', '1');
-            await api.put(`/equipment/${eq.id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-            fetchEquipments();
-        } catch (error: any) {
-            alert(error.response?.data?.error || 'Erro ao alterar status.');
-        }
-    };
-
     // --- FUNÇÕES DE RESERVA ---
     const handleUpdateReservation = async (id: number, status: 'APROVADA' | 'REJEITADA') => {
         let rejectionReason = '';
@@ -343,6 +199,27 @@ const AdminTrain: React.FC = () => {
             setLoadingRes(false);
         }
     };
+
+    if (!roleLido) {
+        return (
+            <div className="admin-container">
+                <p style={{ color: 'white', textAlign: 'center' }}>Carregando…</p>
+            </div>
+        );
+    }
+
+    // Logado, mas sem permissao. Quem colou a URL por acaso merece uma
+    // explicacao na propria pagina, nao um dialogo do sistema.
+    if (userRole && userRole !== 'ADMIN' && userRole !== 'PROFESSOR') {
+        return (
+            <div className="admin-container acesso-negado">
+                <ShieldAlert size={40} aria-hidden="true" />
+                <h2>Área restrita</h2>
+                <p>Esta página é exclusiva de administradores e professores.</p>
+                <Link to="/">Voltar para a Home</Link>
+            </div>
+        );
+    }
 
     return (
         <div className="admin-container">
@@ -369,12 +246,6 @@ const AdminTrain: React.FC = () => {
                                 style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'calendar' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'calendar' ? 'white' : 'black', cursor: 'pointer' }}>
                                 <CalendarRange size={18} aria-hidden="true" /> Calendário Global
                             </button>
-                        <button id="admin-tab-users" onClick={() => setActiveTab('users')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'users' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'users' ? 'white' : 'black', cursor: 'pointer' }}>
-                            <Users size={18} aria-hidden="true" /> Usuários
-                        </button>
-                        <button id="admin-tab-equipment" onClick={() => setActiveTab('equipment')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'equipment' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'equipment' ? 'white' : 'black', cursor: 'pointer' }}>
-                            <Printer size={18} aria-hidden="true" /> Equipamentos
-                        </button>
                         <button id="admin-tab-ai" onClick={() => setActiveTab('ai')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'ai' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'ai' ? 'white' : 'black', cursor: 'pointer' }}>
                             <Brain size={18} aria-hidden="true" /> Treinamento IA
                         </button>
@@ -470,94 +341,6 @@ const AdminTrain: React.FC = () => {
                     {messageAI && <div className={`alert-box alert-${msgTypeAI}`}>{messageAI}</div>}
                 </div>
             )}
-
-            {activeTab === 'equipment' && (
-                <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-                    <div className="admin-panel" style={{ flex: '1', minWidth: '300px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h2 style={{ color: 'white', marginTop: 0 }}>{editingEqId ? 'Editar Equipamento' : 'Novo Equipamento'}</h2>
-                            {editingEqId && (
-                                <button type="button" onClick={handleCancelEdit} style={{ background: 'none', border: '1px solid #ef4444', color: '#ef4444', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer' }}>
-                                    Cancelar
-                                </button>
-                            )}
-                        </div>
-                        <form onSubmit={handleAddEquipment} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                            <div><label style={{color: 'white'}}>Nome:</label><input type="text" value={eqName} onChange={e => setEqName(e.target.value)} required style={{width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #334155', background: '#1e293b', color: 'white'}} /></div>
-                            <div>
-                                <label style={{color: 'white'}}>Status:</label>
-                                <select value={eqStatus} onChange={e => setEqStatus(e.target.value)} style={{width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #334155', background: '#1e293b', color: 'white'}}>
-                                    <option value="DISPONÍVEL">Disponível</option>
-                                    <option value="EM USO">Em Uso</option>
-                                    <option value="MANUTENÇÃO">Em Manutenção</option>
-                                </select>
-                            </div>
-                            <div><label style={{color: 'white'}}>Descrição:</label><textarea value={eqDesc} onChange={e => setEqDesc(e.target.value)} rows={4} style={{width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #334155', background: '#1e293b', color: 'white'}} /></div>
-                            <div><label style={{color: 'white'}}>Foto:</label><input type="file" onChange={e => setEqImage(e.target.files ? e.target.files[0] : null)} accept="image/*" style={{color: 'white'}} /></div>
-                            <button type="submit" className="train-button" disabled={loadingEq} style={{background: '#10b981'}}>{loadingEq ? 'Salvando...' : (editingEqId ? 'Atualizar Equipamento' : 'Cadastrar Equipamento')}</button>
-                            {messageEq && <div style={{ color: 'white', marginTop: '10px' }}>{messageEq}</div>}
-                        </form>
-                    </div>
-                    <div className="admin-panel" style={{ flex: '1', minWidth: '350px' }}>
-                        <h2 style={{ color: 'white', marginTop: 0 }}>Equipamentos Cadastrados ({equipments.length})</h2>
-                        <ul style={{ listStyle: 'none', padding: 0, maxHeight: '500px', overflowY: 'auto' }}>
-                            {equipments.map(eq => (
-                                <li key={eq.id} style={{ background: '#1e293b', margin: '8px 0', padding: '12px', borderRadius: '8px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                        <div style={{ color: 'white', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                            <strong style={{ fontSize: '1.1rem' }}>{eq.name}</strong>
-                                            <span style={{ fontSize: '0.85rem', color: eq.status === 'DISPONÍVEL' ? '#10b981' : (eq.status === 'EM USO' || eq.status === 'IN-USE' ? '#fbbf24' : '#ef4444') }}>
-                                                <><Circle size={9} fill="currentColor" aria-hidden="true" /> {eq.status === 'DISPONÍVEL' ? 'Disponível' : (eq.status === 'EM USO' || eq.status === 'IN-USE' ? 'Em Uso' : 'Em Manutenção')}</>
-                                            </span>
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                            <button 
-                                                type="button" 
-                                                onClick={() => handleEditClick(eq)}
-                                                style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem' }}
-                                            >
-                                                <Pencil size={15} aria-hidden="true" /> Editar
-                                            </button>
-                                            <button 
-                                                type="button" 
-                                                onClick={() => handleDeleteEquipment(eq.id, eq.name)}
-                                                style={{ background: 'transparent', color: '#ef4444', border: '1px solid #ef4444', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem' }}
-                                            >
-                                                <Trash2 size={15} aria-hidden="true" /> Excluir
-                                            </button>
-                                        </div>
-                                    </div>
-                                    {/* Alteração rápida de status */}
-                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleQuickStatus(eq, 'DISPONÍVEL')}
-                                            style={{
-                                                padding: '4px 12px', borderRadius: '20px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700,
-                                                background: eq.status === 'DISPONÍVEL' ? 'rgba(16,185,129,0.3)' : 'rgba(16,185,129,0.08)',
-                                                color: '#34d399',
-                                                border: eq.status === 'DISPONÍVEL' ? '1.5px solid #34d399' : '1px solid rgba(52,211,153,0.3)',
-                                                opacity: eq.status === 'DISPONÍVEL' ? 1 : 0.6
-                                            }}
-                                        ><Circle size={9} fill="currentColor" aria-hidden="true" /> Disponível</button>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleQuickStatus(eq, 'MANUTENÇÃO')}
-                                            style={{
-                                                padding: '4px 12px', borderRadius: '20px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700,
-                                                background: eq.status === 'MANUTENÇÃO' ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.08)',
-                                                color: '#f87171',
-                                                border: eq.status === 'MANUTENÇÃO' ? '1.5px solid #f87171' : '1px solid rgba(248,113,113,0.3)',
-                                                opacity: eq.status === 'MANUTENÇÃO' ? 1 : 0.6
-                                            }}
-                                        ><Circle size={9} fill="currentColor" aria-hidden="true" /> Manutenção</button>
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                </div>
-            )}
             {/* ABA: CALENDÁRIO GLOBAL */}
             {activeTab === 'calendar' && userRole === 'ADMIN' && (
                 <div className="admin-panel" style={{ width: '100%', margin: '0 auto' }}>
@@ -619,76 +402,6 @@ const AdminTrain: React.FC = () => {
                 </div>
             )}
 
-            {/* ABA: USUÁRIOS */}
-            {activeTab === 'users' && userRole === 'ADMIN' && (
-                <div className="admin-panel" style={{ width: '100%', margin: '0 auto' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-                        <h2 style={{ color: 'white', margin: 0 }}>Gestão de Usuários</h2>
-                        <input
-                            type="text"
-                            placeholder="Buscar por nome, e-mail ou RA..."
-                            value={userSearch}
-                            onChange={e => setUserSearch(e.target.value)}
-                            style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #334155', background: '#1e293b', color: 'white', minWidth: '240px' }}
-                        />
-                    </div>
-                    {loadingUsers ? (
-                        <p style={{ color: '#94a3b8', textAlign: 'center', padding: '40px' }}>Carregando usuários...</p>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            {users
-                                .filter((u: any) => {
-                                    const term = userSearch.toLowerCase();
-                                    return !term || u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term) || (u.ra || '').toLowerCase().includes(term);
-                                })
-                                .map((u: any) => (
-                                    <div key={u.id} style={{
-                                        background: '#0f172a', padding: '16px', borderRadius: '10px',
-                                        borderLeft: `4px solid ${u.role === 'ADMIN' ? '#8b5cf6' : u.role === 'PROFESSOR' ? '#3b82f6' : '#10b981'}`,
-                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px',
-                                        opacity: u.isActive ? 1 : 0.5
-                                    }}>
-                                        <div>
-                                            <strong style={{ color: 'white', fontSize: '1rem' }}>{u.name}</strong>
-                                            <span style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'block' }}>{u.email} {u.ra ? `• RA: ${u.ra}` : ''}</span>
-                                            {!u.isActive && <span style={{ color: '#ef4444', fontSize: '0.75rem' }}><Ban size={13} aria-hidden="true" /> Conta desativada</span>}
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                            {/* Alterar perfil (RF04) */}
-                                            <select
-                                                value={userRoleEdit[u.id] || u.role}
-                                                onChange={e => setUserRoleEdit(prev => ({ ...prev, [u.id]: e.target.value }))}
-                                                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #334155', background: '#1e293b', color: 'white', fontSize: '0.85rem' }}
-                                            >
-                                                <option value="ALUNO">Estudante</option>
-                                                <option value="PROFESSOR">Professor</option>
-                                                <option value="ADMIN">Administrador</option>
-                                            </select>
-                                            {userRoleEdit[u.id] !== u.role && (
-                                                <button onClick={() => handleChangeRole(u.id)}
-                                                    style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                                                    Salvar
-                                                </button>
-                                            )}
-                                            {/* Ativar/desativar conta */}
-                                            <button onClick={() => handleToggleActive(u)}
-                                                style={{
-                                                    background: u.isActive ? 'transparent' : '#10b981',
-                                                    color: u.isActive ? '#ef4444' : 'white',
-                                                    border: u.isActive ? '1px solid #ef4444' : 'none',
-                                                    padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem'
-                                                }}>
-                                                {u.isActive
-                                                  ? <><Ban size={15} aria-hidden="true" /> Desativar</>
-                                                  : <><Check size={15} aria-hidden="true" /> Ativar</>}
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                        </div>
-                    )}
-                </div>
-            )}
         </div>
     );
 };
