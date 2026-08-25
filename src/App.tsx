@@ -1,6 +1,6 @@
 import './App.css';
 import Navbar from './components/Navbar';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import LoginModal from './components/LoginModal';
 
 // --- IMPORTAÇÃO DAS PÁGINAS ---
@@ -41,6 +41,9 @@ function App() {
             <Route path='/cadastro' element={<Cadastro />} />
             <Route path='/agendamento' element={<Agendamento />} />
             <Route path='/perfil' element={<Perfil />} />
+            {/* O painel foi aposentado; quem tiver /admin salvo cai no perfil,
+                que e onde a administracao vive agora. */}
+            <Route path='/admin' element={<Navigate to='/perfil' replace state={{ aba: 'overview' }} />} />
             <Route path='/nova-senha' element={<NovaSenha />} />
             <Route path='/notificacoes' element={<Notificacoes />} />
             

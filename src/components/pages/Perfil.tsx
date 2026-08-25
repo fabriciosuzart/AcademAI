@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import { Check, Circle, User } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import "./Perfil.css";
 import { STATUS, OPCOES_STATUS, classeStatus, ehManutencao, rotuloStatus } from "../../utils/status";
 import { agruparPorModelo } from "../../utils/equipamentos";
@@ -66,6 +67,7 @@ interface EquipmentItem {
 }
 
 const Perfil: React.FC = () => {
+  const location = useLocation();
   // Estado para guardar os dados do usuário
   const [userData, setUserData] = useState({ name: "", email: "", ra: "" });
   const [userRole, setUserRole] = useState("ALUNO");
@@ -370,8 +372,13 @@ const Perfil: React.FC = () => {
       const friday = new Date(monday);
       friday.setDate(monday.getDate() + 4);
 
-      const start = monday.toISOString().split("T")[0];
-      const end = friday.toISOString().split("T")[0];
+      // Data local, nao UTC: toISOString() converte o fuso e, no Brasil
+      // (UTC-3), depois das 21h a janela virava terca-a-sabado, escondendo
+      // as reservas de segunda.
+      const iso = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const start = iso(monday);
+      const end = iso(friday);
 
       const res = await api.get("/appointments/all-history");
       const all = Array.isArray(res.data) ? res.data : [];
@@ -402,7 +409,13 @@ const Perfil: React.FC = () => {
     setLoadingRes(true);
     try {
       await api.put(`/appointments/${id}/status`, { status, rejectionReason });
+      // As tres secoes dividem a mesma tela e mostram a mesma reserva: sem
+      // recarregar as tres, o contador fica um a mais e a agenda continua
+      // exibindo PENDENTE numa reserva ja decidida.
       await fetchPendingReservations();
+      if (userRole === "ADMIN") {
+        await Promise.all([fetchOverview(), fetchCalendar(calendarWeekOffset)]);
+      }
       const uid = localStorage.getItem("userId");
       if (uid) fetchAppointments(uid, viewAllAppointments);
     } catch (error: any) {
@@ -528,6 +541,16 @@ const Perfil: React.FC = () => {
     // marcador da aba aparecer sem precisar abri-la.
     if (role === "ADMIN" || role === "PROFESSOR") {
       fetchPendingReservations();
+
+      // Quem chega pela pilula da Home ou por um /admin antigo quer a tela de
+      // operacao, nao os proprios agendamentos.
+      if ((location.state as any)?.aba === "overview") {
+        setActiveTab("overview");
+        if (role === "ADMIN") {
+          fetchOverview();
+          fetchCalendar(0);
+        }
+      }
     }
   }, []);
 
