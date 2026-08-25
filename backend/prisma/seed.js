@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { semearCadastros } from './seed-cadastros.js';
+import { semearReservas } from './seed-reservas.js';
 
 const prisma = new PrismaClient();
 
@@ -58,6 +59,8 @@ async function main() {
     }
 
     await semearCadastros();
+    // Depois dos cadastros: as reservas apontam para usuarios e equipamentos.
+    await semearReservas();
 
     console.log("🎉 Seed concluído com sucesso!");
 }

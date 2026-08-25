@@ -581,10 +581,18 @@ const Perfil: React.FC = () => {
     return (a.startTime || "").localeCompare(b.startTime || "");
   });
 
-  const upcomingAppointment =
-    sortedAppointments.find(
-      (appt) => appt.status?.toLowerCase() !== "cancelado",
-    ) || sortedAppointments[0];
+  // O card se chama "Próximo agendamento", mas nao olhava data nenhuma: pegava
+  // a primeira reserva da lista, mesmo vencida. E o filtro de canceladas nunca
+  // funcionou, porque o banco grava CANCELADA e a comparacao era com
+  // "cancelado" no masculino.
+  const hojeISO = new Date().toISOString().slice(0, 10);
+  const upcomingAppointment = sortedAppointments.find((appt) => {
+    const s = appt.status?.toLowerCase() ?? "";
+    const ativa = s !== "cancelada" && s !== "cancelado"
+      && s !== "rejeitada" && s !== "rejeitado"
+      && s !== "concluida" && s !== "concluido";
+    return ativa && (appt.date || "") >= hojeISO;
+  });
 
   const handlePasswordUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -979,7 +987,9 @@ const Perfil: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="empty-card">Nenhum agendamento encontrado.</div>
+                // Este card mostra so o proximo agendamento futuro, entao
+                // "nenhum encontrado" mentia quando havia varios no passado.
+                <div className="empty-card">Nenhum agendamento futuro.</div>
               )}
 
               {userRole === "ADMIN" && (
@@ -1020,7 +1030,11 @@ const Perfil: React.FC = () => {
               <ul className="schedule-list">
                 {filteredAppointments.length === 0 ? (
                   <li className="schedule-empty">
-                    Nenhum agendamento para este filtro.
+                    {/* Culpar o filtro quando o banco esta vazio manda o
+                        usuario procurar no lugar errado. */}
+                    {appointments.length === 0
+                      ? "Nenhuma reserva cadastrada ainda."
+                      : "Nenhuma reserva com este status."}
                   </li>
                 ) : (
                   filteredAppointments.map((appt) => (
