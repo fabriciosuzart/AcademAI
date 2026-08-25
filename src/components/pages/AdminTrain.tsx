@@ -225,7 +225,8 @@ const AdminTrain: React.FC = () => {
         <div className="admin-container">
             <div className="admin-header">
                 <h1>Painel de Controle</h1>
-                <p>Gerencie Aprovações{userRole === 'ADMIN' ? ', Inventário e IA' : ''}</p>
+                {/* Inventario e usuarios vivem no perfil; aqui e a operacao. */}
+                <p>Gerencie Aprovações{userRole === 'ADMIN' ? ', Agenda e IA' : ''}</p>
             </div>
 
             <div className="admin-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
