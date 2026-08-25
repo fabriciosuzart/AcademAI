@@ -1,7 +1,32 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const prisma = new PrismaClient();
+
+// As imagens dos equipamentos sao conteudo de seed e ficam versionadas em
+// seed-assets/. A pasta uploads/ e de runtime e esta no .gitignore, entao a
+// copia acontece aqui — assim as URLs /uploads/... continuam valendo num
+// clone novo. Este arquivo vive em prisma/, dai o '..'.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SEED_ASSETS = path.join(__dirname, '..', 'seed-assets');
+const UPLOADS = path.join(__dirname, '..', 'uploads');
+
+function copiarImagensDoSeed() {
+    if (!fs.existsSync(SEED_ASSETS)) {
+        console.warn('⚠️ Pasta seed-assets/ nao encontrada — equipamentos ficarao sem imagem.');
+        return;
+    }
+    fs.mkdirSync(UPLOADS, { recursive: true });
+    let copiadas = 0;
+    for (const arquivo of fs.readdirSync(SEED_ASSETS)) {
+        fs.copyFileSync(path.join(SEED_ASSETS, arquivo), path.join(UPLOADS, arquivo));
+        copiadas++;
+    }
+    console.log(`🖼️  ${copiadas} imagens copiadas para uploads/.`);
+}
 
 // Cadastros reais do laboratorio, recuperados do historico do git depois que o
 // .db saiu do versionamento. Existe para um clone novo nao nascer com o banco
@@ -56,6 +81,7 @@ const horariosBloqueados = [];
 
 export async function semearCadastros() {
     console.log('🌱 Semeando cadastros do laboratorio...');
+    copiarImagensDoSeed();
     const senhaHash = await bcrypt.hash(SENHA_PADRAO, 8);
 
     // upsert por chave unica: rodar duas vezes nao duplica nada.

@@ -23,11 +23,12 @@ O Backend gerencia os agendamentos, usuários e a conexão com a Inteligência A
 3. Crie o banco e popule com os cadastros (usuários e equipamentos):
    ```bash
    npx prisma migrate deploy
+   npx prisma generate
    npx prisma db seed
-   node seedEquipment.cjs
    ```
    *Use `migrate deploy`, e não `db push`: o projeto tem migrations versionadas, e o `db push` sincroniza o schema por fora delas.*
-   *O `seedEquipment.cjs` também copia as imagens de `seed-assets/` para `uploads/` — sem ele a página de equipamentos aparece sem foto.*
+   *O `generate` não é opcional: sem ele o cliente do Prisma fica com o schema antigo e grava no lugar errado, sem dar erro.*
+   *O seed também copia as imagens de `seed-assets/` para `uploads/` — sem isso a página de equipamentos aparece sem foto.*
 
    > O banco chama-se `academai.db`. Se você tem um `inovfablab.db` de antes do rename, pode apagá-lo.
 4. Inicie o servidor:
