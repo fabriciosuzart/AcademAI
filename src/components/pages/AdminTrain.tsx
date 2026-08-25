@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
-import { BarChart3, CalendarDays, CalendarRange, Brain,
+import { BarChart3, CalendarDays, CalendarRange,
          Check, X, User, ShieldAlert,
          ArrowLeft, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -9,19 +9,13 @@ import './AdminTrain.css';
 
 const AdminTrain: React.FC = () => {
     // Usuarios e equipamentos ficam no perfil; aqui sobra o que e so do painel.
-    const [activeTab, setActiveTab] = useState<'overview' | 'reservations' | 'ai' | 'calendar'>(
+    const [activeTab, setActiveTab] = useState<'overview' | 'reservations' | 'calendar'>(
         localStorage.getItem('userRole') === 'ADMIN' ? 'overview' : 'reservations'
     );
     
     // --- ESTADOS PARA OVERVIEW ---
     const [overviewData, setOverviewData] = useState<any>(null);
     const [loadingOverview, setLoadingOverview] = useState(false);
-    
-    // --- ESTADOS PARA IA ---
-    const [file, setFile] = useState<File | null>(null);
-    const [loadingAI, setLoadingAI] = useState(false);
-    const [messageAI, setMessageAI] = useState('');
-    const [msgTypeAI, setMsgTypeAI] = useState<'success' | 'error' | 'info'>('info');
     
     // --- ESTADOS PARA RESERVAS ---
     const [pendingReservations, setPendingReservations] = useState<any[]>([]);
@@ -58,7 +52,7 @@ const AdminTrain: React.FC = () => {
 
     // ── Listeners de navegação por voz (VoiceNavigator) ───────────────────────────────────
     useEffect(() => {
-        const validAdminTabs = ['overview', 'reservations', 'calendar', 'ai'];
+        const validAdminTabs = ['overview', 'reservations', 'calendar'];
         const validProfessorTabs = ['reservations'];
 
         const handleVoiceTab = (e: Event) => {
@@ -148,38 +142,6 @@ const AdminTrain: React.FC = () => {
         }
     };
 
-    // --- FUNÇÕES DA IA ---
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setFile(e.target.files[0]);
-            setMessageAI(`Arquivo selecionado: ${e.target.files[0].name}`);
-            setMsgTypeAI('info');
-        }
-    };
-
-    const handleUploadAI = async () => {
-        if (!file) return;
-        setLoadingAI(true);
-        setMessageAI('Processando o arquivo... isso pode levar alguns segundos.');
-        setMsgTypeAI('info');
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-            const response = await api.post('/train', formData, { headers: { 'Content-Type': 'multipart/form-data' }});
-            if (response.status === 200) {
-                setMessageAI('IA Treinada com sucesso!');
-                setMsgTypeAI('success');
-            }
-        } catch (error: any) {
-            setMessageAI(error.response?.data?.error || 'Erro de conexão.');
-            setMsgTypeAI('error');
-        } finally {
-            setLoadingAI(false);
-        }
-    };
-
     // --- FUNÇÕES DE RESERVA ---
     const handleUpdateReservation = async (id: number, status: 'APROVADA' | 'REJEITADA') => {
         let rejectionReason = '';
@@ -226,7 +188,7 @@ const AdminTrain: React.FC = () => {
             <div className="admin-header">
                 <h1>Painel de Controle</h1>
                 {/* Inventario e usuarios vivem no perfil; aqui e a operacao. */}
-                <p>Gerencie Aprovações{userRole === 'ADMIN' ? ', Agenda e IA' : ''}</p>
+                <p>Gerencie Aprovações{userRole === 'ADMIN' ? ' e a Agenda do laboratório' : ''}</p>
             </div>
 
             <div className="admin-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -247,9 +209,6 @@ const AdminTrain: React.FC = () => {
                                 style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'calendar' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'calendar' ? 'white' : 'black', cursor: 'pointer' }}>
                                 <CalendarRange size={18} aria-hidden="true" /> Calendário Global
                             </button>
-                        <button id="admin-tab-ai" onClick={() => setActiveTab('ai')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: activeTab === 'ai' ? '#3b82f6' : '#e2e8f0', color: activeTab === 'ai' ? 'white' : 'black', cursor: 'pointer' }}>
-                            <Brain size={18} aria-hidden="true" /> Treinamento IA
-                        </button>
                     </>
                 )}
             </div>
@@ -334,14 +293,6 @@ const AdminTrain: React.FC = () => {
                 </div>
             )}
 
-            {/* ABA: IA E EQUIPAMENTOS OCULTADAS PARA BREVIDADE NESTE RESUMO (Elas são idênticas ao código anterior) */}
-            {activeTab === 'ai' && (
-                <div className="admin-panel">
-                    <div className="file-upload-wrapper"><input type="file" className="file-upload-input" onChange={handleFileChange} /></div>
-                    <button className="train-button" onClick={handleUploadAI}>{loadingAI ? 'Processando...' : 'Treinar IA'}</button>
-                    {messageAI && <div className={`alert-box alert-${msgTypeAI}`}>{messageAI}</div>}
-                </div>
-            )}
             {/* ABA: CALENDÁRIO GLOBAL */}
             {activeTab === 'calendar' && userRole === 'ADMIN' && (
                 <div className="admin-panel" style={{ width: '100%', margin: '0 auto' }}>

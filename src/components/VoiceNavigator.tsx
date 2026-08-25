@@ -135,7 +135,7 @@ const ADMIN_TABS: { keywords: string[]; tab: string; label: string; adminOnly?: 
     { keywords: ['calendario', 'calendário', 'calendario global', 'agenda', 'agenda global', 'semana'], tab: 'calendar', label: 'calendário global', adminOnly: true },
     { keywords: ['usuarios', 'usuários', 'gestao', 'gestão', 'pessoas', 'membros'], tab: 'users', label: 'gestão de usuários', adminOnly: true, destino: '/perfil' },
     { keywords: ['inventario', 'inventário', 'gerenciar equipamentos'], tab: 'equipment', label: 'gestão de equipamentos', adminOnly: true, destino: '/perfil' },
-    { keywords: ['ia', 'inteligencia', 'inteligência', 'treinar', 'treinamento', 'treino'], tab: 'ai', label: 'treinamento de IA', adminOnly: true },
+    { keywords: ['ia', 'inteligencia', 'inteligência', 'treinar', 'treinamento', 'treino'], tab: 'ai', label: 'treinamento da IA', adminOnly: true, destino: '/perfil' },
 ];
 
 // =====================================================
@@ -146,7 +146,7 @@ function getHelpSections(pathname: string) {
         return [
             {
                 Icone: ClipboardList, title: 'Abrir aba',
-                tags: ['visão geral', 'reservas', 'calendário', 'treinar IA'],
+                tags: ['visão geral', 'reservas', 'calendário'],
             },
             {
                 Icone: Zap, title: 'Ações rápidas',
