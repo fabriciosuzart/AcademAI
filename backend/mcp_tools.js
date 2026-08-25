@@ -1,5 +1,6 @@
 // backend/mcp_tools.js
 import { PrismaClient } from '@prisma/client';
+import { ehManutencao } from './status.js';
 const prisma = new PrismaClient();
 
 // 1. Ferramenta: Consultar Equipamentos
@@ -85,6 +86,25 @@ export async function executarSolicitacaoReserva(args, userId) {
         const usuario = await prisma.user.findUnique({ where: { id: uId } });
         if (!usuario) {
             return `Usuário não encontrado. Peça para deslogar e logar novamente.`;
+        }
+
+        // 2a. Equipamento em manutencao (mesma regra do POST /api/schedule).
+        // A IA era um caminho paralelo sem nenhuma destas travas: dava para
+        // reservar maquina parada e dia bloqueado so pedindo ao assistente.
+        if (ehManutencao(equipamento.status)) {
+            return `O equipamento ${equipamento.name} está em manutenção e não aceita reservas. Avise o usuário e sugira outro equipamento.`;
+        }
+
+        // 2b. Data bloqueada — global (equipmentId null) ou so deste equipamento
+        const diaBloqueado = await prisma.blockedDate.findFirst({
+            where: {
+                date: args.date,
+                OR: [{ equipmentId: null }, { equipmentId: equipamento.id }]
+            }
+        });
+        if (diaBloqueado) {
+            const motivo = diaBloqueado.reason || 'Feriado/Recesso';
+            return `A data ${args.date} está bloqueada para reservas. Motivo: ${motivo}. Avise o usuário e peça que escolha outra data.`;
         }
 
         // 3. Verificar conflito de horário (RF16)
