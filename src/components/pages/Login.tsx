@@ -142,7 +142,7 @@ const Login: React.FC = () => {
           alert('Bem-vindo, ' + data.name + '!');
           
           // 'agendamento' e um caso legado sem barra inicial e carrega o
-          // equipmentId no state; os demais 'from' sao caminhos ("/admin").
+          // equipmentId no state; os demais 'from' sao caminhos ("/perfil").
           const locationState = location.state as any;
           if (locationState?.from === 'agendamento') {
              navigate('/agendamento', { state: locationState });
