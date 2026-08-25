@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
 import { Check, Circle, User } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import "./Perfil.css";
 import { STATUS, OPCOES_STATUS, classeStatus, ehManutencao, rotuloStatus } from "../../utils/status";
 import { agruparPorModelo } from "../../utils/equipamentos";
@@ -68,6 +68,7 @@ interface EquipmentItem {
 
 const Perfil: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   // Estado para guardar os dados do usuário
   const [userData, setUserData] = useState({ name: "", email: "", ra: "" });
   const [userRole, setUserRole] = useState("ALUNO");
@@ -526,6 +527,15 @@ const Perfil: React.FC = () => {
 
     const role = localStorage.getItem("userRole") || "ALUNO";
     const userId = localStorage.getItem("userId");
+
+    // Sem sessao nao ha perfil para mostrar. Isto vinha da protecao que o
+    // AdminTrain tinha; ao aposentar o /admin, o redirecionamento para ca
+    // ficou incondicional e um visitante anonimo via um perfil vazio
+    // ("Usuario", sem dados) em vez de ser mandado ao login.
+    if (!userId) {
+      navigate("/login", { state: { from: "/perfil" } });
+      return;
+    }
 
     // Atualiza o estado
     setUserData({ name, email, ra });
