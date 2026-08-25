@@ -138,3 +138,40 @@
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Acesso negado: substitui o alert() que travava a aba de quem
+   so colou a URL sem ter permissao. */
+.admin-container.acesso-negado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 60vh;
+  text-align: center;
+  color: #94a3b8;
+}
+
+.admin-container.acesso-negado svg {
+  color: #fbbf24;
+}
+
+.admin-container.acesso-negado h2 {
+  margin: 0;
+  color: #f8fafc;
+}
+
+.admin-container.acesso-negado p {
+  margin: 0;
+  max-width: 420px;
+}
+
+.admin-container.acesso-negado a {
+  margin-top: 8px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0080C0, #6e7bee);
+  color: #ffffff;
+  text-decoration: none;
+  font-weight: 600;
+}

@@ -141,9 +141,13 @@ const Login: React.FC = () => {
           window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text: `Bem-vindo, ${data.name}!` } }));
           alert('Bem-vindo, ' + data.name + '!');
           
+          // 'agendamento' e um caso legado sem barra inicial e carrega o
+          // equipmentId no state; os demais 'from' sao caminhos ("/admin").
           const locationState = location.state as any;
           if (locationState?.from === 'agendamento') {
              navigate('/agendamento', { state: locationState });
+          } else if (locationState?.from) {
+             navigate(locationState.from);
           } else {
              navigate('/');
           }
