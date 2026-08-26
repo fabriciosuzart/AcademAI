@@ -5,6 +5,7 @@ import { CalendarDays, CheckCircle2 } from 'lucide-react';
 import CalendarPicker from '../CalendarPicker';
 import './Agendamento.css';
 import { ehManutencao } from '../../utils/status';
+import { duracaoEntre, formatarDuracao } from '../../utils/horarios';
 
 const Agendamento: React.FC = () => {
     const navigate = useNavigate();
@@ -15,6 +16,7 @@ const Agendamento: React.FC = () => {
     const [equipmentId, setEquipmentId] = useState<string>(preselectedEquipmentId);
     const [date, setDate] = useState('');
     const [time, setTime] = useState('');
+    const [endTime, setEndTime] = useState('');
     const [justification, setJustification] = useState('');
     
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -76,10 +78,16 @@ const Agendamento: React.FC = () => {
         e.preventDefault();
         
         try {
+            if (!date || !time || !endTime) {
+                alert('Escolha a data, a duração e o horário da reserva.');
+                return;
+            }
+
             const response = await api.post('/schedule', { 
                 equipmentId, 
                 date, 
                 time,
+                endTime,
                 justification
             });
             
@@ -135,15 +143,18 @@ const Agendamento: React.FC = () => {
                         ) : (
                             <CalendarPicker 
                                 equipmentId={equipmentId}
-                                onDateTimeSelect={(selectedDate, selectedTime) => {
+                                onDateTimeSelect={(selectedDate, selectedTime, selectedEndTime) => {
                                     setDate(selectedDate);
                                     setTime(selectedTime);
+                                    setEndTime(selectedEndTime);
                                 }}
                             />
                         )}
-                        {date && time && (
+                        {date && time && endTime && (
                             <p style={{ color: '#10b981', marginTop: '10px', fontWeight: 'bold' }}>
-                                <CheckCircle2 size={18} aria-hidden="true" /> Selecionado: {date.split('-').reverse().join('/')} às {time}
+                                <CheckCircle2 size={18} aria-hidden="true" /> Selecionado:{' '}
+                                {date.split('-').reverse().join('/')}, das {time} às {endTime}
+                                {' '}({formatarDuracao(duracaoEntre(time, endTime) ?? 0)})
                             </p>
                         )}
                     </div>

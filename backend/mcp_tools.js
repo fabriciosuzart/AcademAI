@@ -1,6 +1,7 @@
 // backend/mcp_tools.js
 import { PrismaClient } from '@prisma/client';
 import { ehManutencao } from './status.js';
+import { DURACAO_PADRAO, clausulaDeConflito, horarioValido, somarMinutos } from './horarios.js';
 const prisma = new PrismaClient();
 
 // 1. Ferramenta: Consultar Equipamentos
@@ -45,7 +46,7 @@ export const toolSolicitarReserva = {
                 equipmentName: { type: "string", description: "O nome da máquina. Ex: Impressora 3D Finder 01" },
                 date: { type: "string", description: "A data estritamente no formato YYYY-MM-DD." },
                 time: { type: "string", description: "O horário de início estritamente no formato HH:MM." },
-                endTime: { type: "string", description: "O horário de término no formato HH:MM (opcional)." }
+                endTime: { type: "string", description: "O horário de término no formato HH:MM. Se o usuário não disser a duração, omita e a reserva será de 1h." }
             },
             // Voltamos a obrigar os 3 para evitar o bug do campo vazio
             required: ["equipmentName", "date", "time"] 
@@ -108,6 +109,15 @@ export async function executarSolicitacaoReserva(args, userId) {
         }
 
         // 3. Verificar conflito de horário (RF16)
+        // Sem duracao informada a reserva vale DURACAO_PADRAO: gravar endTime
+        // nulo deixaria a reserva sem intervalo e a tela mostraria "16:00 as 16:00".
+        if (!horarioValido(args.time)) {
+            return `Horário inválido: "${args.time}". Peça ao usuário o horário no formato HH:MM.`;
+        }
+        const fim = horarioValido(args.endTime)
+            ? args.endTime
+            : somarMinutos(args.time, DURACAO_PADRAO);
+
         const conflicting = await prisma.appointment.findFirst({
             where: {
                 equipmentId: equipamento.id,
@@ -116,10 +126,7 @@ export async function executarSolicitacaoReserva(args, userId) {
                 // Com "APROVADO" aqui, reservas aprovadas pelo painel nao contavam
                 // como conflito e o mesmo horario podia ser reservado duas vezes.
                 status: { in: ['PENDENTE', 'APROVADA'] },
-                OR: [
-                    { time: args.time },
-                    ...(args.endTime ? [{ time: { lte: args.endTime }, endTime: { gte: args.time } }] : [])
-                ]
+                OR: clausulaDeConflito(args.time, fim)
             }
         });
         if (conflicting) {
@@ -135,7 +142,7 @@ export async function executarSolicitacaoReserva(args, userId) {
             data: {
                 date: args.date,
                 time: args.time,
-                endTime: args.endTime || null,
+                endTime: fim,
                 status: status,
                 userId: uId,
                 equipmentId: equipamento.id,
@@ -149,7 +156,7 @@ export async function executarSolicitacaoReserva(args, userId) {
                 data: {
                     userId: uId,
                     type: 'RESERVA_APROVADA',
-                    message: `Reserva do ${equipamento.name} para ${args.date} às ${args.time} aprovada automaticamente.`,
+                    message: `Reserva do ${equipamento.name} para ${args.date}, das ${args.time} às ${fim} aprovada automaticamente.`,
                     relatedId: novaReserva.id
                 }
             });
@@ -158,7 +165,7 @@ export async function executarSolicitacaoReserva(args, userId) {
                 data: {
                     userId: uId,
                     type: 'NOVA_PENDENTE',
-                    message: `Reserva do ${equipamento.name} para ${args.date} às ${args.time} enviada. Aguardando aprovação.`,
+                    message: `Reserva do ${equipamento.name} para ${args.date}, das ${args.time} às ${fim} enviada. Aguardando aprovação.`,
                     relatedId: novaReserva.id
                 }
             });
@@ -171,7 +178,7 @@ export async function executarSolicitacaoReserva(args, userId) {
                     data: {
                         userId: approver.id,
                         type: 'NOVA_PENDENTE',
-                        message: `${usuario.name} solicitou reserva do ${equipamento.name} para ${args.date} às ${args.time}.`,
+                        message: `${usuario.name} solicitou reserva do ${equipamento.name} para ${args.date}, das ${args.time} às ${fim}.`,
                         relatedId: novaReserva.id
                     }
                 });
@@ -179,7 +186,7 @@ export async function executarSolicitacaoReserva(args, userId) {
         }
 
         const statusMsg = autoApprove ? 'APROVADA automaticamente' : 'PENDENTE (aguardando aprovação)';
-        return `Reserva criada com sucesso! Status: ${statusMsg}. Equipamento: ${equipamento.name}, Data: ${args.date}, Horário: ${args.time}.`;
+        return `Reserva criada com sucesso! Status: ${statusMsg}. Equipamento: ${equipamento.name}, Data: ${args.date}, Horário: das ${args.time} às ${fim}.`;
     } catch (error) {
         console.error("❌ ERRO NO PRISMA:", error);
         return "Erro ao registrar a reserva. Tente novamente.";

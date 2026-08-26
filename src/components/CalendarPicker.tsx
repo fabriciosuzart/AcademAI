@@ -1,16 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import './CalendarPicker.css';
+import {
+    DURACOES,
+    HORA_ABERTURA,
+    HORA_FECHAMENTO,
+    PASSO_SLOT,
+    formatarDuracao,
+    haSobreposicao,
+    paraHorario,
+    paraMinutos,
+    somarMinutos,
+} from '../utils/horarios';
 
 interface CalendarPickerProps {
     equipmentId: string;
-    onDateTimeSelect: (date: string, time: string) => void;
+    /** Devolve o intervalo escolhido. `endTime` ja vem somado a duracao. */
+    onDateTimeSelect: (date: string, time: string, endTime: string) => void;
 }
+
+/** Data local em YYYY-MM-DD. `toISOString` converte para UTC e, a oeste de
+ *  Greenwich, devolveria o dia anterior. */
+const paraISO = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const CalendarPicker: React.FC<CalendarPickerProps> = ({ equipmentId, onDateTimeSelect }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [selectedTime, setSelectedTime] = useState<string>('');
+    const [duracao, setDuracao] = useState<number>(60);
     const [bookedSlots, setBookedSlots] = useState<{ date: string, time: string, endTime: string | null }[]>([]);
     const [blockedDates, setBlockedDates] = useState<any[]>([]);
     
@@ -111,43 +129,63 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ equipmentId, onDateTime
     const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
     const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
 
-    // Time slots logic (08:00 to 18:00)
+    /** Reservas do dia escolhido, ja normalizadas como intervalos [inicio, fim). */
+    const reservasDoDia = () => {
+        if (!selectedDate) return [];
+        const dateStr = paraISO(selectedDate);
+        return bookedSlots
+            .filter(b => b.date === dateStr)
+            .map(b => ({
+                inicio: b.time,
+                // Reserva antiga sem fim gravado: assume 1h, senao ela nao
+                // ocuparia slot nenhum e o horario ficaria reservavel duas vezes.
+                fim: b.endTime || somarMinutos(b.time, 60),
+            }));
+    };
+
+    /** true se [inicio, fim) invade alguma reserva ja existente. */
+    const estaOcupado = (inicio: string, fim: string) =>
+        reservasDoDia().some(r => haSobreposicao(inicio, fim, r.inicio, r.fim));
+
+    /** Slots de PASSO_SLOT em PASSO_SLOT que ainda cabem antes do fechamento. */
     const generateTimeSlots = () => {
         if (!selectedDate) return [];
-        
+
         const slots = [];
-        const dateStr = selectedDate.toISOString().split('T')[0];
-        
-        // Find bookings for the selected date
-        const dayBookings = bookedSlots.filter(b => b.date === dateStr);
-        
-        for (let hour = 8; hour <= 18; hour++) {
-            const timeStr = `${hour.toString().padStart(2, '0')}:00`;
-            
-            // Check if this time slot is booked
-            // Simpler check: if any booking starts at exactly this time (or if it falls between start and end)
-            let isBooked = false;
-            for (const b of dayBookings) {
-                const bHour = parseInt(b.time.split(':')[0]);
-                const eHour = b.endTime ? parseInt(b.endTime.split(':')[0]) : bHour;
-                
-                if (hour >= bHour && hour <= eHour) {
-                    isBooked = true;
-                    break;
-                }
-            }
-            
-            slots.push({ time: timeStr, isBooked });
+        const fechamento = paraMinutos(HORA_FECHAMENTO);
+
+        for (
+            let minuto = paraMinutos(HORA_ABERTURA);
+            minuto + duracao <= fechamento;
+            minuto += PASSO_SLOT
+        ) {
+            const inicio = paraHorario(minuto);
+            const fim = paraHorario(minuto + duracao);
+            slots.push({ time: inicio, endTime: fim, isBooked: estaOcupado(inicio, fim) });
         }
-        
+
         return slots;
     };
 
     const handleTimeSelect = (timeStr: string) => {
         setSelectedTime(timeStr);
         if (selectedDate) {
-            const dateStr = selectedDate.toISOString().split('T')[0];
-            onDateTimeSelect(dateStr, timeStr);
+            onDateTimeSelect(paraISO(selectedDate), timeStr, somarMinutos(timeStr, duracao));
+        }
+    };
+
+    /** Mudar a duracao muda o fim do intervalo, entao a escolha anterior e
+     *  refeita — ou descartada, se com a nova duracao ela passar a colidir. */
+    const handleDuracaoSelect = (novaDuracao: number) => {
+        setDuracao(novaDuracao);
+        if (!selectedDate || !selectedTime) return;
+
+        const fim = somarMinutos(selectedTime, novaDuracao);
+        const cabe = paraMinutos(fim) <= paraMinutos(HORA_FECHAMENTO);
+        if (cabe && !estaOcupado(selectedTime, fim)) {
+            onDateTimeSelect(paraISO(selectedDate), selectedTime, fim);
+        } else {
+            setSelectedTime('');
         }
     };
 
@@ -177,6 +215,25 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ equipmentId, onDateTime
             {selectedDate && (
                 <div className="time-section" aria-live="polite">
                     <h4>Horários em {selectedDate.toLocaleDateString('pt-BR')}</h4>
+
+                    <div className="duration-picker">
+                        <span className="duration-label" id="duration-label">Duração da reserva</span>
+                        <div className="duration-options" role="group" aria-labelledby="duration-label">
+                            {DURACOES.map(minutos => (
+                                <button
+                                    key={minutos}
+                                    type="button"
+                                    className={`duration-option ${duracao === minutos ? 'selected' : ''}`}
+                                    onClick={() => handleDuracaoSelect(minutos)}
+                                    aria-pressed={duracao === minutos}
+                                    aria-label={`Reservar por ${formatarDuracao(minutos)}`}
+                                >
+                                    {formatarDuracao(minutos)}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
                     <div className="time-slots-grid" role="list" aria-label={`Horários disponíveis para ${selectedDate.toLocaleDateString('pt-BR')}`}>
                         {generateTimeSlots().map(slot => (
                             <button
@@ -185,11 +242,12 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ equipmentId, onDateTime
                                 className={`time-slot ${slot.isBooked ? 'booked' : 'available'} ${selectedTime === slot.time ? 'selected' : ''}`}
                                 disabled={slot.isBooked}
                                 onClick={() => handleTimeSelect(slot.time)}
-                                aria-label={`${slot.time} - ${slot.isBooked ? 'Horário ocupado' : 'Horário livre para agendamento'}`}
+                                aria-label={`${slot.time} às ${slot.endTime} - ${slot.isBooked ? 'Horário ocupado' : 'Horário livre para agendamento'}`}
                                 aria-pressed={selectedTime === slot.time}
                                 role="listitem"
                             >
                                 {slot.time}
+                                <span className="slot-end">até {slot.endTime}</span>
                                 {slot.isBooked && <span className="booked-label">Ocupado</span>}
                             </button>
                         ))}
