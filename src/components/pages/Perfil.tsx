@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import "./Perfil.css";
 import { STATUS, OPCOES_STATUS, classeStatus, ehManutencao, rotuloStatus } from "../../utils/status";
 import { agruparPorModelo } from "../../utils/equipamentos";
+import { formatarIntervalo } from "../../utils/horarios";
 
 const trainingModules = [
   "Impressora 3D Finder",
@@ -1147,8 +1148,11 @@ const Perfil: React.FC = () => {
                       {upcomingAppointment.equipment || "Agendamento"}
                     </strong>
                     <p>
-                      {upcomingAppointment.startTime || "---"} –{" "}
-                      {upcomingAppointment.endTime || "---"} •{" "}
+                      {formatarIntervalo(
+                        upcomingAppointment.startTime || upcomingAppointment.time,
+                        upcomingAppointment.endTime,
+                      )}{" "}
+                      •{" "}
                       {upcomingAppointment.location ||
                         upcomingAppointment.room ||
                         "Sala não informada"}
@@ -1233,8 +1237,7 @@ const Perfil: React.FC = () => {
                           {appt.date
                             ? appt.date.split("-").reverse().join("/")
                             : "Data não informada"}{" "}
-                          • {appt.startTime || appt.time || "??:??"} -{" "}
-                          {appt.endTime || "??:??"}
+                          • {formatarIntervalo(appt.startTime || appt.time, appt.endTime)}
                         </p>
                       </div>
                       <div className="schedule-meta">
@@ -1318,7 +1321,8 @@ const Perfil: React.FC = () => {
                           </strong>
                           <span>{res.equipment?.name}</span>
                           <span>
-                            {res.date?.split("-").reverse().join("/")} às {res.time}
+                            {res.date?.split("-").reverse().join("/")} •{" "}
+                            {formatarIntervalo(res.time, res.endTime)}
                           </span>
                           {res.justification && (
                             <p className="pendente-justificativa">"{res.justification}"</p>
@@ -1408,10 +1412,7 @@ const Perfil: React.FC = () => {
                                     equipment.name e mostrava vazio. */}
                                 <strong style={{ textTransform: "capitalize" }}>{dia}</strong>
                                 <span>
-                                  {appt.startTime}
-                                  {appt.endTime && appt.endTime !== appt.startTime
-                                    ? ` – ${appt.endTime}`
-                                    : ""}{" "}
+                                  {formatarIntervalo(appt.startTime, appt.endTime)}{" "}
                                   &middot; {appt.equipment || "—"}
                                 </span>
                                 <span>
@@ -1987,7 +1988,7 @@ const Perfil: React.FC = () => {
               </div>
               <div className="detail-row">
                 <span className="detail-label">Horário:</span>
-                <span className="detail-value">{selectedAppointment.startTime || selectedAppointment.time || "??:??"} às {selectedAppointment.endTime || "??:??"}</span>
+                <span className="detail-value">{formatarIntervalo(selectedAppointment.startTime || selectedAppointment.time, selectedAppointment.endTime)}</span>
               </div>
               <div className="detail-row">
                 <span className="detail-label">Status:</span>

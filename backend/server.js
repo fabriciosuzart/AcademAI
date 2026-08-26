@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { authMiddleware, roleMiddleware } from './middlewares/auth.js';
 import { STATUS, ehManutencao } from './status.js';
+import { HORA_ABERTURA, HORA_FECHAMENTO, clausulaDeConflito, horarioValido, paraMinutos } from './horarios.js';
 import { pipeline } from '@xenova/transformers';
 import fetch from 'node-fetch';
 import fs from 'fs';
@@ -892,20 +893,25 @@ app.post('/api/schedule', authMiddleware, async (req, res) => {
             return res.status(403).json({ error: `A data selecionada está bloqueada. Motivo: ${blockedDate.reason || 'Feriado/Recesso'}` });
         }
 
+        // Sem hora de término não existe reserva com duração: a tela mostrava
+        // "16:00 às 16:00" e o teste de conflito não tinha intervalo para comparar.
+        if (!horarioValido(time) || !horarioValido(endTime)) {
+            return res.status(400).json({ error: "Horário de início e de término devem estar no formato HH:MM." });
+        }
+        if (paraMinutos(endTime) <= paraMinutos(time)) {
+            return res.status(400).json({ error: "O horário de término deve ser posterior ao de início." });
+        }
+        if (paraMinutos(time) < paraMinutos(HORA_ABERTURA) || paraMinutos(endTime) > paraMinutos(HORA_FECHAMENTO)) {
+            return res.status(400).json({ error: `As reservas só podem ocorrer entre ${HORA_ABERTURA} e ${HORA_FECHAMENTO}.` });
+        }
+
         // RF16 - Verificar conflito de horário
-        const reqStart = time;
-        const reqEnd = endTime || time;
         const conflicting = await prisma.appointment.findFirst({
             where: {
                 equipmentId: eqId,
                 date: date,
                 status: { in: ['PENDENTE', 'APROVADA'] },
-                OR: [
-                    { time: { lte: reqEnd }, endTime: { gte: reqStart } },
-                    { time: { gte: reqStart, lte: reqEnd } },
-                    // Reservas sem endTime: considera conflito se mesmo horário
-                    { time: reqStart, endTime: null },
-                ]
+                OR: clausulaDeConflito(time, endTime)
             }
         });
         if (conflicting) {
@@ -920,7 +926,7 @@ app.post('/api/schedule', authMiddleware, async (req, res) => {
         const newAppointment = await prisma.appointment.create({
             data: {
                 date, time,
-                endTime: endTime || null,
+                endTime,
                 justification: justification || null,
                 status: reservaStatus,
                 userId: uId,
@@ -1086,7 +1092,7 @@ app.get('/api/appointments/all-history', authMiddleware, roleMiddleware(['ADMIN'
             equipment: appt.equipment.name,
             date: appt.date, 
             startTime: appt.time, 
-            endTime: appt.endTime || appt.time,
+            endTime: appt.endTime,
             status: appt.status, 
             justification: appt.justification,
             rejectionReason: appt.rejectionReason,
@@ -1195,7 +1201,7 @@ app.get('/api/appointments/:userId', authMiddleware, async (req, res) => {
 
         const formatted = appointments.map(appt => ({
             id: appt.id, equipment: appt.equipment.name,
-            date: appt.date, startTime: appt.time, endTime: appt.endTime || appt.time,
+            date: appt.date, startTime: appt.time, endTime: appt.endTime,
             status: appt.status, justification: appt.justification,
             rejectionReason: appt.rejectionReason
         }));

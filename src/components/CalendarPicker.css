@@ -171,3 +171,56 @@
     color: #ef4444;
     text-transform: uppercase;
 }
+
+/* ── Seletor de duração ─────────────────────────────────── */
+.duration-picker {
+    margin-bottom: 18px;
+}
+
+.duration-label {
+    display: block;
+    margin-bottom: 8px;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+}
+
+.duration-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.duration-option {
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid #334155;
+    background: #1e293b;
+    color: #e2e8f0;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.duration-option:hover {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.2);
+}
+
+.duration-option.selected {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: white;
+}
+
+.slot-end {
+    font-size: 0.7rem;
+    font-weight: normal;
+    color: #94a3b8;
+}
+
+.time-slot.selected .slot-end {
+    color: #dbeafe;
+}
+
+.time-slot.booked .slot-end {
+    color: #475569;
+}

@@ -4,6 +4,20 @@ import { useAuth } from '../../context/AuthContext';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import './Disponibilidade.css';
 import { classeStatus, ehDisponivel, normalizarStatus, rotuloStatus, OPCOES_STATUS } from '../../utils/status';
+import {
+    HORA_ABERTURA,
+    HORA_FECHAMENTO,
+    PASSO_SLOT,
+    haSobreposicao,
+    paraHorario,
+    paraMinutos,
+    somarMinutos,
+} from '../../utils/horarios';
+
+/** Data local em YYYY-MM-DD. `toISOString` converte para UTC e, a oeste de
+ *  Greenwich, devolveria o dia anterior. */
+const paraISO = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 interface Equipment {
     id: number;
@@ -98,7 +112,7 @@ const Disponibilidade: React.FC = () => {
             const isPast = dateObj < today;
             const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
             const isSelected = selectedDate?.toDateString() === dateObj.toDateString();
-            const dateStr = dateObj.toISOString().split('T')[0];
+            const dateStr = paraISO(dateObj);
             const hasBooking = hasBookingOnDate(dateStr);
             const disabled = isPast || isWeekend;
 
@@ -121,31 +135,36 @@ const Disponibilidade: React.FC = () => {
         return days;
     };
 
+    // Mesmo passo e mesma regra de sobreposicao do CalendarPicker: as duas
+    // telas mostram as mesmas reservas e nao podem discordar sobre quem esta livre.
     const generateTimeSlots = () => {
         if (!selectedDate) return [];
-        const dateStr = selectedDate.toISOString().split('T')[0];
-        const dayBookings = bookedSlots.filter(b => b.date === dateStr);
+        const dateStr = paraISO(selectedDate);
+        const dayBookings = bookedSlots
+            .filter(b => b.date === dateStr)
+            // Reserva antiga sem fim gravado: assume 1h.
+            .map(b => ({ inicio: b.time, fim: b.endTime || somarMinutos(b.time, 60) }));
 
         const slots = [];
-        for (let hour = 8; hour <= 18; hour++) {
-            const timeStr = `${hour.toString().padStart(2, '0')}:00`;
-            let isBooked = false;
-            for (const b of dayBookings) {
-                const bHour = parseInt(b.time.split(':')[0]);
-                const eHour = b.endTime ? parseInt(b.endTime.split(':')[0]) : bHour;
-                if (hour >= bHour && hour <= eHour) {
-                    isBooked = true;
-                    break;
-                }
-            }
-            slots.push({ time: timeStr, isBooked });
+        const fechamento = paraMinutos(HORA_FECHAMENTO);
+        for (
+            let minuto = paraMinutos(HORA_ABERTURA);
+            minuto + PASSO_SLOT <= fechamento;
+            minuto += PASSO_SLOT
+        ) {
+            const inicio = paraHorario(minuto);
+            const fim = paraHorario(minuto + PASSO_SLOT);
+            slots.push({
+                time: inicio,
+                isBooked: dayBookings.some(b => haSobreposicao(inicio, fim, b.inicio, b.fim)),
+            });
         }
         return slots;
     };
 
     const handleReserveSlot = (time: string) => {
         if (!selectedEquipment || !selectedDate) return;
-        const dateStr = selectedDate.toISOString().split('T')[0];
+        const dateStr = paraISO(selectedDate);
         if (isLoggedIn) {
             navigate('/agendamento', {
                 state: { equipmentId: selectedEquipment, preDate: dateStr, preTime: time }
