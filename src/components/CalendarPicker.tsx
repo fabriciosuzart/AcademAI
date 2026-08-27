@@ -12,11 +12,17 @@ import {
     paraMinutos,
     somarMinutos,
 } from '../utils/horarios';
+import type { DataBloqueada } from '../utils/bloqueios';
+import { bloqueioDoDia, motivoDoBloqueio } from '../utils/bloqueios';
 
 interface CalendarPickerProps {
     equipmentId: string;
     /** Devolve o intervalo escolhido. `endTime` ja vem somado a duracao. */
     onDateTimeSelect: (date: string, time: string, endTime: string) => void;
+    /** Data YYYY-MM-DD vinda da tela de Disponibilidade, para ja abrir nela. */
+    preDate?: string;
+    /** Horario HH:MM vindo da tela de Disponibilidade. */
+    preTime?: string;
 }
 
 /** Data local em YYYY-MM-DD. `toISOString` converte para UTC e, a oeste de
@@ -24,13 +30,28 @@ interface CalendarPickerProps {
 const paraISO = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-const CalendarPicker: React.FC<CalendarPickerProps> = ({ equipmentId, onDateTimeSelect }) => {
+/** Data de hoje as 00:00, para comparar dias sem a hora atrapalhar. */
+const hojeZerado = () => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+};
+
+const CalendarPicker: React.FC<CalendarPickerProps> = ({
+    equipmentId,
+    onDateTimeSelect,
+    preDate,
+    preTime,
+}) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [selectedTime, setSelectedTime] = useState<string>('');
     const [duracao, setDuracao] = useState<number>(60);
     const [bookedSlots, setBookedSlots] = useState<{ date: string, time: string, endTime: string | null }[]>([]);
-    const [blockedDates, setBlockedDates] = useState<any[]>([]);
+    const [blockedDates, setBlockedDates] = useState<DataBloqueada[]>([]);
+    const [carregado, setCarregado] = useState(false);
+    /** Aviso quando a data que veio de outra tela nao pode ser usada. */
+    const [avisoPreSelecao, setAvisoPreSelecao] = useState('');
     
     // Fetch booked slots when equipment changes
     useEffect(() => {
@@ -59,9 +80,66 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ equipmentId, onDateTime
             }
         };
 
-        fetchBookings();
-        fetchBlocked();
+        setCarregado(false);
+        Promise.all([fetchBookings(), fetchBlocked()]).finally(() => setCarregado(true));
     }, [equipmentId]);
+
+    /** Por que este dia nao pode ser reservado, ou '' se ele pode. */
+    const impedimentoDoDia = (dia: Date): string => {
+        if (dia < hojeZerado()) return 'Data já passou';
+        if (dia.getDay() === 0 || dia.getDay() === 6) return 'Fim de semana';
+        const bloqueio = bloqueioDoDia(blockedDates, paraISO(dia), equipmentId);
+        return bloqueio ? motivoDoBloqueio(bloqueio) : '';
+    };
+
+    /** Horario que ja passou, quando o dia escolhido e hoje. */
+    const ehPassado = (dia: Date, horario: string) => {
+        const agora = new Date();
+        if (paraISO(dia) !== paraISO(agora)) return false;
+        return paraMinutos(horario) <= agora.getHours() * 60 + agora.getMinutes();
+    };
+
+    /**
+     * Aplica a data e o horario que vieram da tela de Disponibilidade.
+     *
+     * So roda depois que reservas e bloqueios chegaram: antes disso nao da
+     * para saber se aquele dia esta trancado, e a tela abriria num feriado.
+     */
+    useEffect(() => {
+        if (!carregado || !preDate || selectedDate) return;
+
+        const [ano, mes, dia] = preDate.split('-').map(Number);
+        if (!ano || !mes || !dia) return;
+        const alvo = new Date(ano, mes - 1, dia);
+
+        const impedimento = impedimentoDoDia(alvo);
+        if (impedimento) {
+            setAvisoPreSelecao(
+                `A data ${preDate.split('-').reverse().join('/')} não está disponível (${impedimento}). Escolha outra no calendário.`,
+            );
+            return;
+        }
+
+        setCurrentDate(new Date(ano, mes - 1, 1));
+        setSelectedDate(alvo);
+
+        // O horario so e aplicado se o intervalo inteiro couber e estiver livre;
+        // a duracao vem do padrao, porque a outra tela nao pergunta duracao.
+        if (!preTime) return;
+        const fim = somarMinutos(preTime, duracao);
+        const cabe = paraMinutos(fim) <= paraMinutos(HORA_FECHAMENTO);
+        const livre = !bookedSlots
+            .filter(b => b.date === preDate)
+            .some(b => haSobreposicao(preTime, fim, b.time, b.endTime || somarMinutos(b.time, 60)));
+
+        if (cabe && livre && !ehPassado(alvo, preTime)) {
+            setSelectedTime(preTime);
+            onDateTimeSelect(preDate, preTime, fim);
+        } else {
+            setAvisoPreSelecao(`O horário ${preTime} não está mais livre. Escolha outro abaixo.`);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [carregado, preDate, preTime]);
 
     // Calendar generation logic
     const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
@@ -74,8 +152,6 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ equipmentId, onDateTime
         const firstDay = getFirstDayOfMonth(year, month);
         
         const days = [];
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
 
         // Empty slots for previous month
         for (let i = 0; i < firstDay; i++) {
@@ -85,38 +161,33 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ equipmentId, onDateTime
         // Days of the month
         for (let i = 1; i <= daysInMonth; i++) {
             const dateObj = new Date(year, month, i);
-            const isPast = dateObj < today;
-            const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
             const isSelected = selectedDate?.toDateString() === dateObj.toDateString();
-            
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-            const blockInfo = blockedDates.find(b => b.date === dateStr && (!b.equipmentId || b.equipmentId.toString() === equipmentId));
-            const isBlocked = !!blockInfo;
-            
-            const disabled = isPast || isWeekend || isBlocked;
-            const blockReason = isBlocked ? (blockInfo.reason || 'Bloqueado') : '';
-            
+
+            // Um so lugar decide se o dia esta trancado — passado, fim de
+            // semana ou bloqueio — e o motivo vira o title e o aria-label.
+            const impedimento = impedimentoDoDia(dateObj);
+            const disabled = impedimento !== '';
+            const bloqueado = !!bloqueioDoDia(blockedDates, paraISO(dateObj), equipmentId);
+
+            const escolher = () => {
+                if (disabled) return;
+                setSelectedDate(dateObj);
+                setSelectedTime('');
+                setAvisoPreSelecao('');
+            };
+
             days.push(
                 <div 
                     key={i} 
-                    className={`calendar-day ${disabled ? 'disabled' : 'selectable'} ${isSelected ? 'selected' : ''}`}
-                    onClick={() => {
-                        if (!disabled) {
-                            setSelectedDate(dateObj);
-                            setSelectedTime('');
-                        }
-                    }}
+                    className={`calendar-day ${disabled ? 'disabled' : 'selectable'} ${bloqueado ? 'bloqueado' : ''} ${isSelected ? 'selected' : ''}`}
+                    onClick={escolher}
                     role="gridcell"
-                    title={blockReason}
-                    aria-label={`${i} de ${monthNames[month]}, ${disabled ? (isBlocked ? blockReason : 'indisponível') : 'selecionável'}`}
+                    title={impedimento}
+                    aria-label={`${i} de ${monthNames[month]}, ${disabled ? impedimento : 'selecionável'}`}
                     aria-selected={isSelected}
+                    aria-disabled={disabled}
                     tabIndex={disabled ? -1 : 0}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !disabled) {
-                            setSelectedDate(dateObj);
-                            setSelectedTime('');
-                        }
-                    }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') escolher(); }}
                 >
                     {i}
                 </div>
@@ -161,7 +232,15 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ equipmentId, onDateTime
         ) {
             const inicio = paraHorario(minuto);
             const fim = paraHorario(minuto + duracao);
-            slots.push({ time: inicio, endTime: fim, isBooked: estaOcupado(inicio, fim) });
+            // Horario que ja passou e tao inreservavel quanto horario ocupado:
+            // hoje as 09:00 nao pode ser escolhido as 15:00.
+            const passado = ehPassado(selectedDate, inicio);
+            slots.push({
+                time: inicio,
+                endTime: fim,
+                isBooked: estaOcupado(inicio, fim),
+                passado,
+            });
         }
 
         return slots;
@@ -169,6 +248,7 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ equipmentId, onDateTime
 
     const handleTimeSelect = (timeStr: string) => {
         setSelectedTime(timeStr);
+        setAvisoPreSelecao('');
         if (selectedDate) {
             onDateTimeSelect(paraISO(selectedDate), timeStr, somarMinutos(timeStr, duracao));
         }
@@ -182,7 +262,7 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ equipmentId, onDateTime
 
         const fim = somarMinutos(selectedTime, novaDuracao);
         const cabe = paraMinutos(fim) <= paraMinutos(HORA_FECHAMENTO);
-        if (cabe && !estaOcupado(selectedTime, fim)) {
+        if (cabe && !estaOcupado(selectedTime, fim) && !ehPassado(selectedDate, selectedTime)) {
             onDateTimeSelect(paraISO(selectedDate), selectedTime, fim);
         } else {
             setSelectedTime('');
@@ -193,6 +273,9 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ equipmentId, onDateTime
 
     return (
         <div className="calendar-picker-container" aria-label="Seletor de data e hora">
+            {avisoPreSelecao && (
+                <p className="calendar-aviso" role="status">{avisoPreSelecao}</p>
+            )}
             <div className="calendar-section">
                 <div className="calendar-header">
                     <button type="button" onClick={prevMonth} className="cal-nav-btn" aria-label="Mês anterior">&lt;</button>
@@ -209,6 +292,7 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ equipmentId, onDateTime
                 </div>
                 <div className="calendar-legend">
                     <span className="legend-item"><span className="dot blocked"></span> Indisponível (FDS/Passado)</span>
+                    <span className="legend-item"><span className="dot bloqueado"></span> Bloqueado (feriado/recesso)</span>
                 </div>
             </div>
 
@@ -235,22 +319,26 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ equipmentId, onDateTime
                     </div>
 
                     <div className="time-slots-grid" role="list" aria-label={`Horários disponíveis para ${selectedDate.toLocaleDateString('pt-BR')}`}>
-                        {generateTimeSlots().map(slot => (
-                            <button
-                                key={slot.time}
-                                type="button"
-                                className={`time-slot ${slot.isBooked ? 'booked' : 'available'} ${selectedTime === slot.time ? 'selected' : ''}`}
-                                disabled={slot.isBooked}
-                                onClick={() => handleTimeSelect(slot.time)}
-                                aria-label={`${slot.time} às ${slot.endTime} - ${slot.isBooked ? 'Horário ocupado' : 'Horário livre para agendamento'}`}
-                                aria-pressed={selectedTime === slot.time}
-                                role="listitem"
-                            >
-                                {slot.time}
-                                <span className="slot-end">até {slot.endTime}</span>
-                                {slot.isBooked && <span className="booked-label">Ocupado</span>}
-                            </button>
-                        ))}
+                        {generateTimeSlots().map(slot => {
+                            const indisponivel = slot.isBooked || slot.passado;
+                            const motivo = slot.isBooked ? 'Ocupado' : slot.passado ? 'Já passou' : '';
+                            return (
+                                <button
+                                    key={slot.time}
+                                    type="button"
+                                    className={`time-slot ${indisponivel ? 'booked' : 'available'} ${selectedTime === slot.time ? 'selected' : ''}`}
+                                    disabled={indisponivel}
+                                    onClick={() => handleTimeSelect(slot.time)}
+                                    aria-label={`${slot.time} às ${slot.endTime} - ${motivo || 'Horário livre para agendamento'}`}
+                                    aria-pressed={selectedTime === slot.time}
+                                    role="listitem"
+                                >
+                                    {slot.time}
+                                    <span className="slot-end">até {slot.endTime}</span>
+                                    {motivo && <span className="booked-label">{motivo}</span>}
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
             )}
