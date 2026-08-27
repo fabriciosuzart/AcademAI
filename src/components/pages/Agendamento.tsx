@@ -11,6 +11,11 @@ const Agendamento: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const preselectedEquipmentId = location.state?.equipmentId || '';
+    // A tela de Disponibilidade manda dia e hora junto ao clicar em "Reservar".
+    // Eles chegavam aqui e eram ignorados: o usuario escolhia um horario la e
+    // caia num formulario em branco.
+    const preDate: string | undefined = location.state?.preDate;
+    const preTime: string | undefined = location.state?.preTime;
 
     const [equipmentList, setEquipmentList] = useState<any[]>([]);
     const [equipmentId, setEquipmentId] = useState<string>(preselectedEquipmentId);
@@ -143,6 +148,8 @@ const Agendamento: React.FC = () => {
                         ) : (
                             <CalendarPicker 
                                 equipmentId={equipmentId}
+                                preDate={preDate}
+                                preTime={preTime}
                                 onDateTimeSelect={(selectedDate, selectedTime, selectedEndTime) => {
                                     setDate(selectedDate);
                                     setTime(selectedTime);

@@ -13,6 +13,9 @@ import {
     paraMinutos,
     somarMinutos,
 } from '../../utils/horarios';
+import type { DataBloqueada } from '../../utils/bloqueios';
+import { bloqueioDoDia, motivoDoBloqueio } from '../../utils/bloqueios';
+import api from '../../api/axios';
 
 /** Data local em YYYY-MM-DD. `toISOString` converte para UTC e, a oeste de
  *  Greenwich, devolveria o dia anterior. */
@@ -41,6 +44,7 @@ const Disponibilidade: React.FC = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [bookedSlots, setBookedSlots] = useState<BookedSlot[]>([]);
+    const [blockedDates, setBlockedDates] = useState<DataBloqueada[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterType, setFilterType] = useState('all');
 
@@ -58,6 +62,21 @@ const Disponibilidade: React.FC = () => {
             }
         };
         fetchEquipments();
+    }, []);
+
+    // Carrega as datas bloqueadas (feriados, recesso). A lista traz tanto os
+    // bloqueios globais quanto os de equipamento; o filtro por maquina e feito
+    // na hora de desenhar o dia.
+    useEffect(() => {
+        const fetchBlocked = async () => {
+            try {
+                const res = await api.get('/blocked-dates');
+                setBlockedDates(res.data);
+            } catch (error) {
+                console.error("Erro ao buscar datas bloqueadas:", error);
+            }
+        };
+        fetchBlocked();
     }, []);
 
     // Carrega reservas do equipamento selecionado
@@ -114,16 +133,28 @@ const Disponibilidade: React.FC = () => {
             const isSelected = selectedDate?.toDateString() === dateObj.toDateString();
             const dateStr = paraISO(dateObj);
             const hasBooking = hasBookingOnDate(dateStr);
-            const disabled = isPast || isWeekend;
+
+            // Feriado/recesso tranca o dia aqui tambem. Antes so o calendario
+            // do formulario respeitava o bloqueio, e esta tela ainda oferecia
+            // "Reservar" num dia que o backend ia recusar com 403.
+            const bloqueio = bloqueioDoDia(blockedDates, dateStr, selectedEquipment);
+            const disabled = isPast || isWeekend || !!bloqueio;
+            const motivo = bloqueio
+                ? motivoDoBloqueio(bloqueio)
+                : isPast || isWeekend
+                  ? 'indisponível'
+                  : '';
 
             days.push(
                 <div
                     key={i}
-                    className={`disp-day ${disabled ? 'disabled' : 'selectable'} ${isSelected ? 'selected' : ''} ${hasBooking && !disabled ? 'has-booking' : ''}`}
+                    className={`disp-day ${disabled ? 'disabled' : 'selectable'} ${bloqueio ? 'bloqueado' : ''} ${isSelected ? 'selected' : ''} ${hasBooking && !disabled ? 'has-booking' : ''}`}
                     onClick={() => { if (!disabled) setSelectedDate(dateObj); }}
                     role="gridcell"
-                    aria-label={`${i} de ${monthNames[month]}, ${disabled ? 'indisponível' : hasBooking ? 'possui reservas' : 'livre'}`}
+                    title={bloqueio ? motivoDoBloqueio(bloqueio) : ''}
+                    aria-label={`${i} de ${monthNames[month]}, ${disabled ? motivo : hasBooking ? 'possui reservas' : 'livre'}`}
                     aria-selected={isSelected}
+                    aria-disabled={disabled}
                     tabIndex={disabled ? -1 : 0}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !disabled) setSelectedDate(dateObj); }}
                 >
@@ -133,6 +164,13 @@ const Disponibilidade: React.FC = () => {
             );
         }
         return days;
+    };
+
+    /** Horario que ja passou, quando o dia escolhido e hoje. */
+    const ehPassado = (dia: Date, horario: string) => {
+        const agora = new Date();
+        if (paraISO(dia) !== paraISO(agora)) return false;
+        return paraMinutos(horario) <= agora.getHours() * 60 + agora.getMinutes();
     };
 
     // Mesmo passo e mesma regra de sobreposicao do CalendarPicker: as duas
@@ -157,6 +195,7 @@ const Disponibilidade: React.FC = () => {
             slots.push({
                 time: inicio,
                 isBooked: dayBookings.some(b => haSobreposicao(inicio, fim, b.inicio, b.fim)),
+                passado: ehPassado(selectedDate, inicio),
             });
         }
         return slots;
@@ -165,6 +204,14 @@ const Disponibilidade: React.FC = () => {
     const handleReserveSlot = (time: string) => {
         if (!selectedEquipment || !selectedDate) return;
         const dateStr = paraISO(selectedDate);
+
+        // Rede de seguranca: o dia bloqueado ja nao e clicavel, mas o bloqueio
+        // pode ter sido criado depois que esta tela carregou.
+        const bloqueio = bloqueioDoDia(blockedDates, dateStr, selectedEquipment);
+        if (bloqueio) {
+            alert(`Esta data está bloqueada. Motivo: ${motivoDoBloqueio(bloqueio)}`);
+            return;
+        }
         if (isLoggedIn) {
             navigate('/agendamento', {
                 state: { equipmentId: selectedEquipment, preDate: dateStr, preTime: time }
@@ -276,6 +323,7 @@ const Disponibilidade: React.FC = () => {
                                     <span><span className="legend-dot free" /> Livre</span>
                                     <span><span className="legend-dot booked" /> Com reservas</span>
                                     <span><span className="legend-dot disabled" /> Indisponível</span>
+                                    <span><span className="legend-dot bloqueado" /> Bloqueado (feriado/recesso)</span>
                                 </div>
                             </div>
 
@@ -284,21 +332,25 @@ const Disponibilidade: React.FC = () => {
                                 <div className="disp-timeslots" aria-label={`Horários para ${selectedDate.toLocaleDateString('pt-BR')}`}>
                                     <h3>Horários — {selectedDate.toLocaleDateString('pt-BR')}</h3>
                                     <div className="timeslot-grid">
-                                        {generateTimeSlots().map(slot => (
-                                            <div key={slot.time} className={`timeslot ${slot.isBooked ? 'booked' : 'free'}`}>
-                                                <span className="timeslot-time">{slot.time}</span>
-                                                <span className="timeslot-label">{slot.isBooked ? 'Ocupado' : 'Livre'}</span>
-                                                {!slot.isBooked && (
-                                                    <button
-                                                        className="timeslot-reserve-btn"
-                                                        onClick={() => handleReserveSlot(slot.time)}
-                                                        aria-label={`Reservar às ${slot.time}`}
-                                                    >
-                                                        Reservar
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
+                                        {generateTimeSlots().map(slot => {
+                                            const indisponivel = slot.isBooked || slot.passado;
+                                            const rotulo = slot.isBooked ? 'Ocupado' : slot.passado ? 'Já passou' : 'Livre';
+                                            return (
+                                                <div key={slot.time} className={`timeslot ${indisponivel ? 'booked' : 'free'}`}>
+                                                    <span className="timeslot-time">{slot.time}</span>
+                                                    <span className="timeslot-label">{rotulo}</span>
+                                                    {!indisponivel && (
+                                                        <button
+                                                            className="timeslot-reserve-btn"
+                                                            onClick={() => handleReserveSlot(slot.time)}
+                                                            aria-label={`Reservar às ${slot.time}`}
+                                                        >
+                                                            Reservar
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}

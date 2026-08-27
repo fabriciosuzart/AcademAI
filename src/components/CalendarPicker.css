@@ -93,10 +93,21 @@
     border: 1px dashed #334155;
 }
 
+/* Feriado ou recesso: precisa se distinguir de "fim de semana", senao o
+   usuario nao entende por que uma terca-feira esta trancada. */
+.calendar-day.disabled.bloqueado {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px dashed rgba(239, 68, 68, 0.45);
+    color: #f87171;
+}
+
 .calendar-legend {
     margin-top: 15px;
     font-size: 0.85rem;
     color: #94a3b8;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
 }
 
 .legend-item {
@@ -114,6 +125,20 @@
 
 .dot.blocked {
     background: #475569;
+}
+
+.dot.bloqueado {
+    background: #f87171;
+}
+
+.calendar-aviso {
+    margin: 0 0 15px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: #fbbf24;
+    font-size: 0.9rem;
 }
 
 /* TIME SECTION */

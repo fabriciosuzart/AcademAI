@@ -221,6 +221,14 @@
     color: #334155;
     background: rgba(30, 41, 59, 0.3);
 }
+/* Feriado ou recesso: precisa se distinguir de "fim de semana", senao o
+   usuario nao entende por que uma terca-feira esta trancada. */
+.disp-day.disabled.bloqueado {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px dashed rgba(239, 68, 68, 0.45);
+    cursor: not-allowed;
+}
 .disp-day.selectable {
     cursor: pointer;
     color: #cbd5e1;
@@ -269,6 +277,7 @@
 .legend-dot.free { background: #334155; border: 1px solid #64748b; }
 .legend-dot.booked { background: #f59e0b; }
 .legend-dot.disabled { background: #1e293b; }
+.legend-dot.bloqueado { background: #f87171; }
 
 /* Time slots */
 .disp-timeslots {
