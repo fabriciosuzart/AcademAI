@@ -1,3 +1,49 @@
+/* ── Design tokens ──────────────────────────────────────────
+   Paleta unica do AcademAI. Antes existiam ~56 cores hex soltas e
+   dois "azuis primarios" concorrentes (sky #38bdf8 vs blue #3b82f6)
+   que ninguem escolheu — surgiram por copia entre telas. Agora a
+   identidade mora aqui; as telas referenciam var(--...).
+   A escala e o Tailwind slate/sky/indigo, que o projeto ja usava cru.
+   As cores RGB abaixo (--*-rgb) alimentam os rgba() de sombra/overlay. */
+:root {
+  /* Marca: gradiente sky -> indigo, o mais usado no projeto */
+  --brand-1: #0ea5e9;
+  --brand-2: #4f46e5;
+  --brand-gradient: linear-gradient(135deg, var(--brand-1), var(--brand-2));
+
+  /* Acento primario (foco, links, realces) — o sky dominante */
+  --accent: #38bdf8;
+  --accent-rgb: 56, 189, 248;
+  --accent-strong: #0ea5e9;
+  --accent-soft: #7dd3fc;
+  --accent-2: #818cf8;     /* indigo-400, acento secundario */
+
+  /* Superficies (escala slate) */
+  --bg: #0f172a;
+  --bg-rgb: 15, 23, 42;
+  --surface: #1e293b;
+  --surface-2: #0f172a;
+  --bg-deep: #060d1a;   /* fundo das telas de login/cadastro */
+  --border: #334155;
+  --border-strong: #475569;
+
+  /* Texto */
+  --text: #f8fafc;
+  --text-hi: #e2e8f0;
+  --text-2: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+
+  /* Estados */
+  --danger: #ef4444;
+  --danger-rgb: 239, 68, 68;
+  --danger-soft: #f87171;
+  --success: #10b981;
+  --warning: #fbbf24;
+
+  --white: #ffffff;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -12,10 +58,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
   
   /* Fundo Escuro Global Premium */
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background: linear-gradient(135deg, var(--bg) 0%, var(--surface) 100%);
   background-attachment: fixed;
   
-  color: #f8fafc; /* Contraste melhorado para o fundo escuro (RF29) */
+  color: var(--text); /* Contraste melhorado para o fundo escuro (RF29) */
   min-height: 100vh; /* Garante que o fundo cubra tudo */
 }
 
@@ -29,7 +75,7 @@ body {
 
 /* Acessibilidade: Navegação por Teclado (RF25) */
 *:focus-visible {
-  outline: 2px solid #38bdf8;
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
   border-radius: 4px;
 }

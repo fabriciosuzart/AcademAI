@@ -1,7 +1,7 @@
 /* Fundo Dark Theme Premium */
 .assistente-container {
   min-height: calc(100vh - 80px);
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background: linear-gradient(135deg, var(--bg) 0%, var(--surface) 100%);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -81,18 +81,18 @@
 }
 
 .message.user .avatar {
-  background: linear-gradient(135deg, #0ea5e9, #4f46e5);
+  background: linear-gradient(135deg, var(--accent-strong), var(--brand-2));
 }
 
 .message.ai .avatar {
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: linear-gradient(135deg, var(--success), #059669);
 }
 
 .message-content {
   background: rgba(255, 255, 255, 0.1);
   padding: 15px 20px;
   border-radius: 20px;
-  color: #f8fafc;
+  color: var(--text);
   line-height: 1.5;
   font-size: 1.05rem;
   border: 1px solid rgba(255, 255, 255, 0.05);
@@ -128,7 +128,7 @@
 }
 
 .input-wrapper:focus-within {
-  border-color: #38bdf8;
+  border-color: var(--accent);
   background: rgba(0, 0, 0, 0.3);
   box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
 }
@@ -137,7 +137,7 @@
   flex: 1;
   background: transparent;
   border: none;
-  color: #f8fafc;
+  color: var(--text);
   font-size: 1rem;
   resize: none;
   outline: none;
@@ -146,14 +146,14 @@
 }
 
 .input-wrapper textarea::placeholder {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 /* Botões do Chat */
 .icon-button {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 1.4rem;
   cursor: pointer;
   padding: 10px;
@@ -162,27 +162,27 @@
 }
 
 .icon-button:hover {
-  color: #38bdf8;
+  color: var(--accent);
   background: rgba(255, 255, 255, 0.1);
 }
 
 .icon-button.active {
-  color: #10b981;
+  color: var(--success);
 }
 
 .mic-button.listening {
-  color: #ef4444;
+  color: var(--danger);
   animation: pulse-mic 1.5s infinite;
 }
 
 @keyframes pulse-mic {
   0% { transform: scale(1); }
-  50% { transform: scale(1.1); text-shadow: 0 0 10px #ef4444; }
+  50% { transform: scale(1.1); text-shadow: 0 0 10px var(--danger); }
   100% { transform: scale(1); }
 }
 
 .send-btn {
-  background: linear-gradient(135deg, #0ea5e9, #4f46e5);
+  background: linear-gradient(135deg, var(--accent-strong), var(--brand-2));
   color: white;
   border: none;
   width: 45px;
@@ -203,10 +203,10 @@
 
 .send-btn:disabled {
   background: rgba(255, 255, 255, 0.1);
-  color: #64748b;
+  color: var(--text-dim);
   cursor: not-allowed;
 }
 
 .stop-btn {
-  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  background: linear-gradient(135deg, var(--danger), #b91c1c);
 }

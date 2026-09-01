@@ -37,11 +37,11 @@
   height: 38px;
   width: 38px;
   flex-shrink: 0;
-  color: #38bdf8;
+  color: var(--accent);
 }
 
 .navbar-logo:hover .logo-image {
-  color: #818cf8;
+  color: var(--accent-2);
   transition: color 0.25s ease;
 }
 
@@ -56,7 +56,7 @@
   font-size: 1.6rem;
   font-weight: 800;
   padding: 0 8px;
-  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -78,7 +78,7 @@
 }
 
 .nav-link {
-  color: #cbd5e1;
+  color: var(--text-2);
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
@@ -89,14 +89,14 @@
 }
 
 .nav-link:hover {
-  color: #ffffff;
+  color: var(--white);
   background: rgba(255, 255, 255, 0.1);
   box-shadow: 0 4px 15px rgba(255, 255, 255, 0.05);
 }
 
 /* Botão de Login Especial */
 .login-btn {
-  background: linear-gradient(135deg, #0ea5e9, #4f46e5);
+  background: linear-gradient(135deg, var(--accent-strong), var(--brand-2));
   color: #fff !important;
   padding: 8px 24px;
   border-radius: 999px;
@@ -106,7 +106,7 @@
 .login-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(14, 165, 233, 0.5);
-  background: linear-gradient(135deg, #38bdf8, #6366f1);
+  background: linear-gradient(135deg, var(--accent), #6366f1);
 }
 
 /* Caixa de Usuário / Logout */
@@ -124,7 +124,7 @@
 }
 
 .nav-user-name {
-  color: #38bdf8 !important;
+  color: var(--accent) !important;
   font-weight: 700;
   white-space: nowrap;
   font-size: 13px;
@@ -132,14 +132,14 @@
 }
 
 .nav-user-name:hover {
-  color: #818cf8 !important;
+  color: var(--accent-2) !important;
   text-shadow: 0 0 10px rgba(129, 140, 248, 0.5);
 }
 
 .logout-btn {
   background: transparent;
-  color: #ef4444;
-  border: 1px solid #ef4444;
+  color: var(--danger);
+  border: 1px solid var(--danger);
   padding: 6px 16px;
   border-radius: 999px;
   font-weight: 600;
@@ -148,7 +148,7 @@
 }
 
 .logout-btn:hover {
-  background: #ef4444;
+  background: var(--danger);
   color: white;
   box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
 }
@@ -162,7 +162,7 @@
 .nav-icon div {
   width: 25px;
   height: 3px;
-  background-color: #f8fafc;
+  background-color: var(--text);
   margin: 5px;
   transition: all 0.3s ease;
 }
