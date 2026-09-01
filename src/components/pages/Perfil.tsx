@@ -257,19 +257,17 @@ const Perfil: React.FC = () => {
     if (!window.confirm(`Tem certeza que deseja ${action} a conta de ${user.name}?`)) return;
 
     try {
-      const token = localStorage.getItem("userToken");
-      const res = await fetch(`http://localhost:3000/api/users/${user.id}/toggle-active`, {
-        method: "PUT",
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      if (res.ok) {
-        alert(`Conta ${action}da com sucesso!`);
-        fetchAdminUsers();
-      } else {
-        const data = await res.json();
-        alert("Erro: " + data.error);
+      // Antes lia localStorage "userToken", chave que o Login nunca grava (o
+      // certo e "token"): o header saia "Bearer null" e o backend respondia 401,
+      // deixando ativar/desativar conta quebrado. api injeta o token correto.
+      await api.put(`/users/${user.id}/toggle-active`);
+      alert(`Conta ${action}da com sucesso!`);
+      fetchAdminUsers();
+    } catch (error: any) {
+      if (error.response) {
+        alert("Erro: " + (error.response.data?.error || "falha ao alterar a conta."));
+        return;
       }
-    } catch (error) {
       alert("Erro de conexão ao alterar status.");
     }
   };
@@ -776,24 +774,15 @@ const Perfil: React.FC = () => {
     if (newPassword !== confirmPassword)
       return alert("As senhas não coincidem.");
 
-    const userId = localStorage.getItem("userId");
     try {
-      const res = await fetch("http://localhost:3000/api/change-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, currentPassword, newPassword }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        alert(data.message);
-        setCurrentPassword("");
-        setNewPassword("");
-        setConfirmPassword("");
-      } else {
-        alert("Erro: " + data.error);
-      }
-    } catch (error) {
-      alert("Erro de conexão com o servidor.");
+      // O backend identifica o usuario pelo token; o corpo leva so as senhas.
+      const { data } = await api.post("/change-password", { currentPassword, newPassword });
+      alert(data.message);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      alert("Erro: " + (error.response?.data?.error || "falha de conexão com o servidor."));
     }
   };
 
