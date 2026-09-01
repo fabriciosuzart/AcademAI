@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import { authMiddleware, roleMiddleware } from './middlewares/auth.js';
 import { STATUS, ehManutencao } from './status.js';
 import { HORA_ABERTURA, HORA_FECHAMENTO, clausulaDeConflito, horarioValido, paraMinutos } from './horarios.js';
+import { buscarBloqueioQueImpede, criarBloqueioSeNovo, motivoDoBloqueio, normalizarEquipmentId } from './bloqueios.js';
 import { pipeline } from '@xenova/transformers';
 import fetch from 'node-fetch';
 import fs from 'fs';
@@ -883,14 +884,9 @@ app.post('/api/schedule', authMiddleware, async (req, res) => {
             return res.status(403).json({ error: "Este equipamento está bloqueado para uso no momento e não aceita reservas." });
         }
 
-        const blockedDate = await prisma.blockedDate.findFirst({
-            where: {
-                date: date,
-                OR: [ { equipmentId: null }, { equipmentId: eqId } ]
-            }
-        });
+        const blockedDate = await buscarBloqueioQueImpede(prisma, date, eqId);
         if (blockedDate) {
-            return res.status(403).json({ error: `A data selecionada está bloqueada. Motivo: ${blockedDate.reason || 'Feriado/Recesso'}` });
+            return res.status(403).json({ error: `A data selecionada está bloqueada. Motivo: ${motivoDoBloqueio(blockedDate)}` });
         }
 
         // Sem hora de término não existe reserva com duração: a tela mostrava
@@ -1026,15 +1022,10 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
         // sem reconferir confirmaria uma reserva num dia fechado.
         // Rejeitar segue permitido — a data bloqueada e ate um motivo para isso.
         if (status === 'APROVADA') {
-            const diaBloqueado = await prisma.blockedDate.findFirst({
-                where: {
-                    date: appointment.date,
-                    OR: [{ equipmentId: null }, { equipmentId: appointment.equipmentId }]
-                }
-            });
+            const diaBloqueado = await buscarBloqueioQueImpede(prisma, appointment.date, appointment.equipmentId);
             if (diaBloqueado) {
                 return res.status(409).json({
-                    error: `Não é possível aprovar: a data ${appointment.date} foi bloqueada depois do pedido. Motivo: ${diaBloqueado.reason || 'Feriado/Recesso'}. Rejeite a reserva ou remova o bloqueio.`
+                    error: `Não é possível aprovar: a data ${appointment.date} foi bloqueada depois do pedido. Motivo: ${motivoDoBloqueio(diaBloqueado)}. Rejeite a reserva ou remova o bloqueio.`
                 });
             }
 
@@ -1598,13 +1589,21 @@ app.post('/api/blocked-dates', authMiddleware, roleMiddleware(['ADMIN']), async 
     try {
         const { date, reason, equipmentId } = req.body;
         if (!date) return res.status(400).json({ error: "Data é obrigatória." });
-        
-        const newBlock = await prisma.blockedDate.create({
-            data: { date, reason, equipmentId: equipmentId ? parseInt(equipmentId) : null }
-        });
-        res.status(201).json({ message: "Data bloqueada com sucesso!", block: newBlock });
+
+        const eqId = normalizarEquipmentId(equipmentId);
+        if (eqId !== null) {
+            const equipamento = await prisma.equipment.findUnique({ where: { id: eqId } });
+            // Sem esta conferencia o id inexistente estourava a chave estrangeira
+            // e virava 500, quando o problema e do pedido.
+            if (!equipamento) return res.status(400).json({ error: "Equipamento não encontrado." });
+        }
+
+        const { bloqueio, criado } = await criarBloqueioSeNovo(prisma, { date, reason, equipmentId: eqId });
+        if (!criado) {
+            return res.status(400).json({ error: "Esta data já está bloqueada para esta configuração." });
+        }
+        res.status(201).json({ message: "Data bloqueada com sucesso!", block: bloqueio });
     } catch (e) {
-        if (e.code === 'P2002') return res.status(400).json({ error: "Esta data já está bloqueada para esta configuração." });
         console.error(e);
         res.status(500).json({ error: "Erro ao bloquear data." });
     }

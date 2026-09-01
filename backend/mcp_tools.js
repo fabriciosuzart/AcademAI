@@ -2,6 +2,7 @@
 import { PrismaClient } from '@prisma/client';
 import { ehManutencao } from './status.js';
 import { DURACAO_PADRAO, clausulaDeConflito, horarioValido, somarMinutos } from './horarios.js';
+import { buscarBloqueioQueImpede, motivoDoBloqueio } from './bloqueios.js';
 const prisma = new PrismaClient();
 
 // 1. Ferramenta: Consultar Equipamentos
@@ -97,15 +98,9 @@ export async function executarSolicitacaoReserva(args, userId) {
         }
 
         // 2b. Data bloqueada — global (equipmentId null) ou so deste equipamento
-        const diaBloqueado = await prisma.blockedDate.findFirst({
-            where: {
-                date: args.date,
-                OR: [{ equipmentId: null }, { equipmentId: equipamento.id }]
-            }
-        });
+        const diaBloqueado = await buscarBloqueioQueImpede(prisma, args.date, equipamento.id);
         if (diaBloqueado) {
-            const motivo = diaBloqueado.reason || 'Feriado/Recesso';
-            return `A data ${args.date} está bloqueada para reservas. Motivo: ${motivo}. Avise o usuário e peça que escolha outra data.`;
+            return `A data ${args.date} está bloqueada para reservas. Motivo: ${motivoDoBloqueio(diaBloqueado)}. Avise o usuário e peça que escolha outra data.`;
         }
 
         // 3. Verificar conflito de horário (RF16)
