@@ -23,3 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 backend/vector_cache.json
+
+/src/generated/prisma
+
+backend/uploads/
+*.db
+vector_cache.json
+*.tsbuildinfo

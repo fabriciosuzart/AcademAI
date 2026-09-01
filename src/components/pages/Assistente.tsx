@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Bot, User, Brain, Volume2, VolumeX, Mic, Square, Send } from 'lucide-react';
 import './Assistente.css';
 
 interface Message {
@@ -29,6 +30,21 @@ const Assistente: React.FC = () => {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
+
+  // Processa comandos de voz globais
+  useEffect(() => {
+    const checkPendingCommand = () => {
+      const pendingCmd = sessionStorage.getItem('pending_voice_command');
+      if (pendingCmd) {
+        sessionStorage.removeItem('pending_voice_command');
+        handleSend(pendingCmd);
+      }
+    };
+
+    checkPendingCommand(); // Na montagem
+    window.addEventListener('process-pending-voice', checkPendingCommand);
+    return () => window.removeEventListener('process-pending-voice', checkPendingCommand);
+  }, []);
 
   // --- TEXT TO SPEECH (IA Fala) ---
   const speak = (text: string) => {
@@ -62,7 +78,7 @@ const Assistente: React.FC = () => {
     setMessages(prev => [...prev, {
       id: Date.now(),
       sender: 'ai',
-      text: "🛑 Geração interrompida pelo usuário."
+      text: "Geração interrompida pelo usuário."
     }]);
   };
 
@@ -85,17 +101,35 @@ const Assistente: React.FC = () => {
     try {
       abortControllerRef.current = new AbortController();
 
-      // Pegando o ID do usuário logado do cache do navegador 
       const idLogado = localStorage.getItem('userId');
+      const token = localStorage.getItem('token');
 
-      console.log("ID enviado:", idLogado);
+      // O backend aceita 'history' e monta o contexto da conversa com ele, mas
+      // nada estava enviando — cada pergunta chegava sem memória do que veio
+      // antes. Mandamos as últimas trocas, limitadas para não crescer sem fim.
+      const HISTORICO_MAX = 10;
+      const history = messages
+        .filter(m => m.text.trim())
+        .slice(-HISTORICO_MAX)
+        .map(m => ({
+          role: m.sender === 'user' ? 'user' : 'assistant',
+          content: m.text
+        }));
+
+      // Continuamos com fetch em vez do cliente axios porque esta rota responde
+      // em streaming, e o axios no navegador só entrega o corpo já completo.
+      // Os headers abaixo replicam o que o interceptor de src/api/axios.ts injeta.
       const response = await fetch('http://localhost:3000/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // 👇 Agora enviamos a mensagem E o userId 👇
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(idLogado ? { 'X-User-Id': idLogado } : {})
+        },
         body: JSON.stringify({
           message: textToSend,
-          userId: idLogado ? parseInt(idLogado) : null
+          userId: idLogado ? parseInt(idLogado) : null,
+          history
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -174,24 +208,28 @@ const Assistente: React.FC = () => {
   };
 
   return (
-    <div className="assistente-container">
+    <div className="assistente-container" role="main" aria-label="Assistente Virtual de Inteligência Artificial">
       <div className="chat-interface">
-        <div className="chat-history">
+        <div className="chat-history" aria-live="polite" aria-label="Histórico de mensagens do chat">
           {messages.map((msg) => (
             <div key={msg.id} className={`message ${msg.sender}`}>
-              <div className="avatar">{msg.sender === 'ai' ? '🤖' : '👤'}</div>
+              <div className="avatar">
+                {msg.sender === 'ai'
+                  ? <Bot size={20} aria-hidden="true" />
+                  : <User size={20} aria-hidden="true" />}
+              </div>
               <div className="message-content">
                 {/* Se for IA e o texto estiver vazio, mostra o indicador, senão mostra o texto */}
                 <p>
                   {msg.sender === 'ai' && msg.text === '' ? (
-                    <span className="blinking-cursor">Pensando... 🧠</span>
+                    <span className="blinking-cursor"><Brain size={16} aria-hidden="true" /> Pensando...</span>
                   ) : (
                     msg.text
                   )}
                 </p>
 
                 {msg.sender === 'ai' && msg.text !== '' && (
-                  <button type="button" className="speak-btn" onClick={() => speak(msg.text)} title="Ouvir">🔊</button>
+                  <button type="button" className="speak-btn" onClick={() => speak(msg.text)} title="Ouvir resposta" aria-label="Ouvir resposta da Inteligência Artificial em áudio"><Volume2 size={16} aria-hidden="true" /></button>
                 )}
               </div>
             </div>
@@ -208,9 +246,10 @@ const Assistente: React.FC = () => {
                 type="button"
                 className={`icon-button speech-toggle ${isSpeechEnabled ? 'active' : ''}`}
                 onClick={() => setIsSpeechEnabled(!isSpeechEnabled)}
-                title={isSpeechEnabled ? "Desativar fala" : "Ativar fala"}
+                title={isSpeechEnabled ? "Desativar fala automática" : "Ativar fala automática"}
+                aria-label={isSpeechEnabled ? "Desativar leitura em voz alta automática" : "Ativar leitura em voz alta automática das mensagens da Inteligência Artificial"}
               >
-                {isSpeechEnabled ? '🔊' : '🔇'}
+                {isSpeechEnabled ? <Volume2 size={20} aria-hidden="true" /> : <VolumeX size={20} aria-hidden="true" />}
               </button>
 
               <button
@@ -218,9 +257,10 @@ const Assistente: React.FC = () => {
                 className={`icon-button mic-button ${isListening ? 'listening' : ''}`}
                 onClick={startListening}
                 disabled={isLoading}
-                title="Falar"
+                title={isListening ? "Parar gravação" : "Falar no microfone"}
+                aria-label={isListening ? "Parar de ouvir o microfone" : "Iniciar reconhecimento de voz pelo microfone"}
               >
-                {isListening ? '🛑' : '🎙️'}
+                {isListening ? <Square size={20} aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
               </button>
 
               <textarea
@@ -230,6 +270,7 @@ const Assistente: React.FC = () => {
                 placeholder="Digite sua dúvida ou use o microfone..."
                 rows={1}
                 disabled={isLoading}
+                aria-label="Caixa de texto para digitar sua mensagem para o assistente"
               />
 
               {isLoading ? (
@@ -237,7 +278,8 @@ const Assistente: React.FC = () => {
                   type="button"
                   className="send-btn stop-btn"
                   onClick={handleStop}
-                  title="Parar resposta"
+                  title="Interromper resposta"
+                  aria-label="Interromper geração da resposta da Inteligência Artificial"
                 >
                   ⏹️
                 </button>
@@ -247,8 +289,9 @@ const Assistente: React.FC = () => {
                   className="send-btn"
                   onClick={() => handleSend()}
                   disabled={!input.trim()}
+                  aria-label="Enviar mensagem digitada"
                 >
-                  ➤
+                  <Send size={20} aria-hidden="true" />
                 </button>
               )}
 

@@ -1,0 +1,65 @@
+.notificacoes-container {
+    padding: 40px;
+    max-width: 800px;
+    margin: 0 auto;
+    color: white;
+}
+
+.notificacoes-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.notificacoes-header h1 {
+    margin: 0;
+}
+
+.mark-all-btn {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.notificacoes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.notification-item {
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 4px solid #3b82f6;
+}
+
+.notification-item.read {
+    border-left: 4px solid #94a3b8;
+    opacity: 0.7;
+}
+
+.notification-content p {
+    margin: 5px 0;
+}
+
+.read-btn {
+    background: transparent;
+    border: 1px solid #94a3b8;
+    color: #cbd5e1;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.read-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
