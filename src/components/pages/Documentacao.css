@@ -3,9 +3,9 @@
   padding: 60px 20px;
   max-width: 1000px;
   margin: 0 auto;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background: linear-gradient(135deg, var(--bg) 0%, var(--surface) 100%);
   min-height: calc(100vh - 80px);
-  color: #f8fafc;
+  color: var(--text);
   font-family: 'Inter', sans-serif;
 }
 
@@ -14,7 +14,7 @@
   font-weight: 900;
   margin-bottom: 40px;
   text-align: center;
-  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -39,7 +39,7 @@
 
 .doc-section h2 {
   font-size: 1.8rem;
-  color: #38bdf8;
+  color: var(--accent);
   margin-top: 0;
   margin-bottom: 20px;
   display: flex;
@@ -48,7 +48,7 @@
 }
 
 .doc-section p, .doc-section li {
-  color: #cbd5e1;
+  color: var(--text-2);
   line-height: 1.7;
   font-size: 1.05rem;
 }

@@ -1,8 +1,8 @@
 .disponibilidade-page {
     min-height: 100vh;
     padding: 30px 20px 60px;
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
-    color: #e2e8f0;
+    background: linear-gradient(135deg, var(--bg) 0%, var(--surface) 50%, var(--bg) 100%);
+    color: var(--text-hi);
 }
 
 .disp-header {
@@ -11,14 +11,14 @@
 }
 .disp-header h1 {
     font-size: 2rem;
-    background: linear-gradient(135deg, #60a5fa, #a78bfa);
+    background: linear-gradient(135deg, var(--accent), #a78bfa);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
     margin-bottom: 8px;
 }
 .disp-header p {
-    color: #94a3b8;
+    color: var(--text-muted);
     font-size: 1rem;
 }
 
@@ -40,16 +40,16 @@
 .disp-filter label {
     display: block;
     font-size: 0.85rem;
-    color: #94a3b8;
+    color: var(--text-muted);
     margin-bottom: 6px;
 }
 .disp-filter select {
     width: 100%;
     padding: 10px 12px;
     border-radius: 10px;
-    border: 1px solid #334155;
-    background: #1e293b;
-    color: #e2e8f0;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-hi);
     font-size: 0.9rem;
 }
 .disp-equipment-list {
@@ -66,22 +66,22 @@
     gap: 10px;
     padding: 12px 14px;
     background: rgba(30, 41, 59, 0.8);
-    border: 1px solid #334155;
+    border: 1px solid var(--border);
     border-radius: 10px;
     cursor: pointer;
     transition: all 0.2s;
-    color: #cbd5e1;
+    color: var(--text-2);
     font-size: 0.9rem;
     text-align: left;
 }
 .disp-eq-card:hover {
     background: rgba(59, 130, 246, 0.1);
-    border-color: #3b82f6;
+    border-color: var(--accent);
 }
 .disp-eq-card.active {
     background: rgba(59, 130, 246, 0.15);
-    border-color: #3b82f6;
-    color: #60a5fa;
+    border-color: var(--accent);
+    color: var(--accent);
     font-weight: 600;
 }
 .eq-status-dot {
@@ -90,13 +90,13 @@
     border-radius: 50%;
     flex-shrink: 0;
 }
-.eq-status-dot.available { background: #10b981; }
+.eq-status-dot.available { background: var(--success); }
 .eq-status-dot.in-use { background: #f59e0b; }
-.eq-status-dot.maintenance { background: #ef4444; }
+.eq-status-dot.maintenance { background: var(--danger); }
 .eq-name { flex: 1; }
 .loading-text {
     text-align: center;
-    color: #64748b;
+    color: var(--text-dim);
     padding: 30px;
 }
 
@@ -104,7 +104,7 @@
 .disp-main {
     flex: 1;
     background: rgba(15, 23, 42, 0.6);
-    border: 1px solid #1e293b;
+    border: 1px solid var(--surface);
     border-radius: 16px;
     padding: 28px;
     backdrop-filter: blur(10px);
@@ -119,11 +119,11 @@
     margin-bottom: 16px;
 }
 .disp-empty-state h2 {
-    color: #cbd5e1;
+    color: var(--text-2);
     margin-bottom: 8px;
 }
 .disp-empty-state p {
-    color: #64748b;
+    color: var(--text-dim);
 }
 
 .disp-resource-header {
@@ -135,7 +135,7 @@
 .disp-resource-header h2 {
     margin: 0;
     font-size: 1.4rem;
-    color: #f1f5f9;
+    color: var(--text);
 }
 .disp-status-badge {
     padding: 4px 14px;
@@ -145,7 +145,7 @@
 }
 .disp-status-badge.available {
     background: rgba(16, 185, 129, 0.15);
-    color: #10b981;
+    color: var(--success);
     border: 1px solid rgba(16, 185, 129, 0.3);
 }
 .disp-status-badge.unavailable {
@@ -166,8 +166,8 @@
 }
 .cal-nav button {
     background: rgba(59, 130, 246, 0.1);
-    border: 1px solid #334155;
-    color: #60a5fa;
+    border: 1px solid var(--border);
+    color: var(--accent);
     width: 36px;
     height: 36px;
     border-radius: 10px;
@@ -177,11 +177,11 @@
 }
 .cal-nav button:hover {
     background: rgba(59, 130, 246, 0.2);
-    border-color: #3b82f6;
+    border-color: var(--accent);
 }
 .cal-nav h3 {
     margin: 0;
-    color: #e2e8f0;
+    color: var(--text-hi);
     font-size: 1.1rem;
 }
 .cal-weekdays {
@@ -192,7 +192,7 @@
 }
 .cal-weekdays span {
     font-size: 0.8rem;
-    color: #64748b;
+    color: var(--text-dim);
     font-weight: 600;
     padding: 6px 0;
 }
@@ -218,30 +218,30 @@
     background: transparent;
 }
 .disp-day.disabled {
-    color: #334155;
+    color: var(--border);
     background: rgba(30, 41, 59, 0.3);
 }
 /* Feriado ou recesso: precisa se distinguir de "fim de semana", senao o
    usuario nao entende por que uma terca-feira esta trancada. */
 .disp-day.disabled.bloqueado {
-    color: #f87171;
+    color: var(--danger-soft);
     background: rgba(239, 68, 68, 0.12);
     border: 1px dashed rgba(239, 68, 68, 0.45);
     cursor: not-allowed;
 }
 .disp-day.selectable {
     cursor: pointer;
-    color: #cbd5e1;
+    color: var(--text-2);
     background: rgba(30, 41, 59, 0.5);
 }
 .disp-day.selectable:hover {
     background: rgba(59, 130, 246, 0.15);
-    border-color: #3b82f6;
+    border-color: var(--accent);
 }
 .disp-day.selected {
     background: rgba(59, 130, 246, 0.25) !important;
-    border-color: #3b82f6 !important;
-    color: #60a5fa;
+    border-color: var(--accent) !important;
+    color: var(--accent);
     font-weight: bold;
 }
 .disp-day.has-booking {
@@ -266,7 +266,7 @@
     align-items: center;
     gap: 6px;
     font-size: 0.8rem;
-    color: #94a3b8;
+    color: var(--text-muted);
 }
 .legend-dot {
     width: 8px;
@@ -274,19 +274,19 @@
     border-radius: 50%;
     display: inline-block;
 }
-.legend-dot.free { background: #334155; border: 1px solid #64748b; }
+.legend-dot.free { background: var(--border); border: 1px solid var(--text-dim); }
 .legend-dot.booked { background: #f59e0b; }
-.legend-dot.disabled { background: #1e293b; }
-.legend-dot.bloqueado { background: #f87171; }
+.legend-dot.disabled { background: var(--surface); }
+.legend-dot.bloqueado { background: var(--danger-soft); }
 
 /* Time slots */
 .disp-timeslots {
-    border-top: 1px solid #1e293b;
+    border-top: 1px solid var(--surface);
     padding-top: 20px;
 }
 .disp-timeslots h3 {
     margin: 0 0 16px 0;
-    color: #e2e8f0;
+    color: var(--text-hi);
     font-size: 1.1rem;
 }
 .timeslot-grid {
@@ -313,18 +313,18 @@
 .timeslot-time {
     font-size: 1.1rem;
     font-weight: 700;
-    color: #e2e8f0;
+    color: var(--text-hi);
     margin-bottom: 4px;
 }
 .timeslot-label {
     font-size: 0.75rem;
     margin-bottom: 8px;
 }
-.timeslot.free .timeslot-label { color: #10b981; }
-.timeslot.booked .timeslot-label { color: #ef4444; }
+.timeslot.free .timeslot-label { color: var(--success); }
+.timeslot.booked .timeslot-label { color: var(--danger); }
 .timeslot-reserve-btn {
     padding: 6px 16px;
-    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    background: linear-gradient(135deg, var(--accent), #6366f1);
     color: white;
     border: none;
     border-radius: 8px;
