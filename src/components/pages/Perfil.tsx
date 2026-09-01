@@ -1023,12 +1023,7 @@ const Perfil: React.FC = () => {
                     className={completedTrainings[index] ? "done" : "pending"}
                   >
                     <span
-                      className="training-dot"
-                      style={{
-                        color: completedTrainings[index]
-                          ? "#10b981"
-                          : "#ef4444",
-                      }}
+                      className={`training-dot ${completedTrainings[index] ? "training-dot-done" : "training-dot-todo"}`}
                     >
                       <Circle size={10} fill="currentColor" aria-hidden="true" />
                     </span>
@@ -1169,13 +1164,13 @@ const Perfil: React.FC = () => {
               )}
 
               {userRole === "ADMIN" && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', color: '#cbd5e1', fontSize: '0.9rem' }}>
+                <div className="pf-s01">
+                  <label className="pf-s02">
                     <input 
                       type="checkbox" 
                       checked={viewAllAppointments} 
                       onChange={(e) => setViewAllAppointments(e.target.checked)} 
-                      style={{ marginRight: '8px' }}
+                      className="pf-s03"
                     />
                     Ver todos os agendamentos (Histórico Global)
                   </label>
@@ -1218,7 +1213,7 @@ const Perfil: React.FC = () => {
                       <div>
                         <strong>{appt.equipment?.name || appt.equipment || "Agendamento"}</strong>
                         {viewAllAppointments && appt.user && (
-                          <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '2px', marginBottom: '4px' }}>
+                          <div className="pf-s04">
                             <User size={16} aria-hidden="true" /> {appt.user || appt.user?.name} ({appt.userRole || appt.user?.role})
                           </div>
                         )}
@@ -1399,7 +1394,7 @@ const Perfil: React.FC = () => {
                                 {/* Esta rota devolve equipment e user como TEXTO,
                                     nao como objeto — o codigo antigo lia
                                     equipment.name e mostrava vazio. */}
-                                <strong style={{ textTransform: "capitalize" }}>{dia}</strong>
+                                <strong className="pf-s05">{dia}</strong>
                                 <span>
                                   {formatarIntervalo(appt.startTime, appt.endTime)}{" "}
                                   &middot; {appt.equipment || "—"}
@@ -1592,14 +1587,7 @@ const Perfil: React.FC = () => {
                         <img
                           src={`http://localhost:3000${item.imagePath}`}
                           alt={item.name}
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            // 'contain' + fundo branco: as imagens sao normalizadas
-                            // em quadrado branco, entao nada precisa ser cortado.
-                            objectFit: "contain",
-                            background: "#ffffff",
-                          }}
+                          className="pf-s06"
                         />
                       ) : (
                         <span>Imagem</span>
@@ -1654,12 +1642,10 @@ const Perfil: React.FC = () => {
                           </span>
                           Editar
                         </button>
-                        <button
+                        <button className="ghost-btn small flex-1 danger pf-s07"
                           type="button"
-                          className="ghost-btn small flex-1 danger"
                           onClick={() => handleDeleteEquipment(Number(item.id), item.name)}
                           title="Excluir equipamento"
-                          style={{ borderColor: 'rgba(239, 68, 68, 0.4)', color: '#ef4444' }}
                         >
                           <span className="button-icon" aria-hidden="true">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1856,17 +1842,17 @@ const Perfil: React.FC = () => {
 
               <div className="settings-card">
                 <h3>Configurações de Voz (Jarvis Mode)</h3>
-                <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '15px' }}>
+                <p className="pf-s08">
                   Escolha qual voz o assistente utilizará para ler notificações e telas. As opções disponíveis dependem do seu navegador e sistema operacional.
                 </p>
                 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label htmlFor="voiceSelect" style={{ color: '#cbd5e1', fontSize: '0.85rem' }}>Voz Preferida:</label>
+                <div className="pf-s09">
+                  <label htmlFor="voiceSelect" className="pf-s10">Voz Preferida:</label>
                   <select 
                     id="voiceSelect" 
                     value={selectedVoiceURI} 
                     onChange={handleVoiceChange}
-                    style={{ padding: '10px', borderRadius: '8px', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155' }}
+                    className="pf-s11"
                   >
                     <option value="">-- Padrão do Sistema --</option>
                     {voices.map(v => (
@@ -1876,7 +1862,7 @@ const Perfil: React.FC = () => {
                     ))}
                   </select>
                 </div>
-                <div style={{ marginTop: '20px' }}>
+                <div className="pf-s12">
                   <button 
                     className="primary-btn small" 
                     onClick={() => {
@@ -1897,7 +1883,7 @@ const Perfil: React.FC = () => {
                     <h3>Feriados e Recessos</h3>
                     <span>Bloqueio de Agenda</span>
                   </div>
-                  <form onSubmit={handleAddBlock} className="password-form" style={{ marginBottom: '20px' }}>
+                  <form onSubmit={handleAddBlock} className="password-form pf-s13">
                     <label>Data</label>
                     <input
                       type="date"
@@ -1909,11 +1895,11 @@ const Perfil: React.FC = () => {
                     <select
                       value={blockEquipmentId}
                       onChange={(e) => setBlockEquipmentId(e.target.value)}
-                      style={{ padding: '14px 16px', borderRadius: '14px', border: '1px solid rgba(255, 255, 255, 0.08)', background: 'rgba(255, 255, 255, 0.04)', color: '#f8fafc', marginBottom: '14px', width: '100%' }}
+                      className="pf-s14"
                     >
-                      <option value="" style={{ color: 'black' }}>-- Todos os Equipamentos (Geral) --</option>
+                      <option value="" className="pf-s15">-- Todos os Equipamentos (Geral) --</option>
                       {equipmentItems.map(eq => (
-                          <option key={eq.id} value={eq.id} style={{ color: 'black' }}>{eq.name}</option>
+                          <option key={eq.id} value={eq.id} className="pf-s15">{eq.name}</option>
                       ))}
                     </select>
                     <label>Motivo (Ex: Feriado Nacional)</label>
@@ -1923,21 +1909,21 @@ const Perfil: React.FC = () => {
                       onChange={(e) => setBlockReason(e.target.value)}
                       placeholder="Ex: Emenda de feriado..."
                     />
-                    <button type="submit" className="secondary-btn" style={{ marginTop: '10px' }}>
+                    <button type="submit" className="secondary-btn pf-s16">
                       Bloquear Data
                     </button>
                   </form>
 
                   <h4>Datas Bloqueadas Ativas</h4>
-                  <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div className="pf-s17">
                     {blockedDates.length === 0 ? (
-                      <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Nenhuma data bloqueada.</p>
+                      <p className="pf-s18">Nenhuma data bloqueada.</p>
                     ) : (
                       blockedDates.map(block => (
-                        <div key={block.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '10px 14px', borderRadius: '8px' }}>
+                        <div key={block.id} className="pf-s19">
                           <div>
-                            <strong style={{ display: 'block', color: '#f8fafc' }}>{block.date.split('-').reverse().join('/')}</strong>
-                            <span style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
+                            <strong className="pf-s20">{block.date.split('-').reverse().join('/')}</strong>
+                            <span className="pf-s21">
                               {block.equipment ? `Apenas: ${block.equipment.name}` : 'Bloqueio Geral (Todos)'} 
                               {block.reason ? ` - ${block.reason}` : ''}
                             </span>
@@ -1992,24 +1978,24 @@ const Perfil: React.FC = () => {
               )}
 
               {selectedAppointment.justification && (
-                <div className="detail-row" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-                  <span className="detail-label" style={{ marginBottom: '8px' }}>Justificativa / Motivo:</span>
-                  <div className="detail-value" style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px', width: '100%', fontStyle: 'italic' }}>
+                <div className="detail-row pf-s22">
+                  <span className="detail-label pf-s23">Justificativa / Motivo:</span>
+                  <div className="detail-value pf-s24">
                     "{selectedAppointment.justification}"
                   </div>
                 </div>
               )}
 
               {selectedAppointment.rejectionReason && (
-                <div className="detail-row" style={{ flexDirection: 'column', alignItems: 'flex-start', marginTop: '10px' }}>
-                  <span className="detail-label" style={{ marginBottom: '8px', color: '#ef4444' }}>Motivo da Recusa:</span>
-                  <div className="detail-value" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid #ef4444', color: '#fca5a5', padding: '12px', borderRadius: '8px', width: '100%' }}>
+                <div className="detail-row pf-s25">
+                  <span className="detail-label pf-s26">Motivo da Recusa:</span>
+                  <div className="detail-value pf-s27">
                     {selectedAppointment.rejectionReason}
                   </div>
                 </div>
               )}
             </div>
-            <div className="modal-footer" style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+            <div className="modal-footer pf-s28">
               <button className="secondary-btn" onClick={() => setSelectedAppointment(null)}>
                 Fechar
               </button>
@@ -2020,19 +2006,13 @@ const Perfil: React.FC = () => {
 
       {isEditModalOpen && editingUser && (
         <div className="modal-overlay" onClick={closeEditModal}>
-          <div
-            className="modal-card edit-user-modal"
+          <div className="modal-card edit-user-modal pf-s29"
             onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "600px" }}
           >
             <div className="modal-header">
               <div>
                 <h3
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
+                  className="pf-s30"
                 >
                   <svg
                     width="18"
@@ -2120,7 +2100,7 @@ const Perfil: React.FC = () => {
                 </div>
               </div>
 
-              <hr className="divider" style={{ margin: "20px 0" }} />
+              <hr className="divider pf-s31" />
 
               <div className="modal-actions-footer">
                 <button
@@ -2140,8 +2120,7 @@ const Perfil: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    className="secondary-btn"
-                    style={{ padding: "8px 16px" }}
+                    className="secondary-btn pf-s32"
                   >
                     Salvar
                   </button>
@@ -2154,19 +2133,13 @@ const Perfil: React.FC = () => {
 
       {isEditEquipmentModalOpen && editingEquipment && (
         <div className="modal-overlay" onClick={closeEditEquipmentModal}>
-          <div
-            className="modal-card edit-user-modal"
+          <div className="modal-card edit-user-modal pf-s29"
             onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "600px" }}
           >
             <div className="modal-header">
               <div>
                 <h3
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
+                  className="pf-s30"
                 >
                   <svg
                     width="18"
@@ -2220,12 +2193,10 @@ const Perfil: React.FC = () => {
 
               <div className="form-group">
                 <label className="sleek-label">DESCRIÇÃO</label>
-                <textarea
-                  className="sleek-input"
+                <textarea className="sleek-input pf-s33"
                   value={editEquipmentDescription}
                   onChange={(e) => setEditEquipmentDescription(e.target.value)}
                   placeholder="Descrição do equipamento"
-                  style={{ minHeight: "80px", fontFamily: "inherit" }}
                 />
               </div>
 
@@ -2244,11 +2215,9 @@ const Perfil: React.FC = () => {
                 </div>
                 <div className="form-group flex-1">
                   <label className="sleek-label">STATUS ATUAL</label>
-                  <select
-                    className="sleek-input"
+                  <select className="sleek-input pf-s34"
                     value={editEquipmentStatus}
                     onChange={(e) => setEditEquipmentStatus(e.target.value)}
-                    style={{ cursor: "pointer" }}
                   >
                     {OPCOES_STATUS.map(({ valor, rotulo }) => (
                       <option key={valor} value={valor}>{rotulo}</option>
@@ -2259,14 +2228,9 @@ const Perfil: React.FC = () => {
 
               <div className="form-group">
                 <label className="sleek-label">TREINAMENTO OBRIGATÓRIO</label>
-                <div style={{ display: "flex", gap: "16px", marginTop: "8px" }}>
+                <div className="pf-s35">
                   <label
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      cursor: "pointer",
-                    }}
+                    className="pf-s36"
                   >
                     <input
                       type="radio"
@@ -2276,12 +2240,7 @@ const Perfil: React.FC = () => {
                     <span>Sim</span>
                   </label>
                   <label
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      cursor: "pointer",
-                    }}
+                    className="pf-s36"
                   >
                     <input
                       type="radio"
@@ -2293,7 +2252,7 @@ const Perfil: React.FC = () => {
                 </div>
               </div>
 
-              <hr className="divider" style={{ margin: "20px 0" }} />
+              <hr className="divider pf-s31" />
 
               <div className="modal-actions-footer">
                 <div className="right-actions">
@@ -2306,8 +2265,7 @@ const Perfil: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    className="secondary-btn"
-                    style={{ padding: "8px 16px" }}
+                    className="secondary-btn pf-s32"
                   >
                     Salvar
                   </button>
@@ -2320,19 +2278,13 @@ const Perfil: React.FC = () => {
 
       {isAddEquipmentModalOpen && (
         <div className="modal-overlay" onClick={closeAddEquipmentModal}>
-          <div
-            className="modal-card edit-user-modal"
+          <div className="modal-card edit-user-modal pf-s29"
             onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "600px" }}
           >
             <div className="modal-header">
               <div>
                 <h3
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
+                  className="pf-s30"
                 >
                   <svg
                     width="18"
@@ -2365,52 +2317,25 @@ const Perfil: React.FC = () => {
               {/* Image upload */}
               <div className="form-group">
                 <label className="sleek-label">IMAGEM DO EQUIPAMENTO</label>
-                <div
-                  className="image-upload-zone"
+                <div className="image-upload-zone pf-s37"
                   onClick={() =>
                     document
                       .getElementById("add-equipment-image-input")
                       ?.click()
                   }
-                  style={{
-                    border: "2px dashed rgba(56,189,248,0.35)",
-                    borderRadius: "14px",
-                    padding: "16px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    minHeight: "110px",
-                    background: "rgba(56,189,248,0.04)",
-                    overflow: "hidden",
-                    position: "relative",
-                  }}
                 >
                   {addEquipmentImagePreview ? (
                     <img
                       src={addEquipmentImagePreview}
                       alt="Preview"
-                      style={{
-                        maxHeight: "100px",
-                        maxWidth: "100%",
-                        borderRadius: "8px",
-                        objectFit: "cover",
-                      }}
+                      className="pf-s38"
                     />
                   ) : (
                     <span
-                      style={{
-                        color: "#94a3b8",
-                        fontSize: "0.9rem",
-                        textAlign: "center",
-                      }}
+                      className="pf-s39"
                     >
                       <span
-                        style={{
-                          display: "block",
-                          marginBottom: "6px",
-                          lineHeight: 0,
-                        }}
+                        className="pf-s40"
                       ></span>
                       Clique para enviar uma imagem
                     </span>
@@ -2419,7 +2344,7 @@ const Perfil: React.FC = () => {
                     id="add-equipment-image-input"
                     type="file"
                     accept="image/*"
-                    style={{ display: "none" }}
+                    className="pf-s41"
                     onChange={handleAddEquipmentImageChange}
                   />
                 </div>
@@ -2450,12 +2375,10 @@ const Perfil: React.FC = () => {
 
               <div className="form-group">
                 <label className="sleek-label">DESCRIÇÃO</label>
-                <textarea
-                  className="sleek-input"
+                <textarea className="sleek-input pf-s33"
                   value={addEquipmentDescription}
                   onChange={(e) => setAddEquipmentDescription(e.target.value)}
                   placeholder="Descrição resumida do equipamento e seu uso."
-                  style={{ minHeight: "80px", fontFamily: "inherit" }}
                 />
               </div>
 
@@ -2477,15 +2400,10 @@ const Perfil: React.FC = () => {
                     TREINAMENTO OBRIGATÓRIO?
                   </label>
                   <div
-                    style={{ display: "flex", gap: "16px", marginTop: "8px" }}
+                    className="pf-s35"
                   >
                     <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        cursor: "pointer",
-                      }}
+                      className="pf-s36"
                     >
                       <input
                         type="radio"
@@ -2496,12 +2414,7 @@ const Perfil: React.FC = () => {
                       <span>Sim</span>
                     </label>
                     <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        cursor: "pointer",
-                      }}
+                      className="pf-s36"
                     >
                       <input
                         type="radio"
@@ -2521,8 +2434,7 @@ const Perfil: React.FC = () => {
                   {OPCOES_STATUS.map(({ valor, rotulo }) => ({ value: valor, label: rotulo.toUpperCase() })).map((opt) => (
                     <label
                       key={opt.value}
-                      className={`status-radio-pill ${addEquipmentStatus === opt.value ? "selected-" + classeStatus(opt.value) : ""}`}
-                      style={{ cursor: "pointer" }}
+                      className={`status-radio-pill ${addEquipmentStatus === opt.value ? "selected-" + classeStatus(opt.value) : ""} pf-s34`}
                     >
                       <input
                         type="radio"
@@ -2530,7 +2442,7 @@ const Perfil: React.FC = () => {
                         value={opt.value}
                         checked={addEquipmentStatus === opt.value}
                         onChange={() => setAddEquipmentStatus(opt.value)}
-                        style={{ display: "none" }}
+                        className="pf-s41"
                       />
                       <span className="status-radio-dot" />
                       {opt.label}
@@ -2539,7 +2451,7 @@ const Perfil: React.FC = () => {
                 </div>
               </div>
 
-              <hr className="divider" style={{ margin: "20px 0" }} />
+              <hr className="divider pf-s31" />
 
               <div className="modal-actions-footer">
                 <div className="right-actions">
@@ -2552,8 +2464,7 @@ const Perfil: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    className="secondary-btn"
-                    style={{ padding: "8px 16px" }}
+                    className="secondary-btn pf-s32"
                   >
                     Adicionar
                   </button>
@@ -2585,37 +2496,19 @@ const Perfil: React.FC = () => {
             </div>
 
             <div
-              className="equipment-unit-list"
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "12px",
-                marginTop: "20px",
-                marginBottom: "24px",
-              }}
+              className="equipment-unit-list pf-s42"
             >
               {pauseModalGroup.items?.map((unit) => (
                 <div
                   key={unit.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    background: "rgba(255,255,255,0.05)",
-                    padding: "12px 16px",
-                    borderRadius: "12px",
-                  }}
+                  className="pf-s43"
                 >
                   <div>
-                    <div style={{ fontWeight: 600, color: "#f8fafc" }}>
+                    <div className="pf-s44">
                       {unit.name}
                     </div>
                     <div
-                      style={{
-                        fontSize: "0.8rem",
-                        color: "#94a3b8",
-                        marginTop: "4px",
-                      }}
+                      className="pf-s45"
                     >
                       Status: {rotuloStatus(unit.status)}
                     </div>
