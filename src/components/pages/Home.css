@@ -167,3 +167,15 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+/* ── Responsivo ─────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .home-main { padding: 40px 16px; }
+  .home-main h1 { font-size: 2.2rem; letter-spacing: -0.5px; }
+  .subtitle { font-size: 1.05rem; margin-bottom: 28px; }
+  .tab-button { padding: 12px 22px; font-size: 0.95rem; }
+  /* O grid de cards ja e auto-fit; aqui so garante respiro nas bordas. */
+  .info-cards { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) {
+  .home-main h1 { font-size: 1.8rem; }
+}

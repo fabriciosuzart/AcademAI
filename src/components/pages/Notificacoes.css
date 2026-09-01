@@ -63,3 +63,8 @@
 .read-btn:hover {
     background: rgba(255, 255, 255, 0.1);
 }
+
+/* ── Responsivo ─────────────────────────────────────────── */
+@media (max-width: 600px) {
+    .notificacoes-container, .notif-container { padding: 20px 14px; }
+}
