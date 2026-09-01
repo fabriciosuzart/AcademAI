@@ -23,7 +23,7 @@ const NovaSenha: React.FC = () => {
             });
             
             if (res.ok) {
-                alert("✅ Senha atualizada com sucesso! Acesso liberado.");
+                alert("Senha atualizada com sucesso! Acesso liberado.");
                 navigate('/');
             } else {
                 alert("Erro ao salvar senha.");
@@ -37,7 +37,7 @@ const NovaSenha: React.FC = () => {
                 
                 {/* Lado Esquerdo: Imagem */}
                 <div className="login-image-panel">
-                    <img src="/background2.png" alt="InovFabLab Background" />
+                    <img src="/background2.png" alt="AcademAI Background" />
                     <div className="image-overlay">
                         <h2>Segurança em Primeiro Lugar</h2>
                         <p>Mantenha sua conta protegida com uma senha forte.</p>
@@ -46,7 +46,7 @@ const NovaSenha: React.FC = () => {
 
                 {/* Lado Direito: Formulário */}
                 <div className="login-content">
-                    <h1 className="login-title" style={{color: '#e11d48'}}>⚠️ Troca Obrigatória</h1>
+                    <h1 className="login-title" style={{color: '#e11d48'}}>Troca Obrigatória</h1>
                     <p className="subtitle">Você entrou com uma senha temporária. Defina uma nova senha para continuar.</p>
                     
                     <form className="login-form" onSubmit={handleSubmit}>

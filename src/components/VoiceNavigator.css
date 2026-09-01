@@ -1,4 +1,8 @@
-/* Estilos do Botão Flutuante (FAB) de Acessibilidade */
+/* ================================================
+   VoiceNavigator — Estilos Completos
+   ================================================ */
+
+/* Container fixo no canto inferior direito */
 .voice-navigator-container {
   position: fixed;
   bottom: 30px;
@@ -7,28 +11,59 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 15px;
+  gap: 12px;
 }
 
+/* ================================================
+   Status Bubble
+   ================================================ */
 .voice-status-bubble {
-  background: rgba(15, 23, 42, 0.9);
+  /* flex: alinha o icone SVG com o texto do status, que antes eram uma
+     string unica com emoji embutido. */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.92);
   color: #38bdf8;
-  padding: 10px 20px;
+  padding: 10px 18px;
   border-radius: 12px;
   font-family: 'Inter', sans-serif;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  max-width: 260px;
+  word-break: break-word;
   animation: slideInRight 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-@keyframes slideInRight {
-  from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
+.voice-status-bubble.fade-out {
+  animation: fadeOutRight 0.4s ease forwards;
 }
 
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(24px) scale(0.95); }
+  to   { opacity: 1; transform: translateX(0)    scale(1);    }
+}
+
+@keyframes fadeOutRight {
+  from { opacity: 1; transform: translateX(0)    scale(1);    }
+  to   { opacity: 0; transform: translateX(20px) scale(0.92); }
+}
+
+/* ================================================
+   Controles inferiores: FAB + botão ajuda
+   ================================================ */
+.voice-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ================================================
+   FAB Principal (microfone)
+   ================================================ */
 .voice-fab {
   width: 60px;
   height: 60px;
@@ -36,52 +71,524 @@
   border: none;
   background: linear-gradient(135deg, #0ea5e9, #4f46e5);
   color: white;
-  font-size: 1.8rem;
+  font-size: 1.6rem;
   display: flex;
   justify-content: center;
   align-items: center;
   cursor: pointer;
-  box-shadow: 0 10px 25px rgba(14, 165, 233, 0.4);
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 8px 24px rgba(14, 165, 233, 0.45);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+              box-shadow 0.3s ease;
+  position: relative;
+  flex-shrink: 0;
 }
 
 .voice-fab:hover {
-  transform: scale(1.1) translateY(-5px);
-  box-shadow: 0 15px 30px rgba(14, 165, 233, 0.6);
+  transform: scale(1.12) translateY(-4px);
+  box-shadow: 0 14px 32px rgba(14, 165, 233, 0.65);
+}
+
+.voice-fab:active {
+  transform: scale(0.96);
 }
 
 .voice-fab.listening {
   background: linear-gradient(135deg, #ef4444, #b91c1c);
   box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
   animation: pulse-fab 1.5s infinite;
+  cursor: default;
 }
 
 @keyframes pulse-fab {
-  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-  70% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
-  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0  rgba(239, 68, 68, 0.7); }
+  70%  { transform: scale(1.06); box-shadow: 0 0 0 22px rgba(239, 68, 68, 0); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0  rgba(239, 68, 68, 0); }
 }
 
-/* Dica do atalho */
-.voice-shortcut-hint {
-  background: rgba(15, 23, 42, 0.8);
-  color: #94a3b8;
-  padding: 6px 12px;
-  border-radius: 8px;
+/* ================================================
+   Waveform animado (visível apenas quando ouvindo)
+   ================================================ */
+.voice-waveform {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 28px;
+  padding: 0 6px;
+}
+
+.voice-waveform-bar {
+  width: 4px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #38bdf8, #4f46e5);
+  animation: waveBar 0.9s ease-in-out infinite;
+}
+
+.voice-waveform-bar:nth-child(1) { height: 8px;  animation-delay: 0s;    }
+.voice-waveform-bar:nth-child(2) { height: 18px; animation-delay: 0.12s; }
+.voice-waveform-bar:nth-child(3) { height: 26px; animation-delay: 0.24s; }
+.voice-waveform-bar:nth-child(4) { height: 18px; animation-delay: 0.36s; }
+.voice-waveform-bar:nth-child(5) { height: 8px;  animation-delay: 0.48s; }
+
+@keyframes waveBar {
+  0%, 100% { transform: scaleY(0.4); opacity: 0.6; }
+  50%       { transform: scaleY(1.0); opacity: 1.0; }
+}
+
+/* ================================================
+   Botão de ajuda (?)
+   ================================================ */
+.voice-help-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(56, 189, 248, 0.45);
+  background: rgba(15, 23, 42, 0.88);
+  color: #38bdf8;
+  font-size: 1rem;
+  font-weight: 700;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: all 0.25s ease;
+  flex-shrink: 0;
+}
+
+.voice-help-btn:hover {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: #38bdf8;
+  transform: scale(1.1);
+}
+
+.voice-help-btn.active {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.15);
+}
+
+/* ================================================
+   Painel de ajuda (comandos)
+   ================================================ */
+.voice-help-panel {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  right: 0;
+  width: 300px;
+  background: rgba(10, 18, 35, 0.97);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 16px;
+  padding: 18px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+  animation: popUp 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 10000;
+}
+
+@keyframes popUp {
+  from { opacity: 0; transform: translateY(12px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+.voice-help-panel h4 {
+  color: #38bdf8;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin: 0 0 14px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.voice-help-section {
+  margin-bottom: 14px;
+}
+
+.voice-help-section:last-child {
+  margin-bottom: 0;
+}
+
+.voice-help-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #64748b;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.voice-help-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.voice-help-tag {
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #bae6fd;
+  font-family: 'Inter', sans-serif;
   font-size: 0.75rem;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-style: italic;
+}
+
+.voice-help-shortcut {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  color: #475569;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+.voice-help-shortcut kbd {
+  display: inline-block;
+  background: rgba(255,255,255,0.1);
+  color: #94a3b8;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.15);
+  font-weight: 700;
+  font-family: inherit;
+}
+
+/* ================================================
+   Dica de atalho (rodapé do FAB)
+   ================================================ */
+.voice-shortcut-hint {
+  background: rgba(15, 23, 42, 0.82);
+  color: #94a3b8;
+  padding: 5px 11px;
+  border-radius: 8px;
+  font-size: 0.72rem;
   font-family: 'Inter', sans-serif;
   text-align: center;
-  backdrop-filter: blur(5px);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.06);
 }
 
 .voice-shortcut-hint kbd {
   display: inline-block;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255,255,255,0.13);
   color: #38bdf8;
-  padding: 2px 8px;
+  padding: 1px 7px;
   border-radius: 4px;
   font-weight: 700;
   font-family: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255,255,255,0.18);
   margin-left: 4px;
+}
+
+/* ================================================
+   Onboarding tooltip (primeira visita)
+   ================================================ */
+.voice-onboarding-tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  right: 0;
+  background: linear-gradient(135deg, #0ea5e9, #4f46e5);
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-radius: 12px;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(14, 165, 233, 0.5);
+  animation: bounceTip 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  pointer-events: none;
+}
+
+.voice-onboarding-tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: -7px;
+  right: 18px;
+  width: 14px;
+  height: 14px;
+  background: #4f46e5;
+  transform: rotate(45deg);
+  border-radius: 2px;
+}
+
+@keyframes bounceTip {
+  0%   { opacity: 0; transform: translateY(10px) scale(0.9); }
+  100% { opacity: 1; transform: translateY(0)    scale(1);   }
+}
+
+/* ================================================
+   Banner de aviso de privacidade TTS (RNF07)
+   ================================================ */
+.tts-warning-banner {
+  position: fixed;
+  bottom: 110px;
+  right: 24px;
+  z-index: 10001;
+  background: rgba(15, 23, 42, 0.97);
+  border: 1px solid rgba(245, 158, 11, 0.6);
+  border-radius: 14px;
+  padding: 18px 20px;
+  max-width: 320px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(14px);
+  animation: slideInRight 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.tts-warning-banner__title {
+  color: #fbbf24;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  font-size: 0.88rem;
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tts-warning-banner__text {
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  margin: 0 0 14px 0;
+  line-height: 1.5;
+  font-family: 'Inter', sans-serif;
+}
+
+.tts-warning-banner__btn {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #1e293b;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.8rem;
+  font-family: 'Inter', sans-serif;
+  width: 100%;
+  transition: opacity 0.2s ease;
+}
+
+.tts-warning-banner__btn:hover {
+  opacity: 0.88;
+}
+
+/* ================================================
+   Overlay de escuta — borda/vignette na tela toda
+   ================================================ */
+.voice-listening-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9997;
+  border: 3px solid rgba(239, 68, 68, 0.55);
+  box-shadow: inset 0 0 90px rgba(239, 68, 68, 0.22);
+  animation: pulseOverlay 1.6s ease-in-out infinite;
+  border-radius: 0;
+}
+
+@keyframes pulseOverlay {
+  0%, 100% {
+    box-shadow: inset 0 0 70px rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: inset 0 0 130px rgba(239, 68, 68, 0.38);
+    border-color: rgba(239, 68, 68, 0.8);
+  }
+}
+
+/* ================================================
+   Banner flutuante no topo — "Ouvindo... fale agora"
+   ================================================ */
+.voice-listening-banner {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10002;
+  background: rgba(220, 38, 38, 0.94);
+  backdrop-filter: blur(14px);
+  color: #fff;
+  padding: 11px 22px;
+  border-radius: 50px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  white-space: nowrap;
+  box-shadow: 0 8px 32px rgba(220, 38, 38, 0.55),
+              0 0 0 1px rgba(255, 255, 255, 0.12);
+  animation: bannerSlideDown 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  pointer-events: none;
+}
+
+@keyframes bannerSlideDown {
+  from { opacity: 0; transform: translateX(-50%) translateY(-20px) scale(0.92); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0)      scale(1);    }
+}
+
+/* Waveform dentro do banner — barras mais claras */
+.voice-waveform--banner .voice-waveform-bar {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.voice-listening-esc {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.65);
+  border-left: 1px solid rgba(255, 255, 255, 0.25);
+  padding-left: 12px;
+  letter-spacing: 0.02em;
+}
+
+/* ================================================
+   Responsividade — Mobile
+   ================================================ */
+@media (max-width: 600px) {
+  .voice-navigator-container {
+    bottom: 18px;
+    right: 16px;
+    gap: 8px;
+  }
+
+  .voice-fab {
+    width: 52px;
+    height: 52px;
+    font-size: 1.4rem;
+  }
+
+  .voice-help-panel {
+    width: 260px;
+    right: -6px;
+  }
+
+  .voice-status-bubble {
+    max-width: 200px;
+    font-size: 0.8rem;
+  }
+
+  .tts-warning-banner {
+    right: 12px;
+    max-width: calc(100vw - 24px);
+    bottom: 90px;
+  }
+}
+
+/* ================================================
+   Siri-like Orb (Jarvis Mode)
+   ================================================ */
+.siri-orb-wrapper {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  height: 300px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 100000;
+  pointer-events: none;
+}
+
+.siri-orb-core {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #ffffff, #38bdf8, #818cf8);
+  box-shadow: 
+    0 0 40px #38bdf8,
+    inset 0 0 40px rgba(255, 255, 255, 0.8),
+    0 0 100px rgba(129, 140, 248, 0.6);
+  animation: orbPulse 2s ease-in-out infinite alternate, orbRotate 10s linear infinite;
+  z-index: 2;
+  filter: blur(2px);
+}
+
+.siri-orb-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  z-index: 1;
+}
+
+.siri-orb-ring-1 {
+  width: 160px;
+  height: 160px;
+  border-top-color: #38bdf8;
+  border-bottom-color: #818cf8;
+  animation: orbRingSpin 4s linear infinite;
+  filter: blur(1px);
+}
+
+.siri-orb-ring-2 {
+  width: 200px;
+  height: 200px;
+  border-left-color: #f472b6;
+  border-right-color: #38bdf8;
+  animation: orbRingSpin 6s linear infinite reverse;
+  filter: blur(2px);
+  opacity: 0.7;
+}
+
+.siri-orb-ring-3 {
+  width: 240px;
+  height: 240px;
+  border-top-color: rgba(255, 255, 255, 0.5);
+  border-bottom-color: rgba(56, 189, 248, 0.3);
+  animation: orbRingSpin 8s linear infinite;
+  filter: blur(4px);
+}
+
+.siri-orb-text {
+  position: absolute;
+  bottom: -40px;
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 500;
+  text-align: center;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+  animation: fadeInOut 1.5s ease-in-out infinite alternate;
+  z-index: 3;
+}
+
+.siri-orb-text small {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  opacity: 0.8;
+}
+
+@keyframes orbPulse {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  100% { transform: scale(1.1); opacity: 1; box-shadow: 0 0 60px #38bdf8, inset 0 0 60px rgba(255, 255, 255, 0.9), 0 0 120px rgba(129, 140, 248, 0.8); }
+}
+
+@keyframes orbRotate {
+  0% { filter: hue-rotate(0deg) blur(2px); }
+  100% { filter: hue-rotate(360deg) blur(2px); }
+}
+
+@keyframes orbRingSpin {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.05); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0.5; }
+  100% { opacity: 1; }
 }

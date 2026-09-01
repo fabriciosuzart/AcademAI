@@ -1,0 +1,121 @@
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const prisma = new PrismaClient();
+
+// As imagens dos equipamentos sao conteudo de seed e ficam versionadas em
+// seed-assets/. A pasta uploads/ e de runtime e esta no .gitignore, entao a
+// copia acontece aqui — assim as URLs /uploads/... continuam valendo num
+// clone novo. Este arquivo vive em prisma/, dai o '..'.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SEED_ASSETS = path.join(__dirname, '..', 'seed-assets');
+const UPLOADS = path.join(__dirname, '..', 'uploads');
+
+function copiarImagensDoSeed() {
+    if (!fs.existsSync(SEED_ASSETS)) {
+        console.warn('⚠️ Pasta seed-assets/ nao encontrada — equipamentos ficarao sem imagem.');
+        return;
+    }
+    fs.mkdirSync(UPLOADS, { recursive: true });
+    let copiadas = 0;
+    for (const arquivo of fs.readdirSync(SEED_ASSETS)) {
+        fs.copyFileSync(path.join(SEED_ASSETS, arquivo), path.join(UPLOADS, arquivo));
+        copiadas++;
+    }
+    console.log(`🖼️  ${copiadas} imagens copiadas para uploads/.`);
+}
+
+// Cadastros reais do laboratorio, recuperados do historico do git depois que o
+// .db saiu do versionamento. Existe para um clone novo nao nascer com o banco
+// vazio, que era o que acontecia antes.
+//
+// As senhas NAO sao os hashes originais: todas as contas entram com a senha
+// padrao de desenvolvimento, a mesma ja documentada em contas_teste.md. O hash
+// bcrypt protege, mas nao e cofre — quem o tem pode testar senhas offline sem
+// limite, e nao ha motivo para publicar no repositorio o hash de uma senha que
+// alguem escolheu e pode reusar em outro lugar.
+//
+// Reservas ficam de fora de proposito: sao dado transacional e poluiriam um
+// ambiente novo. O historico delas segue recuperavel pelo git.
+//
+// O campo status ja vem no vocabulario canonico (DISPONIVEL / EM_USO /
+// MANUTENCAO). Ele chegou a ter tres grafias convivendo aqui, herdadas do
+// banco; a migration normaliza_status_equipamento acertou os dados e o
+// modulo backend/status.js e a unica fonte desses valores agora.
+
+const SENHA_PADRAO = 'senha123';
+
+const usuarios = [
+    {"name":"Fabricio Suzart Andrade","email":"fa215446@alunos.unisanta.br","ra":"215446","role":"ADMIN","isActive":true,"trainings":""},
+    {"name":"Juliana Pallin","email":"ja214707@alunos.unisanta.br","ra":"214707","role":"ALUNO","isActive":true,"trainings":"Cortadora a Laser,Prototipadora,Impressora 3D Bambu LAB"},
+    {"name":"Administrador Geral","email":"admin@academai.com","ra":"ADMIN001","role":"ADMIN","isActive":true,"trainings":""},
+    {"name":"Professor Responsável","email":"prof@academai.com","ra":"PROF001","role":"PROFESSOR","isActive":true,"trainings":""},
+    {"name":"Aluno 1","email":"aluno1@academai.com","ra":"ALU001","role":"ALUNO","isActive":true,"trainings":""},
+    {"name":"Aluno 2","email":"aluno2@academai.com","ra":"ALU002","role":"ALUNO","isActive":true,"trainings":""}
+];
+
+const equipamentos = [
+    {"id":1,"name":"Impressora 3D Finder 01","modelo":"Impressora 3D Finder","description":"{\"specs\":\"\",\"description\":\"teste 123\",\"requiresTraining\":false}","imagePath":"/uploads/impressora_3D_finder_02.jpg","status":"DISPONIVEL"},
+    {"id":3,"name":"Cortadora a Laser","modelo":"Cortadora a Laser","description":"{\"specs\":\"\",\"description\":\"\",\"requiresTraining\":false}","imagePath":"/uploads/cortadora_a_laser.jpeg","status":"DISPONIVEL"},
+    {"id":4,"name":"Prototipadora","modelo":"Prototipadora","description":null,"imagePath":"/uploads/prototipadora.png","status":"EM_USO"},
+    {"id":5,"name":"Bambu Lab A1","modelo":"Bambu Lab","description":null,"imagePath":"/uploads/Bambu_LAB_01.png","status":"DISPONIVEL"},
+    {"id":6,"name":"Bambu Lab A2","modelo":"Bambu Lab","description":null,"imagePath":"/uploads/Bambu_LAB_02.png","status":"DISPONIVEL"},
+    {"id":7,"name":"Micro Retífica","modelo":"Micro Retífica","description":"{\"specs\":\"\",\"description\":\"\",\"requiresTraining\":false}","imagePath":"/uploads/micro_retífica.jpg","status":"DISPONIVEL"},
+    {"id":8,"name":"Plotter de Recorte","modelo":"Plotter de Recorte","description":null,"imagePath":"/uploads/plotter_de_recorte.jpg","status":"EM_USO"},
+    {"id":9,"name":"X1 Carbon Combo","modelo":"X1 Carbon Combo","description":null,"imagePath":"/uploads/X1_CARBON_COMBO_IMPRESSORA_3D.jpg","status":"DISPONIVEL"},
+    {"id":10,"name":"Estação de Solda 01","modelo":"Estação de Solda","description":null,"imagePath":"/uploads/ESTACAO_DE_SOLDA.jpg","status":"DISPONIVEL"},
+    {"id":11,"name":"Estação de Solda 02","modelo":"Estação de Solda","description":null,"imagePath":"/uploads/ESTACAO_DE_SOLDA.jpg","status":"DISPONIVEL"},
+    {"id":12,"name":"Furadeira de Bancada","modelo":"Furadeira de Bancada","description":null,"imagePath":"/uploads/furadeira_de_bancada.jpg","status":"EM_USO"},
+    {"id":13,"name":"Serra Tico-Tico","modelo":"Serra Tico-Tico","description":null,"imagePath":"/uploads/Serra_tico-tico_bosch.jpg","status":"EM_USO"},
+    {"id":14,"name":"Máquina de Costura","modelo":"Máquina de Costura","description":null,"imagePath":"/uploads/maquina_de_costura.jpg","status":"DISPONIVEL"},
+    {"id":15,"name":"Parafusadeira","modelo":"Parafusadeira","description":null,"imagePath":"/uploads/Parafusadeira_e_Furadeira_Bateria.jpg","status":"DISPONIVEL"},
+    {"id":16,"name":"Lixadeira Portátil","modelo":"Lixadeira Portátil","description":null,"imagePath":"/uploads/Lixadeira_portátil_DEWALT.jpg","status":"DISPONIVEL"},
+    {"id":17,"name":"Impressora 3D Finder 02","modelo":"Impressora 3D Finder","description":"{\"specs\":\"\",\"description\":\"teste 123\",\"requiresTraining\":false}","imagePath":"/uploads/impressora_3D_finder_02.jpg","status":"DISPONIVEL"},
+    {"id":18,"name":"Impressora 3D Finder 03","modelo":"Impressora 3D Finder","description":"{\"specs\":\"\",\"description\":\"teste 123\",\"requiresTraining\":false}","imagePath":"/uploads/impressora_3D_finder_02.jpg","status":"DISPONIVEL"}
+];
+
+const horariosBloqueados = [];
+
+export async function semearCadastros() {
+    console.log('🌱 Semeando cadastros do laboratorio...');
+    copiarImagensDoSeed();
+    const senhaHash = await bcrypt.hash(SENHA_PADRAO, 8);
+
+    // upsert por chave unica: rodar duas vezes nao duplica nada.
+    for (const u of usuarios) {
+        await prisma.user.upsert({
+            where: { email: u.email },
+            update: { name: u.name, ra: u.ra, role: u.role, isActive: u.isActive, trainings: u.trainings },
+            create: { ...u, password: senhaHash }
+        });
+    }
+    console.log(`   ${usuarios.length} usuarios`);
+
+    for (const e of equipamentos) {
+        await prisma.equipment.upsert({ where: { id: e.id }, update: e, create: e });
+    }
+    console.log(`   ${equipamentos.length} equipamentos`);
+
+    for (const b of horariosBloqueados) {
+        const existe = await prisma.blockedDate.findFirst({
+            where: { date: b.date, equipmentId: b.equipmentId }
+        });
+        if (!existe) await prisma.blockedDate.create({ data: b });
+    }
+    console.log(`   ${horariosBloqueados.length} horarios bloqueados`);
+
+    console.log('🎉 Cadastros semeados. Senha de todas as contas: ' + SENHA_PADRAO);
+}
+
+// Permite rodar direto: node prisma/seed-cadastros.js
+// O encadeamento com `&&` no package.json nao funciona — o executor de seed do
+// Prisma nao passa o comando por um shell, entao so o primeiro script rodava.
+const executadoDireto = process.argv[1] && process.argv[1].endsWith('seed-cadastros.js');
+if (executadoDireto) {
+    semearCadastros()
+        .catch(e => { console.error('Erro no seed de cadastros:', e); process.exit(1); })
+        .finally(async () => { await prisma.$disconnect(); });
+}

@@ -1,6 +1,3 @@
-/* Estilo Premium e Moderno para a Página de Equipamentos */
-
-/* Fundo da página com um gradiente moderno e profundo */
 .equipment-page {
   padding: 60px 40px;
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
@@ -9,7 +6,6 @@
   font-family: 'Inter', sans-serif;
 }
 
-/* Cabeçalho Premium */
 .page-header {
   max-width: 1200px;
   margin: 0 auto 40px;
@@ -26,6 +22,7 @@
   margin: 0 0 10px 0;
   background: linear-gradient(90deg, #38bdf8, #818cf8);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -1px;
 }
@@ -36,7 +33,6 @@
   margin: 0;
 }
 
-/* Filtros modernos com bordas de vidro */
 .filter-controls {
   display: flex;
   gap: 15px;
@@ -73,7 +69,6 @@
   color: #fff;
 }
 
-/* Grid de Equipamentos */
 .equipment-grid {
   max-width: 1200px;
   margin: 0 auto;
@@ -82,7 +77,6 @@
   gap: 30px;
 }
 
-/* Card Efeito Glassmorphism Premium */
 .card {
   position: relative;
   background: rgba(255, 255, 255, 0.03);
@@ -103,11 +97,12 @@
   box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4), 0 0 20px rgba(56, 189, 248, 0.1) inset;
 }
 
-/* Imagem e Container da Imagem */
 .card-image {
   height: 220px;
   width: 100%;
-  background: rgba(0, 0, 0, 0.2);
+  /* Ladrilho branco: as imagens sao normalizadas em quadrado branco,
+     entao o fundo do card precisa acompanhar para nao criar moldura. */
+  background: #ffffff;
   position: relative;
   display: flex;
   align-items: center;
@@ -118,7 +113,9 @@
 .card-image img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* 'contain' e nao 'cover': com cover, cada imagem era cortada de um jeito
+     diferente conforme sua proporcao. Agora todas cabem inteiras. */
+  object-fit: contain;
   transition: transform 0.5s ease;
 }
 
@@ -126,42 +123,48 @@
   transform: scale(1.1);
 }
 
-/* Badge de Status Dinâmico */
 .status-badge {
   position: absolute;
   top: 15px;
   right: 15px;
   padding: 6px 14px;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  backdrop-filter: blur(5px);
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(8px);
   z-index: 2;
-  animation: pulse-badge 2s infinite;
 }
 
-@keyframes pulse-badge {
-  0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
-  70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
-}
-
+/* 🟢 Disponível — verde vibrante com pulse */
 .status-badge.available {
-  background: rgba(34, 197, 94, 0.2);
-  color: #4ade80;
-  border: 1px solid rgba(34, 197, 94, 0.4);
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.5);
+  animation: pulse-green 2s ease-in-out infinite;
 }
 
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5); }
+  50%       { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
+}
+
+/* 🟠 Em Uso — laranja/âmbar */
 .status-badge.in-use {
-  background: rgba(249, 115, 22, 0.2);
-  color: #fb923c;
-  border: 1px solid rgba(249, 115, 22, 0.4);
-  animation: none; /* Em uso não precisa pulsar tanto */
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  animation: none;
 }
 
-/* Conteúdo do Card */
+/* 🔴 Manutenção — vermelho */
+.status-badge.maintenance {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  animation: none;
+}
+
 .card-content {
   padding: 24px;
   display: flex;
@@ -177,10 +180,12 @@
   line-height: 1.4;
 }
 
-/* Botão de Ação Brilhante */
 .schedule-button {
   margin-top: auto;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 14px;
   background: linear-gradient(135deg, #0ea5e9, #2563eb);
   color: white;
@@ -191,6 +196,7 @@
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+  cursor: pointer;
 }
 
 .schedule-button::before {
@@ -212,7 +218,6 @@
   background: linear-gradient(135deg, #38bdf8, #3b82f6);
 }
 
-/* Responsividade */
 @media (max-width: 768px) {
   .page-header {
     flex-direction: column;
@@ -225,4 +230,19 @@
   .filter-controls select {
     flex-grow: 1;
   }
+}
+
+/* Alinhamento dos icones SVG que substituiram os emojis nos rotulos de status */
+.status-badge,
+.card-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Aviso de multiplas unidades no card agrupado */
+.card-unidades {
+  margin: -10px 0 16px;
+  font-size: 0.82rem;
+  color: #94a3b8;
 }

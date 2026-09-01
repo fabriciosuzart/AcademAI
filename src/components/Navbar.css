@@ -31,9 +31,25 @@
   gap: 10px;
 }
 
+/* Marca em SVG (lucide), no lugar do PNG redimensionado que perdia nitidez.
+   Usa o mesmo par de cores do wordmark ao lado, para os dois se lerem juntos. */
 .logo-image {
-  height: 45px;
-  width: auto;
+  height: 38px;
+  width: 38px;
+  flex-shrink: 0;
+  color: #38bdf8;
+}
+
+.navbar-logo:hover .logo-image {
+  color: #818cf8;
+  transition: color 0.25s ease;
+}
+
+/* Links da navbar que sao so icone: alinham com o texto vizinho */
+.nav-icon-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
 }
 
 .navbar-logo span {
@@ -56,7 +72,9 @@
 }
 
 .nav-item {
-  line-height: 40px;
+  display: flex;
+  align-items: center;
+  line-height: 1;
 }
 
 .nav-link {
@@ -64,8 +82,9 @@
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
-  padding: 8px 6px;
+  padding: 8px 12px; /* Aumentei o padding horizontal para respirar mais */
   border-radius: 8px;
+  white-space: nowrap; /* Impede a quebra de linha de "Assistente IA" */
   transition: all 0.3s ease;
 }
 
@@ -93,17 +112,22 @@
 /* Caixa de Usuário / Logout */
 .user-nav-box {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 15px;
+  flex-wrap: nowrap;
+  gap: 10px;
   background: rgba(255, 255, 255, 0.05);
-  padding: 5px 15px;
+  padding: 6px 14px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: nowrap;
 }
 
 .nav-user-name {
-  color: #38bdf8 !important; /* Azul brilhante */
+  color: #38bdf8 !important;
   font-weight: 700;
+  white-space: nowrap;
+  font-size: 13px;
   transition: color 0.3s;
 }
 
