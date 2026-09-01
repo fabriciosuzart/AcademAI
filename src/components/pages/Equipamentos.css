@@ -1,8 +1,8 @@
 .equipment-page {
   padding: 60px 40px;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+  background: linear-gradient(135deg, var(--bg) 0%, var(--surface) 50%, var(--bg) 100%);
   min-height: calc(100vh - 80px);
-  color: #f8fafc;
+  color: var(--text);
   font-family: 'Inter', sans-serif;
 }
 
@@ -20,7 +20,7 @@
   font-size: 2.8rem;
   font-weight: 800;
   margin: 0 0 10px 0;
-  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -29,7 +29,7 @@
 
 .header-title p {
   font-size: 1.1rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -42,7 +42,7 @@
   appearance: none;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #f1f5f9;
+  color: var(--text);
   padding: 12px 40px 12px 20px;
   border-radius: 999px;
   font-size: 0.95rem;
@@ -60,12 +60,12 @@
 .filter-controls select:hover,
 .filter-controls select:focus {
   background-color: rgba(255, 255, 255, 0.1);
-  border-color: #38bdf8;
+  border-color: var(--accent);
   box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
 }
 
 .filter-controls select option {
-  background: #1e293b;
+  background: var(--surface);
   color: #fff;
 }
 
@@ -102,7 +102,7 @@
   width: 100%;
   /* Ladrilho branco: as imagens sao normalizadas em quadrado branco,
      entao o fundo do card precisa acompanhar para nao criar moldura. */
-  background: #ffffff;
+  background: var(--white);
   position: relative;
   display: flex;
   align-items: center;
@@ -152,7 +152,7 @@
 /* 🟠 Em Uso — laranja/âmbar */
 .status-badge.in-use {
   background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
+  color: var(--warning);
   border: 1px solid rgba(245, 158, 11, 0.45);
   animation: none;
 }
@@ -160,7 +160,7 @@
 /* 🔴 Manutenção — vermelho */
 .status-badge.maintenance {
   background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
+  color: var(--danger-soft);
   border: 1px solid rgba(239, 68, 68, 0.45);
   animation: none;
 }
@@ -176,7 +176,7 @@
   margin: 0 0 20px 0;
   font-size: 1.3rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--text);
   line-height: 1.4;
 }
 
@@ -187,7 +187,7 @@
   align-items: center;
   justify-content: center;
   padding: 14px;
-  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+  background: linear-gradient(135deg, var(--accent-strong), #2563eb);
   color: white;
   text-decoration: none;
   border-radius: 12px;
@@ -215,7 +215,7 @@
 .schedule-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 20px rgba(14, 165, 233, 0.4);
-  background: linear-gradient(135deg, #38bdf8, #3b82f6);
+  background: linear-gradient(135deg, var(--accent), var(--accent));
 }
 
 @media (max-width: 768px) {
@@ -244,5 +244,5 @@
 .card-unidades {
   margin: -10px 0 16px;
   font-size: 0.82rem;
-  color: #94a3b8;
+  color: var(--text-muted);
 }

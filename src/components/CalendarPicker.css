@@ -2,8 +2,8 @@
     display: flex;
     flex-direction: column;
     gap: 20px;
-    background: #0f172a;
-    border: 1px solid #1e293b;
+    background: var(--bg);
+    border: 1px solid var(--surface);
     border-radius: 12px;
     padding: 20px;
     margin-top: 10px;
@@ -27,23 +27,23 @@
 }
 
 .cal-nav-btn {
-    background: #1e293b;
+    background: var(--surface);
     color: white;
-    border: 1px solid #334155;
+    border: 1px solid var(--border);
     border-radius: 6px;
     padding: 5px 12px;
     cursor: pointer;
 }
 
 .cal-nav-btn:hover {
-    background: #334155;
+    background: var(--border);
 }
 
 .calendar-grid-header {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     text-align: center;
-    color: #94a3b8;
+    color: var(--text-muted);
     font-size: 0.85rem;
     font-weight: bold;
     margin-bottom: 10px;
@@ -71,26 +71,26 @@
 }
 
 .calendar-day.selectable {
-    background: #1e293b;
+    background: var(--surface);
     cursor: pointer;
     border: 1px solid transparent;
 }
 
 .calendar-day.selectable:hover {
-    border-color: #3b82f6;
+    border-color: var(--accent);
 }
 
 .calendar-day.selected {
-    background: #3b82f6;
+    background: var(--accent);
     color: white;
     font-weight: bold;
 }
 
 .calendar-day.disabled {
-    background: #0f172a;
-    color: #475569;
+    background: var(--bg);
+    color: var(--border-strong);
     cursor: not-allowed;
-    border: 1px dashed #334155;
+    border: 1px dashed var(--border);
 }
 
 /* Feriado ou recesso: precisa se distinguir de "fim de semana", senao o
@@ -98,13 +98,13 @@
 .calendar-day.disabled.bloqueado {
     background: rgba(239, 68, 68, 0.12);
     border: 1px dashed rgba(239, 68, 68, 0.45);
-    color: #f87171;
+    color: var(--danger-soft);
 }
 
 .calendar-legend {
     margin-top: 15px;
     font-size: 0.85rem;
-    color: #94a3b8;
+    color: var(--text-muted);
     display: flex;
     flex-wrap: wrap;
     gap: 16px;
@@ -124,11 +124,11 @@
 }
 
 .dot.blocked {
-    background: #475569;
+    background: var(--border-strong);
 }
 
 .dot.bloqueado {
-    background: #f87171;
+    background: var(--danger-soft);
 }
 
 .calendar-aviso {
@@ -137,13 +137,13 @@
     border-radius: 8px;
     background: rgba(245, 158, 11, 0.12);
     border: 1px solid rgba(245, 158, 11, 0.4);
-    color: #fbbf24;
+    color: var(--warning);
     font-size: 0.9rem;
 }
 
 /* TIME SECTION */
 .time-section {
-    border-top: 1px solid #334155;
+    border-top: 1px solid var(--border);
     padding-top: 20px;
     color: white;
 }
@@ -151,7 +151,7 @@
 .time-section h4 {
     margin-top: 0;
     margin-bottom: 15px;
-    color: #cbd5e1;
+    color: var(--text-2);
 }
 
 .time-slots-grid {
@@ -163,8 +163,8 @@
 .time-slot {
     padding: 10px;
     border-radius: 8px;
-    border: 1px solid #334155;
-    background: #1e293b;
+    border: 1px solid var(--border);
+    background: var(--surface);
     color: white;
     font-weight: bold;
     cursor: pointer;
@@ -176,24 +176,24 @@
 
 .time-slot.available:hover {
     background: rgba(59, 130, 246, 0.2);
-    border-color: #3b82f6;
+    border-color: var(--accent);
 }
 
 .time-slot.selected {
-    background: #3b82f6;
-    border-color: #3b82f6;
+    background: var(--accent);
+    border-color: var(--accent);
 }
 
 .time-slot.booked {
-    background: #334155;
-    color: #64748b;
+    background: var(--border);
+    color: var(--text-dim);
     cursor: not-allowed;
     border-color: transparent;
 }
 
 .booked-label {
     font-size: 0.7rem;
-    color: #ef4444;
+    color: var(--danger);
     text-transform: uppercase;
 }
 
@@ -205,7 +205,7 @@
 .duration-label {
     display: block;
     margin-bottom: 8px;
-    color: #cbd5e1;
+    color: var(--text-2);
     font-size: 0.9rem;
 }
 
@@ -218,28 +218,28 @@
 .duration-option {
     padding: 8px 16px;
     border-radius: 999px;
-    border: 1px solid #334155;
-    background: #1e293b;
-    color: #e2e8f0;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-hi);
     font-weight: bold;
     cursor: pointer;
 }
 
 .duration-option:hover {
-    border-color: #3b82f6;
+    border-color: var(--accent);
     background: rgba(59, 130, 246, 0.2);
 }
 
 .duration-option.selected {
-    background: #3b82f6;
-    border-color: #3b82f6;
+    background: var(--accent);
+    border-color: var(--accent);
     color: white;
 }
 
 .slot-end {
     font-size: 0.7rem;
     font-weight: normal;
-    color: #94a3b8;
+    color: var(--text-muted);
 }
 
 .time-slot.selected .slot-end {
@@ -247,5 +247,16 @@
 }
 
 .time-slot.booked .slot-end {
-    color: #475569;
+    color: var(--border-strong);
+}
+
+/* ── Responsivo ─────────────────────────────────────────── */
+@media (max-width: 600px) {
+    .calendar-picker-container { padding: 14px; }
+    /* Os dias do mes ficam apertados; reduz a altura minima e a fonte. */
+    .calendar-day { min-height: 38px; font-size: 0.85rem; }
+    /* Slots de horario passam a caber 2-3 por linha em vez de sumir. */
+    .time-slots-grid { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
+    .duration-options { gap: 6px; }
+    .duration-option { padding: 7px 12px; font-size: 0.9rem; }
 }
