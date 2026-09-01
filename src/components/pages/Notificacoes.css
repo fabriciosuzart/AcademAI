@@ -17,7 +17,7 @@
 }
 
 .mark-all-btn {
-    background: #3b82f6;
+    background: var(--accent);
     color: white;
     border: none;
     padding: 8px 16px;
@@ -33,17 +33,17 @@
 }
 
 .notification-item {
-    background: #1e293b;
+    background: var(--surface);
     border-radius: 12px;
     padding: 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-left: 4px solid #3b82f6;
+    border-left: 4px solid var(--accent);
 }
 
 .notification-item.read {
-    border-left: 4px solid #94a3b8;
+    border-left: 4px solid var(--text-muted);
     opacity: 0.7;
 }
 
@@ -53,8 +53,8 @@
 
 .read-btn {
     background: transparent;
-    border: 1px solid #94a3b8;
-    color: #cbd5e1;
+    border: 1px solid var(--text-muted);
+    color: var(--text-2);
     padding: 8px 12px;
     border-radius: 6px;
     cursor: pointer;
@@ -62,4 +62,9 @@
 
 .read-btn:hover {
     background: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Responsivo ─────────────────────────────────────────── */
+@media (max-width: 600px) {
+    .notificacoes-container, .notif-container { padding: 20px 14px; }
 }

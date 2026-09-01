@@ -11,7 +11,7 @@
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  background: #060d1a;
+  background: var(--bg-deep);
   font-family: 'Inter', sans-serif;
   position: relative;
   overflow: hidden;
@@ -32,7 +32,7 @@
 .signup-page::before {
   width: 700px;
   height: 700px;
-  background: radial-gradient(circle, #0ea5e9, #4f46e5);
+  background: radial-gradient(circle, var(--accent-strong), var(--brand-2));
   top: -200px;
   left: -200px;
   animation: floatOrb 14s ease-in-out infinite alternate;
@@ -95,7 +95,7 @@
   font-size: 2.6rem;
   font-weight: 900;
   margin: 0 0 10px 0;
-  background: linear-gradient(120deg, #e0f2fe 0%, #38bdf8 40%, #818cf8 80%);
+  background: linear-gradient(120deg, #e0f2fe 0%, var(--accent) 40%, var(--accent-2) 80%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -104,7 +104,7 @@
 }
 
 .signup-header p {
-  color: #64748b;
+  color: var(--text-dim);
   font-size: 1rem;
   margin: 0;
   line-height: 1.6;
@@ -133,7 +133,7 @@
 .signup-field label {
   font-size: 0.78rem;
   font-weight: 700;
-  color: #94a3b8;
+  color: var(--text-muted);
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
@@ -149,7 +149,7 @@
   position: absolute;
   left: 16px;
   font-size: 1rem;
-  color: #475569;
+  color: var(--border-strong);
   pointer-events: none;
   transition: color 0.3s;
   z-index: 1;
@@ -162,7 +162,7 @@
   border: 1.5px solid rgba(255, 255, 255, 0.07);
   background: rgba(255, 255, 255, 0.04);
   font-size: 0.95rem;
-  color: #e2e8f0;
+  color: var(--text-hi);
   outline: none;
   box-sizing: border-box;
   transition: all 0.3s ease;
@@ -170,22 +170,22 @@
 }
 
 .signup-field input::placeholder {
-  color: #334155;
+  color: var(--border);
   font-size: 0.9rem;
 }
 
 .signup-field input:focus {
   background: rgba(14, 165, 233, 0.06);
-  border-color: #38bdf8;
+  border-color: var(--accent);
   box-shadow:
     0 0 0 3px rgba(56, 189, 248, 0.12),
     0 0 20px rgba(56, 189, 248, 0.08);
-  color: #f1f5f9;
+  color: var(--text);
 }
 
 .signup-field input:focus + .input-icon,
 .signup-field .input-wrapper:focus-within .input-icon {
-  color: #38bdf8;
+  color: var(--accent);
 }
 
 /* Select estilizado */
@@ -196,7 +196,7 @@
   border: 1.5px solid rgba(255, 255, 255, 0.07);
   background: rgba(255, 255, 255, 0.04);
   font-size: 0.95rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   outline: none;
   box-sizing: border-box;
   transition: all 0.3s ease;
@@ -208,9 +208,9 @@
 
 .signup-field select:focus {
   background: rgba(14, 165, 233, 0.06);
-  border-color: #38bdf8;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
-  color: #e2e8f0;
+  color: var(--text-hi);
 }
 
 .select-wrapper {
@@ -223,14 +223,14 @@
   right: 16px;
   top: 50%;
   transform: translateY(-50%);
-  color: #475569;
+  color: var(--border-strong);
   pointer-events: none;
   font-size: 0.85rem;
 }
 
 /* Hint text */
 .signup-field .field-hint {
-  color: #334155;
+  color: var(--border);
   font-size: 0.72rem;
   margin-top: 2px;
   line-height: 1.5;
@@ -243,8 +243,8 @@
   padding: 15px 0;
   border: none;
   border-radius: 12px;
-  background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--accent-strong) 0%, #6366f1 100%);
+  color: var(--white);
   font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
@@ -283,7 +283,7 @@
 .signup-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 16px 36px rgba(14, 165, 233, 0.5);
-  background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
 }
 
 .signup-button:active {
@@ -296,11 +296,11 @@
   text-align: center;
   margin-top: 18px;
   font-size: 0.88rem;
-  color: #475569;
+  color: var(--border-strong);
 }
 
 .login-link {
-  color: #38bdf8;
+  color: var(--accent);
   font-weight: 700;
   text-decoration: none;
   transition: all 0.2s;
@@ -314,12 +314,12 @@
   bottom: -1px;
   width: 0;
   height: 1px;
-  background: #38bdf8;
+  background: var(--accent);
   transition: width 0.3s ease;
 }
 
 .login-link:hover::after { width: 100%; }
-.login-link:hover { color: #7dd3fc; }
+.login-link:hover { color: var(--accent-soft); }
 
 /* ── Painel de Imagem (Direita) ──────────────────── */
 .signup-image-panel {
@@ -409,7 +409,7 @@
   font-size: 2rem;
   font-weight: 900;
   margin: 0 0 12px 0;
-  background: linear-gradient(120deg, #ffffff, #7dd3fc);
+  background: linear-gradient(120deg, var(--white), var(--accent-soft));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -420,7 +420,7 @@
   font-size: 0.95rem;
   line-height: 1.65;
   margin: 0 0 24px 0;
-  color: #64748b;
+  color: var(--text-dim);
 }
 
 /* Feature pills no painel */
@@ -435,7 +435,7 @@
   align-items: center;
   gap: 10px;
   font-size: 0.85rem;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .image-overlay .panel-feature span.feat-icon {

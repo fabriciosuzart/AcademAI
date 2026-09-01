@@ -1,8 +1,8 @@
 /* Fundo Principal Premium para a Home */
 .home-container {
   min-height: calc(100vh - 80px);
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  color: #f8fafc;
+  background: linear-gradient(135deg, var(--bg) 0%, var(--surface) 100%);
+  color: var(--text);
   font-family: 'Inter', sans-serif;
 }
 
@@ -21,7 +21,7 @@
   font-size: 3.5rem;
   font-weight: 900;
   margin: 0 0 15px 0;
-  background: linear-gradient(90deg, #0080C0, #6e7bee);
+  background: linear-gradient(90deg, var(--accent-strong), var(--accent-2));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -1px;
@@ -29,7 +29,7 @@
 
 .subtitle {
   font-size: 1.3rem;
-  color: #cbd5e1;
+  color: var(--text-2);
   margin-bottom: 40px;
   max-width: 600px;
 }
@@ -50,28 +50,28 @@
   font-weight: 700;
   text-decoration: none;
   background: rgba(255, 255, 255, 0.05);
-  color: #f8fafc;
+  color: var(--text);
   border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   transition: all 0.3s ease;
 }
 
 .tab-button.active {
-  background: linear-gradient(135deg, #0080C0, #6e7bee);
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent-2));
   border-color: transparent;
   transform: translateY(-2px);
   box-shadow: 0 10px 20px rgba(14, 165, 233, 0.3);
 }
 
 .tab-button.admin-tab {
-  background: linear-gradient(135deg, #0080C0, #6e7bee);
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent-2));
   border-color: transparent;
   transform: translateY(-2px);
   box-shadow: 0 10px 20px rgba(14, 165, 233, 0.3);
 }
 
 .tab-button:hover, .tab-button.admin-tab:hover {
-  background: linear-gradient(135deg, #14b1ff, #7c86e2);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
   box-shadow: 0 10px 24px rgba(123, 134, 236, 0.35);
   transform: translateY(-2px);
 }
@@ -90,13 +90,13 @@
 
 .content-box h3 {
   font-size: 1.5rem;
-  color: #38bdf8;
+  color: var(--accent);
   margin-top: 0;
   margin-bottom: 15px;
 }
 
 .content-box p {
-  color: #cbd5e1;
+  color: var(--text-2);
   line-height: 1.6;
   font-size: 1.1rem;
 }
@@ -106,7 +106,7 @@
   font-size: 2.2rem;
   font-weight: 800;
   margin-bottom: 30px;
-  color: #f8fafc;
+  color: var(--text);
 }
 
 .journey-grid {
@@ -149,7 +149,7 @@
 /* Lista de Regras */
 .rules-list {
   padding-left: 20px;
-  color: #cbd5e1;
+  color: var(--text-2);
   line-height: 1.6;
   font-size: 1.05rem;
 }
@@ -163,7 +163,19 @@
   font-size: 1.5rem;
   font-weight: 800;
   margin-top: 20px;
-  background: linear-gradient(90deg, #6e7bee, #08a1ee);
+  background: linear-gradient(90deg, var(--accent-2), var(--accent-strong));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+/* ── Responsivo ─────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .home-main { padding: 40px 16px; }
+  .home-main h1 { font-size: 2.2rem; letter-spacing: -0.5px; }
+  .subtitle { font-size: 1.05rem; margin-bottom: 28px; }
+  .tab-button { padding: 12px 22px; font-size: 0.95rem; }
+  /* O grid de cards ja e auto-fit; aqui so garante respiro nas bordas. */
+  .info-cards { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) {
+  .home-main h1 { font-size: 1.8rem; }
 }

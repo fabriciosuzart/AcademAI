@@ -13,7 +13,7 @@
 }
 
 .login-modal-content {
-  background: #ffffff;
+  background: var(--white);
   padding: 40px;
   border-radius: 24px;
   width: 90%;
@@ -29,14 +29,14 @@
 }
 
 .login-modal-content h2 {
-  color: #0f172a;
+  color: var(--bg);
   margin-top: 0;
   margin-bottom: 8px;
   font-size: 1.5rem;
 }
 
 .login-modal-content p {
-  color: #64748b;
+  color: var(--text-dim);
   margin-bottom: 24px;
   font-size: 0.95rem;
 }
@@ -48,18 +48,18 @@
   background: none;
   border: none;
   font-size: 1.5rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .close-btn:hover {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .error-message {
   background: #fef2f2;
-  color: #ef4444;
+  color: var(--danger);
   padding: 12px;
   border-radius: 8px;
   margin-bottom: 16px;
@@ -74,7 +74,7 @@
 .form-group label {
   display: block;
   margin-bottom: 8px;
-  color: #334155;
+  color: var(--border);
   font-weight: 500;
   font-size: 0.9rem;
 }
@@ -82,7 +82,7 @@
 .form-group input {
   width: 100%;
   padding: 12px 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--text-hi);
   border-radius: 12px;
   font-size: 1rem;
   transition: all 0.2s;
@@ -91,14 +91,14 @@
 
 .form-group input:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .login-btn {
   width: 100%;
   padding: 14px;
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  background: linear-gradient(135deg, var(--accent), #2563eb);
   color: white;
   border: none;
   border-radius: 12px;
@@ -112,4 +112,10 @@
 .login-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 20px rgba(37, 99, 235, 0.2);
+}
+
+/* ── Responsivo ─────────────────────────────────────────── */
+@media (max-width: 480px) {
+  /* max-width fixo em 400px estourava telas estreitas; passa a 90vw. */
+  .login-modal, .modal-content, .login-modal-content { width: 90vw; max-width: 400px; }
 }
