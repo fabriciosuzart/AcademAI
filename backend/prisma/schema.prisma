@@ -88,5 +88,11 @@ model BlockedDate {
   equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   
+  // Protege apenas os bloqueios DE EQUIPAMENTO: no SQL padrao dois NULL nao
+  // sao "iguais", entao esta linha nunca valeu para os bloqueios globais.
+  // A garantia deles e um indice parcial, criado a mao na migration
+  // 20260827160000_bloqueio_global_unico. O Prisma nao modela indice parcial
+  // (@@unique nao tem clausula WHERE), por isso ele nao aparece aqui — e nao
+  // e drift: `migrate diff` contra um banco que o tenha devolve migration vazia.
   @@unique([date, equipmentId])
 }
