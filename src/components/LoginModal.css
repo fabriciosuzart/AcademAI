@@ -113,3 +113,9 @@
   transform: translateY(-2px);
   box-shadow: 0 10px 20px rgba(37, 99, 235, 0.2);
 }
+
+/* ── Responsivo ─────────────────────────────────────────── */
+@media (max-width: 480px) {
+  /* max-width fixo em 400px estourava telas estreitas; passa a 90vw. */
+  .login-modal, .modal-content, .login-modal-content { width: 90vw; max-width: 400px; }
+}

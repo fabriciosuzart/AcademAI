@@ -1615,3 +1615,25 @@
 .calendario-cabecalho h3 {
   margin: 0;
 }
+
+/* ── Responsivo (reforço mobile) ─────────────────────────── */
+@media (max-width: 560px) {
+  .perfil-page, .profile-container { padding-left: 12px; padding-right: 12px; }
+  /* Card de reserva: os botoes lado a lado nao cabem em 390px e empurravam a
+     pagina (~17px de overflow). Empilha info em cima, acoes embaixo. */
+  .schedule-item { grid-template-columns: 1fr; gap: 12px; }
+  .schedule-meta { align-items: flex-start; flex-direction: row; flex-wrap: wrap; justify-content: space-between; width: 100%; }
+  .schedule-actions { flex-wrap: wrap; }
+  /* Em tela bem estreita, rolar as abas na horizontal e melhor que quebrar
+     em tres linhas: mantem o polegar num gesto so. */
+  .panel-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .panel-tabs::-webkit-scrollbar { display: none; }
+  .panel-tab { flex: 0 0 auto; }
+  /* Tabela de usuarios rola dentro do proprio wrapper, sem empurrar a pagina. */
+  .user-table-wrapper { overflow-x: auto; }
+}

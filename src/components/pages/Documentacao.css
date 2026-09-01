@@ -69,3 +69,8 @@ code {
   color: #f472b6;
   font-family: monospace;
 }
+/* ── Responsivo ─────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .docs-container { padding: 36px 16px; }
+  .docs-container h1 { font-size: 2rem; margin-bottom: 28px; }
+}

@@ -249,3 +249,14 @@
 .time-slot.booked .slot-end {
     color: var(--border-strong);
 }
+
+/* ── Responsivo ─────────────────────────────────────────── */
+@media (max-width: 600px) {
+    .calendar-picker-container { padding: 14px; }
+    /* Os dias do mes ficam apertados; reduz a altura minima e a fonte. */
+    .calendar-day { min-height: 38px; font-size: 0.85rem; }
+    /* Slots de horario passam a caber 2-3 por linha em vez de sumir. */
+    .time-slots-grid { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
+    .duration-options { gap: 6px; }
+    .duration-option { padding: 7px 12px; font-size: 0.9rem; }
+}

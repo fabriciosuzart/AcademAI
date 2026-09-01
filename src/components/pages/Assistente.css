@@ -210,3 +210,10 @@
 .stop-btn {
   background: linear-gradient(135deg, var(--danger), #b91c1c);
 }
+/* ── Responsivo ─────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .assistente-container { padding: 0; }
+  /* No celular o chat ocupa a tela toda; cantos retos encostam nas bordas. */
+  .chat-interface { height: calc(100vh - 80px); max-width: 100%; border-radius: 0; border-left: none; border-right: none; }
+  .chat-history { padding: 18px; gap: 14px; }
+}
