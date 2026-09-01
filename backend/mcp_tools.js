@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { ehManutencao } from './status.js';
 import { DURACAO_PADRAO, clausulaDeConflito, horarioValido, somarMinutos } from './horarios.js';
 import { buscarBloqueioQueImpede, motivoDoBloqueio } from './bloqueios.js';
+import { validarRegrasTemporais, contarReservasAtivas, sujeitoAoLimite, REGRAS_RESERVA } from './config-reservas.js';
 const prisma = new PrismaClient();
 
 // 1. Ferramenta: Consultar Equipamentos
@@ -113,6 +114,12 @@ export async function executarSolicitacaoReserva(args, userId) {
             ? args.endTime
             : somarMinutos(args.time, DURACAO_PADRAO);
 
+        // RF08/RN04 - Antecedência mínima (barra o passado) e duração mín/máx.
+        const regras = validarRegrasTemporais(args.date, args.time, fim);
+        if (!regras.ok) {
+            return `A reserva NÃO foi concluída: ${regras.erro} Avise o usuário e peça outra data ou horário.`;
+        }
+
         const conflicting = await prisma.appointment.findFirst({
             where: {
                 equipmentId: equipamento.id,
@@ -126,6 +133,15 @@ export async function executarSolicitacaoReserva(args, userId) {
         });
         if (conflicting) {
             return `Conflito de horário! O equipamento ${equipamento.name} já possui uma reserva em ${args.date} nesse horário. Sugira ao usuário escolher outro horário.`;
+        }
+
+        // RF08 - Limite de reservas ativas simultâneas (só ALUNO; staff isento).
+        if (sujeitoAoLimite(usuario.role)) {
+            const hojeISO = new Date().toISOString().slice(0, 10);
+            const ativas = await contarReservasAtivas(prisma, uId, hojeISO);
+            if (ativas >= REGRAS_RESERVA.limiteReservasAtivas) {
+                return `A reserva NÃO foi concluída: o usuário já tem ${REGRAS_RESERVA.limiteReservasAtivas} reservas ativas, que é o limite. Peça que ele cancele uma antes de solicitar outra.`;
+            }
         }
 
         // 4. Determinar aprovação automática (RF11)

@@ -9,6 +9,7 @@ import { authMiddleware, optionalAuthMiddleware, roleMiddleware } from './middle
 import { STATUS, ehManutencao } from './status.js';
 import { HORA_ABERTURA, HORA_FECHAMENTO, clausulaDeConflito, horarioValido, paraMinutos } from './horarios.js';
 import { buscarBloqueioQueImpede, criarBloqueioSeNovo, motivoDoBloqueio, normalizarEquipmentId } from './bloqueios.js';
+import { validarRegrasTemporais, contarReservasAtivas, sujeitoAoLimite, REGRAS_RESERVA } from './config-reservas.js';
 import { pipeline } from '@xenova/transformers';
 import fetch from 'node-fetch';
 import fs from 'fs';
@@ -117,6 +118,23 @@ async function createNotification(userId, type, message, relatedId = null) {
     } catch (e) {
         console.error('❌ Erro ao criar notificação:', e.message);
     }
+}
+
+// Registro de auditoria (RF07). Nunca deve derrubar a operação principal:
+// falha ao logar vira apenas um aviso no console.
+async function registrarAuditoria({ action, actorUserId = null, targetUserId = null, detail = null, ip = null }) {
+    try {
+        await prisma.auditLog.create({
+            data: { action, actorUserId, targetUserId, detail, ip },
+        });
+    } catch (e) {
+        console.error('⚠️ Falha ao registrar auditoria:', e.message);
+    }
+}
+
+/** IP da requisição, para a trilha de auditoria. */
+function ipDaRequisicao(req) {
+    return (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim() || null;
 }
 
 // --- BASE DE CONHECIMENTO (RAG) ---
@@ -539,6 +557,16 @@ app.post('/api/change-password', authMiddleware, async (req, res) => {
             where: { id: userId },
             data: { password: hashedNew, isTempPassword: 0 }
         });
+
+        // RF07 - trilha de auditoria: o próprio usuário trocou a senha.
+        await registrarAuditoria({
+            action: 'SENHA_TROCADA',
+            actorUserId: userId,
+            targetUserId: userId,
+            detail: user.isTempPassword === 1 ? 'Troca de senha temporária' : 'Troca de senha pelo usuário',
+            ip: ipDaRequisicao(req),
+        });
+
         res.json({ message: "Senha atualizada com sucesso!" });
     } catch (error) {
         console.error("Erro ao trocar senha:", error);
@@ -560,6 +588,14 @@ app.post('/api/reset-password', async (req, res) => {
         await prisma.user.update({
             where: { id: user.id },
             data: { password: hashedTemp, isTempPassword: 1 }
+        });
+
+        // RF07 - registro em log de auditoria da redefinição de senha.
+        await registrarAuditoria({
+            action: 'SENHA_RESET',
+            targetUserId: user.id,
+            detail: `Reset de senha solicitado para ${email}`,
+            ip: ipDaRequisicao(req),
         });
 
         // Tenta enviar por e-mail
@@ -909,6 +945,12 @@ app.post('/api/schedule', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: `As reservas só podem ocorrer entre ${HORA_ABERTURA} e ${HORA_FECHAMENTO}.` });
         }
 
+        // RF08/RN04 - Antecedência mínima (barra o passado) e duração mín/máx.
+        const regras = validarRegrasTemporais(date, time, endTime);
+        if (!regras.ok) {
+            return res.status(400).json({ error: regras.erro });
+        }
+
         // RF16 - Verificar conflito de horário
         const conflicting = await prisma.appointment.findFirst({
             where: {
@@ -924,6 +966,18 @@ app.post('/api/schedule', authMiddleware, async (req, res) => {
 
         // RF11 - Aprovação automática para PROFESSOR e ADMIN
         const user = await prisma.user.findUnique({ where: { id: uId } });
+
+        // RF08 - Limite de reservas ativas simultâneas (só ALUNO; staff isento).
+        if (user && sujeitoAoLimite(user.role)) {
+            const hojeISO = new Date().toISOString().slice(0, 10);
+            const ativas = await contarReservasAtivas(prisma, uId, hojeISO);
+            if (ativas >= REGRAS_RESERVA.limiteReservasAtivas) {
+                return res.status(409).json({
+                    error: `Você atingiu o limite de ${REGRAS_RESERVA.limiteReservasAtivas} reservas ativas. Cancele ou aguarde a conclusão de uma antes de solicitar outra.`,
+                });
+            }
+        }
+
         const autoApprove = user && (user.role === 'PROFESSOR' || user.role === 'ADMIN');
         const reservaStatus = autoApprove ? 'APROVADA' : 'PENDENTE';
 

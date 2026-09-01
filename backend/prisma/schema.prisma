@@ -79,6 +79,19 @@ model Notification {
   relatedId Int?     // ID da reserva relacionada
 }
 
+// 6. Log de auditoria (RF07) — registro de acoes sensiveis, comecando pela
+// recuperacao/troca de senha. O documento pede "registro em log de auditoria"
+// para o reset offline; uma tabela deixa isso consultavel.
+model AuditLog {
+  id           Int      @id @default(autoincrement())
+  action       String   // Ex: "SENHA_RESET", "SENHA_TROCADA"
+  actorUserId  Int?     // quem executou (null quando anonimo, ex.: reset publico)
+  targetUserId Int?     // usuario afetado
+  detail       String?  // contexto legivel (email alvo, origem)
+  ip           String?
+  createdAt    DateTime @default(now())
+}
+
 // 5. Tabela de Bloqueio de Datas (Feriados/Recessos ou Bloqueio Específico de Equipamento)
 model BlockedDate {
   id          Int      @id @default(autoincrement())
