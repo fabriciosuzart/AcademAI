@@ -22,6 +22,26 @@ export const authMiddleware = (req, res, next) => {
     return res.status(401).json({ error: 'Acesso negado. Autenticação necessária.' });
 };
 
+// 1b. Autenticação OPCIONAL — para rotas abertas a visitante (ex.: /api/chat).
+// Se vier um token válido, expõe req.userId; se não vier, segue como visitante
+// (req.userId indefinido). Nunca bloqueia. O objetivo é tirar a identidade do
+// CORPO da requisição — antes o /chat confiava no userId que o cliente mandava,
+// e dava para agir em nome de qualquer pessoa só trocando o número.
+export const optionalAuthMiddleware = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            req.userId = decoded.id;
+        } catch (err) {
+            // Token inválido/expirado num contexto opcional: trata como visitante,
+            // sem derrubar a requisição.
+        }
+    }
+    return next();
+};
+
 // 2. Middleware de Permissões (verifica a Role no DB)
 export const roleMiddleware = (allowedRoles) => {
     return async (req, res, next) => {
