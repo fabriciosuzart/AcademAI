@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Login.css';
+import api from '../../api/axios';
 
 const NovaSenha: React.FC = () => {
     const [password, setPassword] = useState('');
@@ -13,22 +14,15 @@ const NovaSenha: React.FC = () => {
         if (password !== confirm) return alert("As senhas não coincidem.");
         if (password.length < 6) return alert("A senha deve ter no mínimo 6 caracteres.");
 
-        const userId = localStorage.getItem('userId');
-
         try {
-            const res = await fetch('http://localhost:3000/api/change-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, newPassword: password })
-            });
-            
-            if (res.ok) {
-                alert("Senha atualizada com sucesso! Acesso liberado.");
-                navigate('/');
-            } else {
-                alert("Erro ao salvar senha.");
-            }
-        } catch (error) { alert("Erro de conexão."); }
+            // Troca forcada de senha temporaria: o backend dispensa a senha atual
+            // quando isTempPassword=1, mas continua exigindo o token (api o injeta).
+            await api.post('/change-password', { newPassword: password });
+            alert("Senha atualizada com sucesso! Acesso liberado.");
+            navigate('/');
+        } catch (error: any) {
+            alert("Erro: " + (error.response?.data?.error || "falha ao salvar senha."));
+        }
     };
 
     return (

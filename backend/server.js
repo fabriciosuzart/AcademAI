@@ -5,7 +5,7 @@ import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { authMiddleware, roleMiddleware } from './middlewares/auth.js';
+import { authMiddleware, optionalAuthMiddleware, roleMiddleware } from './middlewares/auth.js';
 import { STATUS, ehManutencao } from './status.js';
 import { HORA_ABERTURA, HORA_FECHAMENTO, clausulaDeConflito, horarioValido, paraMinutos } from './horarios.js';
 import { buscarBloqueioQueImpede, criarBloqueioSeNovo, motivoDoBloqueio, normalizarEquipmentId } from './bloqueios.js';
@@ -512,23 +512,31 @@ app.post('/api/auth/logout', async (req, res) => {
 });
 
 // POST /api/change-password
-app.post('/api/change-password', async (req, res) => {
+app.post('/api/change-password', authMiddleware, async (req, res) => {
     try {
-        const { userId, currentPassword, newPassword } = req.body;
-        if (!userId || !newPassword) return res.status(400).json({ error: "Dados insuficientes." });
+        const { currentPassword, newPassword } = req.body;
+        // O ALVO e sempre o dono do token — nunca um id vindo do corpo. Antes a
+        // rota era publica e aceitava { userId, newPassword }: qualquer um trocava
+        // a senha de qualquer conta (inclusive admin) sem estar logado.
+        const userId = req.userId;
+        if (!newPassword) return res.status(400).json({ error: "Informe a nova senha." });
+        if (newPassword.length < 8) return res.status(400).json({ error: "A nova senha deve ter no mínimo 8 caracteres." });
 
-        const user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
+        const user = await prisma.user.findUnique({ where: { id: userId } });
         if (!user) return res.status(404).json({ error: "Usuário não encontrado." });
 
-        // Se tem senha atual, verifica (não verifica se é troca obrigatória de senha temporária)
-        if (currentPassword) {
+        // Senha atual e obrigatoria — a unica isencao e a troca forcada de senha
+        // temporaria (o usuario acabou de entrar com a senha do e-mail e ainda
+        // nao tem uma senha "propria" para reconferir).
+        if (user.isTempPassword !== 1) {
+            if (!currentPassword) return res.status(400).json({ error: "Informe a senha atual." });
             const valid = await bcrypt.compare(currentPassword, user.password);
             if (!valid) return res.status(401).json({ error: "Senha atual incorreta." });
         }
 
         const hashedNew = await bcrypt.hash(newPassword, 12); // RNF03
         await prisma.user.update({
-            where: { id: parseInt(userId) },
+            where: { id: userId },
             data: { password: hashedNew, isTempPassword: 0 }
         });
         res.json({ message: "Senha atualizada com sucesso!" });
@@ -1184,6 +1192,13 @@ app.get('/api/appointments/:userId', authMiddleware, async (req, res) => {
         const userId = parseInt(req.params.userId);
         if (isNaN(userId)) return res.status(400).json({ error: "ID inválido" });
 
+        // So o dono ou um ADMIN veem as reservas de um usuario. Antes, qualquer
+        // pessoa logada lia as reservas de qualquer id (IDOR).
+        const solicitante = await prisma.user.findUnique({ where: { id: req.userId } });
+        if (userId !== req.userId && solicitante?.role !== 'ADMIN') {
+            return res.status(403).json({ error: "Você só pode ver as suas próprias reservas." });
+        }
+
         const appointments = await prisma.appointment.findMany({
             where: { userId },
             include: { equipment: { select: { name: true } } },
@@ -1262,6 +1277,11 @@ app.put('/api/appointments/:id/cancel', authMiddleware, async (req, res) => {
 app.get('/api/notifications/:userId', authMiddleware, async (req, res) => {
     try {
         const userId = parseInt(req.params.userId);
+        // Notificacao e pessoal: so o dono le a sua. Antes vazava para qualquer
+        // logado — inclusive mensagens com nome e horario de outras pessoas.
+        if (userId !== req.userId) {
+            return res.status(403).json({ error: "Acesso negado." });
+        }
         const notifications = await prisma.notification.findMany({
             where: { userId },
             orderBy: { createdAt: 'desc' },
@@ -1279,8 +1299,13 @@ app.get('/api/notifications/:userId', authMiddleware, async (req, res) => {
 // PUT /api/notifications/:id/read (RNF05 - protegido)
 app.put('/api/notifications/:id/read', authMiddleware, async (req, res) => {
     try {
+        // Marcar como lida so vale para uma notificacao do proprio usuario.
+        const notif = await prisma.notification.findUnique({ where: { id: parseInt(req.params.id) } });
+        if (!notif) return res.status(404).json({ error: "Notificação não encontrada." });
+        if (notif.userId !== req.userId) return res.status(403).json({ error: "Acesso negado." });
+
         await prisma.notification.update({
-            where: { id: parseInt(req.params.id) },
+            where: { id: notif.id },
             data: { isRead: true }
         });
         res.json({ message: "Notificação marcada como lida." });
@@ -1292,8 +1317,12 @@ app.put('/api/notifications/:id/read', authMiddleware, async (req, res) => {
 // PUT /api/notifications/read-all/:userId (RNF05 - protegido)
 app.put('/api/notifications/read-all/:userId', authMiddleware, async (req, res) => {
     try {
+        // So o dono marca as proprias como lidas.
+        if (parseInt(req.params.userId) !== req.userId) {
+            return res.status(403).json({ error: "Acesso negado." });
+        }
         await prisma.notification.updateMany({
-            where: { userId: parseInt(req.params.userId), isRead: false },
+            where: { userId: req.userId, isRead: false },
             data: { isRead: true }
         });
         res.json({ message: "Todas as notificações marcadas como lidas." });
@@ -1409,8 +1438,13 @@ app.delete('/api/train/documents/:nome', authMiddleware, roleMiddleware(['ADMIN'
 });
 
 // --- CHAT (MCP + RAG + RESERVAS) ---
-app.post('/api/chat', async (req, res) => {
-    const { message, userId, history = [] } = req.body;
+app.post('/api/chat', optionalAuthMiddleware, async (req, res) => {
+    const { message, history = [] } = req.body;
+    // A identidade vem do TOKEN, nunca do corpo. A rota segue aberta a visitante
+    // (req.userId indefinido), mas quem esta logado nao pode mais ser
+    // personificado: antes bastava mandar o userId de outra pessoa no JSON para
+    // a IA criar reserva em nome dela.
+    const userId = req.userId || null;
     console.log(`💬 Pergunta do Usuário (ID: ${userId || 'Visitante'}):`, message);
 
     try {

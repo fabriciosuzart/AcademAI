@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, KeyRound, Sparkles, ArrowLeft, AlertTriangle } from 'lucide-react';
 import './Login.css';
+import api from '../../api/axios';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -166,23 +167,16 @@ const Login: React.FC = () => {
     if (newPassword !== confirmPassword) return alert("As senhas não coincidem.");
     if (newPassword.length < 6) return alert("A senha deve ter no mínimo 6 caracteres.");
 
-    const userId = localStorage.getItem('userId');
-
     try {
-      const res = await fetch('http://localhost:3000/api/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, currentPassword: password, newPassword })
-      });
-
-      if (res.ok) {
-        alert("Senha atualizada com sucesso! Entrando...");
-        setShowChangePasswordModal(false);
-        navigate('/');
-      } else {
-        alert("Erro ao atualizar senha.");
-      }
-    } catch (error) { alert("Erro de conexão."); }
+      // O login (mesmo com senha temporaria) ja gravou o token; api o injeta.
+      // O backend identifica o usuario pelo token — nao mandamos id no corpo.
+      await api.post('/change-password', { currentPassword: password, newPassword });
+      alert("Senha atualizada com sucesso! Entrando...");
+      setShowChangePasswordModal(false);
+      navigate('/');
+    } catch (error: any) {
+      alert("Erro: " + (error.response?.data?.error || "falha ao atualizar senha."));
+    }
   };
 
   const handleRecover = async (e: React.FormEvent) => {
