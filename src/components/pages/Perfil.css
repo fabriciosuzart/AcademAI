@@ -1637,3 +1637,241 @@
   /* Tabela de usuarios rola dentro do proprio wrapper, sem empurrar a pagina. */
   .user-table-wrapper { overflow-x: auto; }
 }
+
+/* ── Classes extraidas de estilos inline (item 14) ─────────
+   Geradas a partir dos style={{...}} que estavam no Perfil.tsx.
+   Cores passaram a usar os tokens. O unico estilo dinamico que
+   sobra inline e a cor de treinamento (verde/vermelho por estado). */
+.pf-s01 {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 15px;
+}
+.pf-s02 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: 0.9rem;
+}
+.pf-s03 {
+  margin-right: 8px;
+}
+.pf-s04 {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  margin-bottom: 4px;
+}
+.pf-s05 {
+  text-transform: capitalize;
+}
+.pf-s06 {
+  width: 100%;
+  height: 100%;
+  // 'contain' + fundo branco: as imagens sao normalizadas
+                            // em quadrado branco;
+  entao nada precisa ser cortado.
+                            object-fit: contain;
+  background: #ffffff;
+}
+.pf-s07 {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: var(--danger);
+}
+.pf-s08 {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 15px;
+}
+.pf-s09 {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pf-s10 {
+  color: var(--text-2);
+  font-size: 0.85rem;
+}
+.pf-s11 {
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid #334155;
+}
+.pf-s12 {
+  margin-top: 20px;
+}
+.pf-s13 {
+  margin-bottom: 20px;
+}
+.pf-s14 {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  margin-bottom: 14px;
+  width: 100%;
+}
+.pf-s15 {
+  color: black;
+}
+.pf-s16 {
+  margin-top: 10px;
+}
+.pf-s17 {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pf-s18 {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.pf-s19 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255,255,255,0.05);
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+.pf-s20 {
+  display: block;
+  color: var(--text);
+}
+.pf-s21 {
+  font-size: 0.85rem;
+  color: var(--text-2);
+}
+.pf-s22 {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.pf-s23 {
+  margin-bottom: 8px;
+}
+.pf-s24 {
+  background: rgba(255,255,255,0.05);
+  padding: 12px;
+  border-radius: 8px;
+  width: 100%;
+  font-style: italic;
+}
+.pf-s25 {
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 10px;
+}
+.pf-s26 {
+  margin-bottom: 8px;
+  color: var(--danger);
+}
+.pf-s27 {
+  background: rgba(239,68,68,0.1);
+  border: 1px solid #ef4444;
+  color: var(--danger-soft);
+  padding: 12px;
+  border-radius: 8px;
+  width: 100%;
+}
+.pf-s28 {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+.pf-s29 {
+  max-width: 600px;
+}
+.pf-s30 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pf-s31 {
+  margin: 20px 0;
+}
+.pf-s32 {
+  padding: 8px 16px;
+}
+.pf-s33 {
+  min-height: 80px;
+  font-family: inherit;
+}
+.pf-s34 {
+  cursor: pointer;
+}
+.pf-s35 {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+.pf-s36 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.pf-s37 {
+  border: 2px dashed rgba(56,189,248,0.35);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  min-height: 110px;
+  background: rgba(56,189,248,0.04);
+  overflow: hidden;
+  position: relative;
+}
+.pf-s38 {
+  max-height: 100px;
+  max-width: 100%;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.pf-s39 {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+.pf-s40 {
+  display: block;
+  margin-bottom: 6px;
+  line-height: 0;
+}
+.pf-s41 {
+  display: none;
+}
+.pf-s42 {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+  margin-bottom: 24px;
+}
+.pf-s43 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255,255,255,0.05);
+  padding: 12px 16px;
+  border-radius: 12px;
+}
+.pf-s44 {
+  font-weight: 600;
+  color: var(--text);
+}
+.pf-s45 {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+/* Cor do ponto de treinamento: concluido (verde) x pendente (vermelho).
+   Era inline dinamico; virou classe condicional para usar os tokens. */
+.training-dot-done { color: var(--success); }
+.training-dot-todo { color: var(--danger); }
