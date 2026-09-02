@@ -177,10 +177,18 @@
 .login-field input:focus {
   background: rgba(14, 165, 233, 0.06);
   border-color: var(--accent);
-  box-shadow:
-    0 0 0 3px rgba(56, 189, 248, 0.12),
-    0 0 20px rgba(56, 189, 248, 0.08);
+  /* Um contorno so: a propria borda. O brilho e difuso (sem spread), entao e
+     um halo suave, nao um segundo anel. */
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.10);
   color: var(--text);
+}
+
+/* Sem o outline global de :focus-visible (que somava um segundo contorno duro
+   por fora) e sem o anel de box-shadow: o foco fica marcado apenas pela borda.
+   Acessibilidade garantida pela mudanca de cor da borda, visivel no teclado e
+   no mouse. */
+.login-field input:focus-visible {
+  outline: none;
 }
 
 .login-field .input-wrapper:focus-within .input-icon {
