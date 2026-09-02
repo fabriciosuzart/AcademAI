@@ -3,8 +3,6 @@ import { Link } from 'react-router-dom';
 import './Home.css';
 
 const Home: React.FC = () => {
-    const userRole = localStorage.getItem('userRole');
-
     return (
         <div className="home-container">
             <main className="home-main">
@@ -14,11 +12,6 @@ const Home: React.FC = () => {
                 <div className="tabs">
                     <Link to="/assistente" className="tab-button active">Interagir com IA</Link>
                     <Link to="/cadastro" className="tab-button active">Cadastre-se Agora</Link>
-                    {(userRole === 'ADMIN' || userRole === 'PROFESSOR') && (
-                        <Link to="/perfil" state={{ aba: 'overview' }} className="tab-button admin-tab">
-                            {userRole === 'ADMIN' ? 'Administrar' : 'Aprovar Reservas'}
-                        </Link>
-                    )}
                 </div>
 
                 <div className="content-box">
