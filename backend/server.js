@@ -10,6 +10,7 @@ import { STATUS, ehManutencao } from './status.js';
 import { HORA_ABERTURA, HORA_FECHAMENTO, clausulaDeConflito, horarioValido, paraMinutos } from './horarios.js';
 import { buscarBloqueioQueImpede, criarBloqueioSeNovo, motivoDoBloqueio, normalizarEquipmentId } from './bloqueios.js';
 import { validarRegrasTemporais, contarReservasAtivas, sujeitoAoLimite, REGRAS_RESERVA } from './config-reservas.js';
+import { JWT_SECRET } from './config-jwt.js';
 import { pipeline } from '@xenova/transformers';
 import fetch from 'node-fetch';
 import fs from 'fs';
@@ -37,7 +38,6 @@ const VECTOR_CACHE_PATH = path.join(__dirname, 'vector_cache.json');
 
 const app = express();
 const PORT = 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'academai_dev_secret_mude_em_producao';
 const JWT_EXPIRATION = '15m'; // RNF04 — access token 15 min (política definitiva)
 
 app.use(cors());
