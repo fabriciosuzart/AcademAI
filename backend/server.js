@@ -11,6 +11,7 @@ import { HORA_ABERTURA, HORA_FECHAMENTO, clausulaDeConflito, horarioValido, para
 import { buscarBloqueioQueImpede, criarBloqueioSeNovo, motivoDoBloqueio, normalizarEquipmentId } from './bloqueios.js';
 import { validarRegrasTemporais, contarReservasAtivas, sujeitoAoLimite, REGRAS_RESERVA } from './config-reservas.js';
 import { JWT_SECRET } from './config-jwt.js';
+import { validarEmailInstitucional, validarSenha } from './validacao-cadastro.js';
 import { pipeline } from '@xenova/transformers';
 import fetch from 'node-fetch';
 import fs from 'fs';
@@ -434,6 +435,12 @@ app.post('/api/register', async (req, res) => {
         if (!fullName || !email || !password) {
             return res.status(400).json({ error: "Nome, e-mail e senha são obrigatórios." });
         }
+        // RF01 — validacao autoritativa no servidor (o cliente so avisa).
+        const erroEmail = validarEmailInstitucional(email);
+        if (erroEmail) return res.status(400).json({ error: erroEmail });
+        const erroSenha = validarSenha(password);
+        if (erroSenha) return res.status(400).json({ error: erroSenha });
+
         const hashedPassword = await bcrypt.hash(password, 12); // RNF03 — fator mínimo 12
         // RF01/RN08 — apenas ALUNO pode se auto-registrar; Professor/Admin são atribuídos por administrador
         const allowedRoles = ['ALUNO'];
