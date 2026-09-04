@@ -275,6 +275,18 @@ const Perfil: React.FC = () => {
     }
   };
 
+  // RF07 - reset offline de senha pelo admin. A senha temporaria e devolvida
+  // so aqui (rota protegida) e mostrada ao admin, que a repassa ao usuario.
+  const handleResetPassword = async (user: any) => {
+    if (!window.confirm(`Gerar uma senha temporária para ${user.name}? A senha atual deixará de funcionar.`)) return;
+    try {
+      const { data } = await api.post(`/users/${user.id}/reset-password`);
+      alert(`${data.message}\n\nSenha temporária: ${data.tempPassword}`);
+    } catch (error: any) {
+      alert("Erro: " + (error.response?.data?.error || "falha ao resetar a senha."));
+    }
+  };
+
   // Alterar o papel do usuario (RF04). Vinha do painel admin, que era a unica
   // tela capaz de fazer isso — o perfil editava tudo menos o papel.
   const handleChangeRole = async (userId: string | number) => {
@@ -406,8 +418,13 @@ const Perfil: React.FC = () => {
     let rejectionReason = "";
     if (status === "REJEITADA") {
       const reason = prompt("Por favor, informe a justificativa para a rejeição:");
-      if (reason === null) return;
-      rejectionReason = reason;
+      if (reason === null) return; // cancelou
+      // RF14 — justificativa obrigatoria; nao deixa enviar em branco.
+      if (!reason.trim()) {
+        alert("A justificativa da rejeição é obrigatória.");
+        return;
+      }
+      rejectionReason = reason.trim();
     }
     setLoadingRes(true);
     try {
@@ -1553,6 +1570,14 @@ const Perfil: React.FC = () => {
                             title={user.isActive === false ? 'Ativar conta' : 'Desativar conta'}
                           >
                             {user.isActive === false ? 'Ativar' : 'Desativar'}
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost-btn small"
+                            onClick={() => handleResetPassword(user)}
+                            title="Gerar senha temporária (reset offline)"
+                          >
+                            Resetar senha
                           </button>
                           <button
                             type="button"

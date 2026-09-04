@@ -10,6 +10,8 @@ import { STATUS, ehManutencao } from './status.js';
 import { HORA_ABERTURA, HORA_FECHAMENTO, clausulaDeConflito, horarioValido, paraMinutos } from './horarios.js';
 import { buscarBloqueioQueImpede, criarBloqueioSeNovo, motivoDoBloqueio, normalizarEquipmentId } from './bloqueios.js';
 import { validarRegrasTemporais, contarReservasAtivas, sujeitoAoLimite, REGRAS_RESERVA } from './config-reservas.js';
+import { JWT_SECRET } from './config-jwt.js';
+import { validarEmailInstitucional, validarSenha } from './validacao-cadastro.js';
 import { pipeline } from '@xenova/transformers';
 import fetch from 'node-fetch';
 import fs from 'fs';
@@ -37,7 +39,6 @@ const VECTOR_CACHE_PATH = path.join(__dirname, 'vector_cache.json');
 
 const app = express();
 const PORT = 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'academai_dev_secret_mude_em_producao';
 const JWT_EXPIRATION = '15m'; // RNF04 — access token 15 min (política definitiva)
 
 app.use(cors());
@@ -434,6 +435,12 @@ app.post('/api/register', async (req, res) => {
         if (!fullName || !email || !password) {
             return res.status(400).json({ error: "Nome, e-mail e senha são obrigatórios." });
         }
+        // RF01 — validacao autoritativa no servidor (o cliente so avisa).
+        const erroEmail = validarEmailInstitucional(email);
+        if (erroEmail) return res.status(400).json({ error: erroEmail });
+        const erroSenha = validarSenha(password);
+        if (erroSenha) return res.status(400).json({ error: erroSenha });
+
         const hashedPassword = await bcrypt.hash(password, 12); // RNF03 — fator mínimo 12
         // RF01/RN08 — apenas ALUNO pode se auto-registrar; Professor/Admin são atribuídos por administrador
         const allowedRoles = ['ALUNO'];
@@ -578,37 +585,70 @@ app.post('/api/change-password', authMiddleware, async (req, res) => {
 app.post('/api/reset-password', async (req, res) => {
     try {
         const { email } = req.body;
+        // Resposta SEMPRE generica: nao revela se o e-mail existe (evita
+        // enumeracao de contas) e NUNCA devolve a senha no corpo — antes
+        // qualquer um com um e-mail assumia a conta lendo a resposta.
+        const mensagemGenerica = "Se existir uma conta com esse e-mail, enviamos as instruções de recuperação. Em ambiente sem e-mail, procure um administrador.";
+
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) return res.status(404).json({ error: "E-mail não encontrado no sistema." });
-
-        // Gera senha temporária
-        const tempPassword = Math.random().toString(36).slice(-8);
-        const hashedTemp = await bcrypt.hash(tempPassword, 12); // RNF03
-
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { password: hashedTemp, isTempPassword: 1 }
-        });
-
-        // RF07 - registro em log de auditoria da redefinição de senha.
-        await registrarAuditoria({
-            action: 'SENHA_RESET',
-            targetUserId: user.id,
-            detail: `Reset de senha solicitado para ${email}`,
-            ip: ipDaRequisicao(req),
-        });
-
-        // Tenta enviar por e-mail
-        await sendEmailNotification(
-            email,
-            'AcademAI - Recuperação de Senha',
-            `Sua senha temporária é: <strong>${tempPassword}</strong><br>Ao fazer login, você será solicitado a criar uma nova senha.`
-        );
-
-        res.json({ message: `Senha temporária gerada: ${tempPassword} — Anote-a e faça login para redefinir.` });
+        if (user) {
+            const tempPassword = Math.random().toString(36).slice(-8);
+            const hashedTemp = await bcrypt.hash(tempPassword, 12); // RNF03
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { password: hashedTemp, isTempPassword: 1 }
+            });
+            await registrarAuditoria({
+                action: 'SENHA_RESET',
+                targetUserId: user.id,
+                detail: `Recuperação de senha solicitada para ${email}`,
+                ip: ipDaRequisicao(req),
+            });
+            // Entrega SO por e-mail. Sem SMTP, a senha fica apenas no log do
+            // servidor; a recuperacao offline e feita pelo admin (rota abaixo).
+            await sendEmailNotification(
+                email,
+                'AcademAI - Recuperação de Senha',
+                `Sua senha temporária é: <strong>${tempPassword}</strong><br>Ao fazer login, você será solicitado a criar uma nova senha.`
+            );
+        }
+        res.json({ message: mensagemGenerica });
     } catch (error) {
         console.error("Erro ao resetar senha:", error);
         res.status(500).json({ error: "Erro interno ao resetar senha." });
+    }
+});
+
+// POST /api/users/:id/reset-password (RF07 - reset offline pelo administrador)
+// Gera uma senha temporaria e a devolve AO ADMIN autenticado, que a repassa ao
+// usuario. Registrado em auditoria. E o unico caminho que revela a senha, e so
+// para quem tem papel de admin.
+app.post('/api/users/:id/reset-password', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
+    try {
+        const alvoId = parseInt(req.params.id);
+        const alvo = await prisma.user.findUnique({ where: { id: alvoId } });
+        if (!alvo) return res.status(404).json({ error: "Usuário não encontrado." });
+
+        const tempPassword = Math.random().toString(36).slice(-8);
+        const hashedTemp = await bcrypt.hash(tempPassword, 12); // RNF03
+        await prisma.user.update({
+            where: { id: alvoId },
+            data: { password: hashedTemp, isTempPassword: 1 }
+        });
+        await registrarAuditoria({
+            action: 'SENHA_RESET_ADMIN',
+            actorUserId: req.userId,
+            targetUserId: alvoId,
+            detail: `Reset offline de senha de ${alvo.email}`,
+            ip: ipDaRequisicao(req),
+        });
+        res.json({
+            message: `Senha temporária de ${alvo.name} gerada. Repasse ao usuário: ele trocará no próximo login.`,
+            tempPassword,
+        });
+    } catch (error) {
+        console.error("Erro no reset de senha pelo admin:", error);
+        res.status(500).json({ error: "Erro ao resetar senha." });
     }
 });
 
@@ -1064,6 +1104,14 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
         const { status, rejectionReason } = req.body;
         const appointmentId = parseInt(req.params.id);
 
+        // RF14 — justificativa OBRIGATORIA para rejeicao, opcional para aprovacao.
+        // Antes o motivo era guardado so "se viesse"; uma rejeicao sem motivo
+        // passava direto e o aluno nao sabia o porque.
+        const motivoRejeicao = typeof rejectionReason === 'string' ? rejectionReason.trim() : '';
+        if (status === 'REJEITADA' && !motivoRejeicao) {
+            return res.status(400).json({ error: "Informe a justificativa da rejeição." });
+        }
+
         const appointment = await prisma.appointment.findUnique({
             where: { id: appointmentId },
             include: { user: { select: { role: true } } }
@@ -1103,8 +1151,8 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
             status,
             approvedById: req.userId
         };
-        if (status === 'REJEITADA' && rejectionReason) {
-            updateData.rejectionReason = rejectionReason;
+        if (status === 'REJEITADA') {
+            updateData.rejectionReason = motivoRejeicao;
         }
 
         const updated = await prisma.appointment.update({
@@ -1117,7 +1165,7 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
             await createNotification(appointment.userId, 'RESERVA_APROVADA',
                 `Sua reserva para ${appointment.date} às ${appointment.time} foi aprovada!`, appointmentId);
         } else if (status === 'REJEITADA') {
-            const reason = rejectionReason ? ` Motivo: ${rejectionReason}` : '';
+            const reason = motivoRejeicao ? ` Motivo: ${motivoRejeicao}` : '';
             await createNotification(appointment.userId, 'RESERVA_REJEITADA',
                 `Sua reserva para ${appointment.date} às ${appointment.time} foi rejeitada.${reason}`, appointmentId);
         }
