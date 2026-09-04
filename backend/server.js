@@ -578,37 +578,70 @@ app.post('/api/change-password', authMiddleware, async (req, res) => {
 app.post('/api/reset-password', async (req, res) => {
     try {
         const { email } = req.body;
+        // Resposta SEMPRE generica: nao revela se o e-mail existe (evita
+        // enumeracao de contas) e NUNCA devolve a senha no corpo — antes
+        // qualquer um com um e-mail assumia a conta lendo a resposta.
+        const mensagemGenerica = "Se existir uma conta com esse e-mail, enviamos as instruções de recuperação. Em ambiente sem e-mail, procure um administrador.";
+
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) return res.status(404).json({ error: "E-mail não encontrado no sistema." });
-
-        // Gera senha temporária
-        const tempPassword = Math.random().toString(36).slice(-8);
-        const hashedTemp = await bcrypt.hash(tempPassword, 12); // RNF03
-
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { password: hashedTemp, isTempPassword: 1 }
-        });
-
-        // RF07 - registro em log de auditoria da redefinição de senha.
-        await registrarAuditoria({
-            action: 'SENHA_RESET',
-            targetUserId: user.id,
-            detail: `Reset de senha solicitado para ${email}`,
-            ip: ipDaRequisicao(req),
-        });
-
-        // Tenta enviar por e-mail
-        await sendEmailNotification(
-            email,
-            'AcademAI - Recuperação de Senha',
-            `Sua senha temporária é: <strong>${tempPassword}</strong><br>Ao fazer login, você será solicitado a criar uma nova senha.`
-        );
-
-        res.json({ message: `Senha temporária gerada: ${tempPassword} — Anote-a e faça login para redefinir.` });
+        if (user) {
+            const tempPassword = Math.random().toString(36).slice(-8);
+            const hashedTemp = await bcrypt.hash(tempPassword, 12); // RNF03
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { password: hashedTemp, isTempPassword: 1 }
+            });
+            await registrarAuditoria({
+                action: 'SENHA_RESET',
+                targetUserId: user.id,
+                detail: `Recuperação de senha solicitada para ${email}`,
+                ip: ipDaRequisicao(req),
+            });
+            // Entrega SO por e-mail. Sem SMTP, a senha fica apenas no log do
+            // servidor; a recuperacao offline e feita pelo admin (rota abaixo).
+            await sendEmailNotification(
+                email,
+                'AcademAI - Recuperação de Senha',
+                `Sua senha temporária é: <strong>${tempPassword}</strong><br>Ao fazer login, você será solicitado a criar uma nova senha.`
+            );
+        }
+        res.json({ message: mensagemGenerica });
     } catch (error) {
         console.error("Erro ao resetar senha:", error);
         res.status(500).json({ error: "Erro interno ao resetar senha." });
+    }
+});
+
+// POST /api/users/:id/reset-password (RF07 - reset offline pelo administrador)
+// Gera uma senha temporaria e a devolve AO ADMIN autenticado, que a repassa ao
+// usuario. Registrado em auditoria. E o unico caminho que revela a senha, e so
+// para quem tem papel de admin.
+app.post('/api/users/:id/reset-password', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
+    try {
+        const alvoId = parseInt(req.params.id);
+        const alvo = await prisma.user.findUnique({ where: { id: alvoId } });
+        if (!alvo) return res.status(404).json({ error: "Usuário não encontrado." });
+
+        const tempPassword = Math.random().toString(36).slice(-8);
+        const hashedTemp = await bcrypt.hash(tempPassword, 12); // RNF03
+        await prisma.user.update({
+            where: { id: alvoId },
+            data: { password: hashedTemp, isTempPassword: 1 }
+        });
+        await registrarAuditoria({
+            action: 'SENHA_RESET_ADMIN',
+            actorUserId: req.userId,
+            targetUserId: alvoId,
+            detail: `Reset offline de senha de ${alvo.email}`,
+            ip: ipDaRequisicao(req),
+        });
+        res.json({
+            message: `Senha temporária de ${alvo.name} gerada. Repasse ao usuário: ele trocará no próximo login.`,
+            tempPassword,
+        });
+    } catch (error) {
+        console.error("Erro no reset de senha pelo admin:", error);
+        res.status(500).json({ error: "Erro ao resetar senha." });
     }
 });
 
