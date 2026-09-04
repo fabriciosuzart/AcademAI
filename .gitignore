@@ -30,3 +30,6 @@ backend/uploads/
 *.db
 vector_cache.json
 *.tsbuildinfo
+
+# Segredo do JWT gerado por maquina (config-jwt.js) — nunca versionar
+backend/.jwt-secret

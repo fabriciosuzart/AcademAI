@@ -1,8 +1,8 @@
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
+import { JWT_SECRET } from '../config-jwt.js';
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'academai_dev_secret_mude_em_producao';
 
 // 1. Middleware de Autenticação (verifica JWT — RNF05/RN08)
 export const authMiddleware = (req, res, next) => {

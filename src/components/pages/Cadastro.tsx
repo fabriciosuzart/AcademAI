@@ -56,6 +56,9 @@ const Cadastro: React.FC = () => {
         if (formData.password.length < 8) {
             return alert('A senha deve ter no mínimo 8 caracteres.'); // RF01
         }
+        if (!/[A-Za-z]/.test(formData.password) || !/[0-9]/.test(formData.password)) {
+            return alert('A senha deve conter letras e números.'); // RF01
+        }
         if (formData.password !== formData.confirmPassword) {
             return alert('As senhas não conferem.');
         }
