@@ -418,8 +418,13 @@ const Perfil: React.FC = () => {
     let rejectionReason = "";
     if (status === "REJEITADA") {
       const reason = prompt("Por favor, informe a justificativa para a rejeição:");
-      if (reason === null) return;
-      rejectionReason = reason;
+      if (reason === null) return; // cancelou
+      // RF14 — justificativa obrigatoria; nao deixa enviar em branco.
+      if (!reason.trim()) {
+        alert("A justificativa da rejeição é obrigatória.");
+        return;
+      }
+      rejectionReason = reason.trim();
     }
     setLoadingRes(true);
     try {

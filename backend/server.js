@@ -1104,6 +1104,14 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
         const { status, rejectionReason } = req.body;
         const appointmentId = parseInt(req.params.id);
 
+        // RF14 — justificativa OBRIGATORIA para rejeicao, opcional para aprovacao.
+        // Antes o motivo era guardado so "se viesse"; uma rejeicao sem motivo
+        // passava direto e o aluno nao sabia o porque.
+        const motivoRejeicao = typeof rejectionReason === 'string' ? rejectionReason.trim() : '';
+        if (status === 'REJEITADA' && !motivoRejeicao) {
+            return res.status(400).json({ error: "Informe a justificativa da rejeição." });
+        }
+
         const appointment = await prisma.appointment.findUnique({
             where: { id: appointmentId },
             include: { user: { select: { role: true } } }
@@ -1143,8 +1151,8 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
             status,
             approvedById: req.userId
         };
-        if (status === 'REJEITADA' && rejectionReason) {
-            updateData.rejectionReason = rejectionReason;
+        if (status === 'REJEITADA') {
+            updateData.rejectionReason = motivoRejeicao;
         }
 
         const updated = await prisma.appointment.update({
@@ -1157,7 +1165,7 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
             await createNotification(appointment.userId, 'RESERVA_APROVADA',
                 `Sua reserva para ${appointment.date} às ${appointment.time} foi aprovada!`, appointmentId);
         } else if (status === 'REJEITADA') {
-            const reason = rejectionReason ? ` Motivo: ${rejectionReason}` : '';
+            const reason = motivoRejeicao ? ` Motivo: ${motivoRejeicao}` : '';
             await createNotification(appointment.userId, 'RESERVA_REJEITADA',
                 `Sua reserva para ${appointment.date} às ${appointment.time} foi rejeitada.${reason}`, appointmentId);
         }
