@@ -138,6 +138,36 @@ function ipDaRequisicao(req) {
     return (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim() || null;
 }
 
+// RF09 — reservas APROVADAS cujo horario de termino ja passou viram CONCLUIDA.
+// O enum de status previa CONCLUIDA (schema + telas), mas nada nunca atribuia:
+// uma reserva aprovada que ja aconteceu ficava eternamente "APROVADA".
+// Nao ha job/cron no ambiente local (o projeto roda tudo na maquina), entao a
+// transicao e preguicosa: acontece no backend ao servir as telas que exibem
+// status. E idempotente e barata — poucas linhas de reserva — e persiste o
+// novo status (importante para os relatorios do RF30).
+async function concluirReservasVencidas() {
+    try {
+        const agora = new Date();
+        const aprovadas = await prisma.appointment.findMany({ where: { status: 'APROVADA' } });
+        const vencidas = aprovadas.filter((a) => {
+            const fim = a.endTime || a.time; // sem endTime, usa o inicio como termino
+            if (!a.date || !fim) return false;
+            const dt = new Date(`${a.date}T${fim}:00`);
+            return !isNaN(dt.getTime()) && dt < agora;
+        }).map((a) => a.id);
+        if (vencidas.length) {
+            await prisma.appointment.updateMany({
+                where: { id: { in: vencidas } },
+                data: { status: 'CONCLUIDA' },
+            });
+        }
+        return vencidas.length;
+    } catch (e) {
+        console.error('⚠️ Falha ao concluir reservas vencidas:', e.message);
+        return 0;
+    }
+}
+
 // --- BASE DE CONHECIMENTO (RAG) ---
 let knowledgeBase = [];
 let vectorStore = [];
@@ -1183,6 +1213,7 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
 // GET /api/appointments/all-history (Histórico Global - ADMIN)
 app.get('/api/appointments/all-history', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
     try {
+        await concluirReservasVencidas(); // RF09
         const appointments = await prisma.appointment.findMany({
             include: { user: { select: { name: true, role: true } }, equipment: { select: { name: true } } },
             orderBy: { id: 'desc' }
@@ -1215,6 +1246,7 @@ app.get('/api/appointments/all-history', authMiddleware, roleMiddleware(['ADMIN'
 // parseInt dava NaN e a resposta era 400.
 app.get('/api/appointments/overview', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
     try {
+        await concluirReservasVencidas(); // RF09
         const today = new Date();
         const todayStr = today.toISOString().split('T')[0];
 
@@ -1268,6 +1300,7 @@ app.get('/api/appointments/overview', authMiddleware, roleMiddleware(['ADMIN']),
 
 app.get('/api/appointments/calendar', authMiddleware, roleMiddleware(['ADMIN', 'PROFESSOR']), async (req, res) => {
     try {
+        await concluirReservasVencidas(); // RF09
         const { start, end } = req.query;
         const where = {};
         if (start && end) {
@@ -1301,6 +1334,7 @@ app.get('/api/appointments/:userId', authMiddleware, async (req, res) => {
             return res.status(403).json({ error: "Você só pode ver as suas próprias reservas." });
         }
 
+        await concluirReservasVencidas(); // RF09
         const appointments = await prisma.appointment.findMany({
             where: { userId },
             include: { equipment: { select: { name: true } } },
@@ -1754,4 +1788,8 @@ app.delete('/api/blocked-dates/:id', authMiddleware, roleMiddleware(['ADMIN']), 
     }
 });
 
-app.listen(PORT, () => console.log(`🔥 Servidor AcademAI: http://localhost:${PORT}`));
+app.listen(PORT, async () => {
+    console.log(`🔥 Servidor AcademAI: http://localhost:${PORT}`);
+    const concluidas = await concluirReservasVencidas(); // RF09 — regulariza ao subir
+    if (concluidas) console.log(`✅ RF09: ${concluidas} reserva(s) vencida(s) marcada(s) como CONCLUIDA.`);
+});
