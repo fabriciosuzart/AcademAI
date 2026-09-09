@@ -347,7 +347,7 @@
 }
 
 .user-name-cell {
-  min-width: 250px;
+  min-width: 150px;
   font-weight: 600;
   color: var(--text);
 }
@@ -358,6 +358,58 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+/* Coluna de acoes da tabela de usuarios. Com 4 botoes de texto (editar,
+   ativar/desativar, resetar senha, excluir) a linha ficava larga demais e
+   empurrava a coluna para fora do wrapper (overflow-x), fazendo o botao de
+   editar "sumir". Agora sao botoes so de icone numa grade 2x2 compacta, com
+   tooltips (title/aria-label) para o significado. */
+.user-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 34px);
+  gap: 6px;
+  width: max-content;
+}
+
+.icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.icon-action:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.icon-action.danger {
+  color: var(--danger-soft);
+  border-color: rgba(var(--danger-rgb), 0.4);
+}
+
+.icon-action.danger:hover:not(:disabled) {
+  background: rgba(var(--danger-rgb), 0.12);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.icon-action.success {
+  color: var(--success);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.icon-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .button-icon {

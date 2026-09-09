@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axios";
-import { Check, Circle, User } from "lucide-react";
+import { Check, Circle, User, Pencil, Power, KeyRound, Trash2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "./Perfil.css";
 import { STATUS, OPCOES_STATUS, classeStatus, ehManutencao, rotuloStatus } from "../../utils/status";
@@ -1479,7 +1479,6 @@ const Perfil: React.FC = () => {
                     <tr>
                       <th>Usuário</th>
                       <th>E-mail</th>
-                      <th>R.A.</th>
                       <th>Perfil</th>
                       <th>Status</th>
                       <th>Ações</th>
@@ -1527,67 +1526,50 @@ const Perfil: React.FC = () => {
                           </span>
                         </td>
                         <td>
-                          <button
-                            type="button"
-                            className="ghost-btn small"
-                            onClick={() => openEditUser(user)}
-                            disabled={user.role === "ADMIN"}
-                            title={
-                              user.role === "ADMIN"
-                                ? "Perfis de administrador não podem ser editados"
-                                : "Editar usuário"
-                            }
-                          >
-                            <span className="button-icon" aria-hidden="true">
-                              <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg"
-                              >
-                                <path
-                                  d="M4 17.25V21h3.75L17.81 10.94l-3.75-3.75L4 17.25Z"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                                <path
-                                  d="M14.06 4.93994c.39-.39 1.02-.39 1.41 0l2.54 2.54c.39.39.39 1.02 0 1.41l-1.83 1.83-3.75-3.75 1.63-1.63Z"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            className={`ghost-btn small ${user.isActive === false ? 'success' : 'danger'}`}
-                            onClick={() => handleToggleActive(user)}
-                            title={user.isActive === false ? 'Ativar conta' : 'Desativar conta'}
-                          >
-                            {user.isActive === false ? 'Ativar' : 'Desativar'}
-                          </button>
-                          <button
-                            type="button"
-                            className="ghost-btn small"
-                            onClick={() => handleResetPassword(user)}
-                            title="Gerar senha temporária (reset offline)"
-                          >
-                            Resetar senha
-                          </button>
-                          <button
-                            type="button"
-                            className="ghost-btn small danger"
-                            onClick={() => handleDeleteUser(user)}
-                            disabled={user.role === "ADMIN"}
-                            title={user.role === "ADMIN" ? "Admins não podem ser excluídos" : "Excluir usuário"}
-                          >
-                            Excluir
-                          </button>
+                          <div className="user-actions">
+                            <button
+                              type="button"
+                              className="icon-action"
+                              onClick={() => openEditUser(user)}
+                              disabled={user.role === "ADMIN"}
+                              aria-label="Editar usuário"
+                              title={
+                                user.role === "ADMIN"
+                                  ? "Perfis de administrador não podem ser editados"
+                                  : "Editar usuário"
+                              }
+                            >
+                              <Pencil size={16} aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className={`icon-action ${user.isActive === false ? "success" : "danger"}`}
+                              onClick={() => handleToggleActive(user)}
+                              aria-label={user.isActive === false ? "Ativar conta" : "Desativar conta"}
+                              title={user.isActive === false ? "Ativar conta" : "Desativar conta"}
+                            >
+                              <Power size={16} aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-action"
+                              onClick={() => handleResetPassword(user)}
+                              aria-label="Resetar senha"
+                              title="Gerar senha temporária (reset offline)"
+                            >
+                              <KeyRound size={16} aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-action danger"
+                              onClick={() => handleDeleteUser(user)}
+                              disabled={user.role === "ADMIN"}
+                              aria-label="Excluir usuário"
+                              title={user.role === "ADMIN" ? "Admins não podem ser excluídos" : "Excluir usuário"}
+                            >
+                              <Trash2 size={16} aria-hidden="true" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
