@@ -1927,3 +1927,103 @@
    Era inline dinamico; virou classe condicional para usar os tokens. */
 .training-dot-done { color: var(--success); }
 .training-dot-todo { color: var(--danger); }
+
+/* ── Logs e Relatórios (RF30) ─────────────────────────────── */
+.reports-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.report-stat {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.report-stat-num {
+  font-size: 1.9rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1;
+}
+
+.report-stat-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.reports-breakdowns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.report-block {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 18px;
+  padding: 16px 18px;
+}
+
+.report-block h3 {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  color: var(--text-2);
+}
+
+.report-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.report-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-2);
+  font-size: 0.9rem;
+}
+
+.report-list strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.logs-title {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  color: var(--text-2);
+}
+
+.log-action {
+  font-family: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: var(--accent-soft);
+  padding: 2px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+@media (max-width: 980px) {
+  .reports-cards,
+  .reports-breakdowns {
+    grid-template-columns: 1fr;
+  }
+}
