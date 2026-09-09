@@ -1788,6 +1788,74 @@ app.delete('/api/blocked-dates/:id', authMiddleware, roleMiddleware(['ADMIN']), 
     }
 });
 
+// --- LOGS E RELATÓRIOS (RF30) ---
+// O painel admin ja tinha visao geral, pendencias, calendario, usuarios,
+// equipamentos e documentos; faltava o "acesso a logs e relatorios basicos".
+
+// GET /api/audit-logs — trilha de auditoria (RF07), so ADMIN. Resolve os
+// nomes de ator/alvo para exibicao.
+app.get('/api/audit-logs', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
+    try {
+        const limite = Math.min(parseInt(req.query.limit) || 100, 500);
+        const logs = await prisma.auditLog.findMany({ orderBy: { createdAt: 'desc' }, take: limite });
+        const ids = [...new Set(logs.flatMap((l) => [l.actorUserId, l.targetUserId]).filter(Boolean))];
+        const usuarios = ids.length
+            ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })
+            : [];
+        const porId = Object.fromEntries(usuarios.map((u) => [u.id, u.name]));
+        const formatted = logs.map((l) => ({
+            id: l.id,
+            action: l.action,
+            actor: l.actorUserId ? (porId[l.actorUserId] || `#${l.actorUserId}`) : 'Sistema/anônimo',
+            target: l.targetUserId ? (porId[l.targetUserId] || `#${l.targetUserId}`) : null,
+            detail: l.detail,
+            ip: l.ip,
+            createdAt: l.createdAt,
+        }));
+        res.json(formatted);
+    } catch (error) {
+        console.error("❌ Erro ao buscar logs de auditoria:", error);
+        res.status(500).json({ error: "Erro ao carregar logs." });
+    }
+});
+
+// GET /api/reports/summary — relatorios basicos (RF30), so ADMIN.
+app.get('/api/reports/summary', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
+    try {
+        await concluirReservasVencidas(); // RF09 — numeros refletem o status atual
+        const [porStatus, porRole, totalEquipamentos, totalReservas, totalUsuarios] = await Promise.all([
+            prisma.appointment.groupBy({ by: ['status'], _count: true }),
+            prisma.user.groupBy({ by: ['role'], _count: true }),
+            prisma.equipment.count(),
+            prisma.appointment.count(),
+            prisma.user.count(),
+        ]);
+
+        const porEquip = await prisma.appointment.groupBy({ by: ['equipmentId'], _count: true });
+        const equipIds = porEquip.map((e) => e.equipmentId);
+        const equips = equipIds.length
+            ? await prisma.equipment.findMany({ where: { id: { in: equipIds } }, select: { id: true, name: true } })
+            : [];
+        const nomeEquip = Object.fromEntries(equips.map((e) => [e.id, e.name]));
+        const topEquipamentos = porEquip
+            .map((e) => ({ equipamento: nomeEquip[e.equipmentId] || `#${e.equipmentId}`, total: e._count }))
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 5);
+
+        res.json({
+            totalReservas,
+            totalEquipamentos,
+            totalUsuarios,
+            reservasPorStatus: porStatus.map((s) => ({ status: s.status, total: s._count })),
+            usuariosPorPapel: porRole.map((r) => ({ papel: r.role, total: r._count })),
+            topEquipamentos,
+        });
+    } catch (error) {
+        console.error("❌ Erro ao gerar relatório:", error);
+        res.status(500).json({ error: "Erro ao gerar relatório." });
+    }
+});
+
 app.listen(PORT, async () => {
     console.log(`🔥 Servidor AcademAI: http://localhost:${PORT}`);
     const concluidas = await concluirReservasVencidas(); // RF09 — regulariza ao subir

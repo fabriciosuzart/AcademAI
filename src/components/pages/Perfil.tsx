@@ -96,6 +96,7 @@ const Perfil: React.FC = () => {
     | "usuarios"
     | "equipamentos"
     | "treinamento"
+    | "relatorios"
     | "configuracoes"
   >("agendamentos");
   // Papel escolhido no seletor, ainda nao salvo, indexado pelo id do usuario.
@@ -106,6 +107,10 @@ const Perfil: React.FC = () => {
   const [overviewData, setOverviewData] = useState<any>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [pendingReservations, setPendingReservations] = useState<any[]>([]);
+  // RF30 — logs e relatorios basicos do painel admin.
+  const [reportSummary, setReportSummary] = useState<any>(null);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [loadingRelatorios, setLoadingRelatorios] = useState(false);
   const [loadingRes, setLoadingRes] = useState(false);
   const [calendarAppointments, setCalendarAppointments] = useState<any[]>([]);
   const [loadingCalendar, setLoadingCalendar] = useState(false);
@@ -364,6 +369,23 @@ const Perfil: React.FC = () => {
       console.error("Erro ao buscar visão geral", error);
     } finally {
       setLoadingOverview(false);
+    }
+  };
+
+  // RF30 — carrega relatório resumido + trilha de auditoria (só admin).
+  const fetchRelatorios = async () => {
+    setLoadingRelatorios(true);
+    try {
+      const [resumo, logs] = await Promise.all([
+        api.get("/reports/summary"),
+        api.get("/audit-logs", { params: { limit: 100 } }),
+      ]);
+      setReportSummary(resumo.data);
+      setAuditLogs(logs.data);
+    } catch (error) {
+      console.error("Erro ao carregar logs e relatórios", error);
+    } finally {
+      setLoadingRelatorios(false);
     }
   };
 
@@ -1117,6 +1139,13 @@ const Perfil: React.FC = () => {
                 >
                   Treinamento IA
                 </button>
+                <button
+                  type="button"
+                  className={`panel-tab ${activeTab === "relatorios" ? "active" : ""}`}
+                  onClick={() => { setActiveTab("relatorios"); fetchRelatorios(); }}
+                >
+                  Logs e Relatórios
+                </button>
               </>
             )}
             <button
@@ -1778,6 +1807,117 @@ const Perfil: React.FC = () => {
                     ))}
                   </ul>
                 )}
+              </div>
+            </div>
+          ) : activeTab === "relatorios" ? (
+            <div className="panel-content relatorios-panel">
+              <div className="admin-panel-header">
+                <div>
+                  <h2>Logs e Relatórios</h2>
+                  <p>Relatórios básicos do laboratório e trilha de auditoria (RF30/RF07).</p>
+                </div>
+                <button
+                  type="button"
+                  className="ghost-btn small"
+                  onClick={fetchRelatorios}
+                  disabled={loadingRelatorios}
+                >
+                  {loadingRelatorios ? "Atualizando…" : "Atualizar"}
+                </button>
+              </div>
+
+              {reportSummary && (
+                <>
+                  <div className="reports-cards">
+                    <div className="report-stat">
+                      <span className="report-stat-num">{reportSummary.totalReservas}</span>
+                      <span className="report-stat-label">Reservas</span>
+                    </div>
+                    <div className="report-stat">
+                      <span className="report-stat-num">{reportSummary.totalEquipamentos}</span>
+                      <span className="report-stat-label">Equipamentos</span>
+                    </div>
+                    <div className="report-stat">
+                      <span className="report-stat-num">{reportSummary.totalUsuarios}</span>
+                      <span className="report-stat-label">Usuários</span>
+                    </div>
+                  </div>
+
+                  <div className="reports-breakdowns">
+                    <div className="report-block">
+                      <h3>Reservas por status</h3>
+                      <ul className="report-list">
+                        {reportSummary.reservasPorStatus.map((s: any) => (
+                          <li key={s.status}>
+                            <span className={`perfil-status-badge ${s.status}`}>{s.status}</span>
+                            <strong>{s.total}</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="report-block">
+                      <h3>Usuários por papel</h3>
+                      <ul className="report-list">
+                        {reportSummary.usuariosPorPapel.map((r: any) => (
+                          <li key={r.papel}>
+                            <span>{r.papel}</span>
+                            <strong>{r.total}</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="report-block">
+                      <h3>Equipamentos mais reservados</h3>
+                      <ul className="report-list">
+                        {reportSummary.topEquipamentos.length === 0 && (
+                          <li><span>Nenhuma reserva ainda.</span></li>
+                        )}
+                        {reportSummary.topEquipamentos.map((e: any) => (
+                          <li key={e.equipamento}>
+                            <span>{e.equipamento}</span>
+                            <strong>{e.total}</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <h3 className="logs-title">Trilha de auditoria</h3>
+              <div className="user-table-wrapper">
+                <table className="user-table">
+                  <thead>
+                    <tr>
+                      <th>Data</th>
+                      <th>Ação</th>
+                      <th>Responsável</th>
+                      <th>Alvo</th>
+                      <th>Detalhe</th>
+                      <th>IP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="schedule-empty">
+                          Nenhum registro de auditoria ainda.
+                        </td>
+                      </tr>
+                    ) : (
+                      auditLogs.map((log) => (
+                        <tr key={log.id}>
+                          <td>{new Date(log.createdAt).toLocaleString("pt-BR")}</td>
+                          <td><code className="log-action">{log.action}</code></td>
+                          <td>{log.actor}</td>
+                          <td>{log.target || "—"}</td>
+                          <td>{log.detail || "—"}</td>
+                          <td>{log.ip || "—"}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           ) : (
