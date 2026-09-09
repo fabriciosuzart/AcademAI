@@ -138,6 +138,36 @@ function ipDaRequisicao(req) {
     return (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim() || null;
 }
 
+// RF09 — reservas APROVADAS cujo horario de termino ja passou viram CONCLUIDA.
+// O enum de status previa CONCLUIDA (schema + telas), mas nada nunca atribuia:
+// uma reserva aprovada que ja aconteceu ficava eternamente "APROVADA".
+// Nao ha job/cron no ambiente local (o projeto roda tudo na maquina), entao a
+// transicao e preguicosa: acontece no backend ao servir as telas que exibem
+// status. E idempotente e barata — poucas linhas de reserva — e persiste o
+// novo status (importante para os relatorios do RF30).
+async function concluirReservasVencidas() {
+    try {
+        const agora = new Date();
+        const aprovadas = await prisma.appointment.findMany({ where: { status: 'APROVADA' } });
+        const vencidas = aprovadas.filter((a) => {
+            const fim = a.endTime || a.time; // sem endTime, usa o inicio como termino
+            if (!a.date || !fim) return false;
+            const dt = new Date(`${a.date}T${fim}:00`);
+            return !isNaN(dt.getTime()) && dt < agora;
+        }).map((a) => a.id);
+        if (vencidas.length) {
+            await prisma.appointment.updateMany({
+                where: { id: { in: vencidas } },
+                data: { status: 'CONCLUIDA' },
+            });
+        }
+        return vencidas.length;
+    } catch (e) {
+        console.error('⚠️ Falha ao concluir reservas vencidas:', e.message);
+        return 0;
+    }
+}
+
 // --- BASE DE CONHECIMENTO (RAG) ---
 let knowledgeBase = [];
 let vectorStore = [];
@@ -1183,6 +1213,7 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
 // GET /api/appointments/all-history (Histórico Global - ADMIN)
 app.get('/api/appointments/all-history', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
     try {
+        await concluirReservasVencidas(); // RF09
         const appointments = await prisma.appointment.findMany({
             include: { user: { select: { name: true, role: true } }, equipment: { select: { name: true } } },
             orderBy: { id: 'desc' }
@@ -1215,6 +1246,7 @@ app.get('/api/appointments/all-history', authMiddleware, roleMiddleware(['ADMIN'
 // parseInt dava NaN e a resposta era 400.
 app.get('/api/appointments/overview', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
     try {
+        await concluirReservasVencidas(); // RF09
         const today = new Date();
         const todayStr = today.toISOString().split('T')[0];
 
@@ -1268,6 +1300,7 @@ app.get('/api/appointments/overview', authMiddleware, roleMiddleware(['ADMIN']),
 
 app.get('/api/appointments/calendar', authMiddleware, roleMiddleware(['ADMIN', 'PROFESSOR']), async (req, res) => {
     try {
+        await concluirReservasVencidas(); // RF09
         const { start, end } = req.query;
         const where = {};
         if (start && end) {
@@ -1301,6 +1334,7 @@ app.get('/api/appointments/:userId', authMiddleware, async (req, res) => {
             return res.status(403).json({ error: "Você só pode ver as suas próprias reservas." });
         }
 
+        await concluirReservasVencidas(); // RF09
         const appointments = await prisma.appointment.findMany({
             where: { userId },
             include: { equipment: { select: { name: true } } },
@@ -1754,4 +1788,76 @@ app.delete('/api/blocked-dates/:id', authMiddleware, roleMiddleware(['ADMIN']), 
     }
 });
 
-app.listen(PORT, () => console.log(`🔥 Servidor AcademAI: http://localhost:${PORT}`));
+// --- LOGS E RELATÓRIOS (RF30) ---
+// O painel admin ja tinha visao geral, pendencias, calendario, usuarios,
+// equipamentos e documentos; faltava o "acesso a logs e relatorios basicos".
+
+// GET /api/audit-logs — trilha de auditoria (RF07), so ADMIN. Resolve os
+// nomes de ator/alvo para exibicao.
+app.get('/api/audit-logs', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
+    try {
+        const limite = Math.min(parseInt(req.query.limit) || 100, 500);
+        const logs = await prisma.auditLog.findMany({ orderBy: { createdAt: 'desc' }, take: limite });
+        const ids = [...new Set(logs.flatMap((l) => [l.actorUserId, l.targetUserId]).filter(Boolean))];
+        const usuarios = ids.length
+            ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })
+            : [];
+        const porId = Object.fromEntries(usuarios.map((u) => [u.id, u.name]));
+        const formatted = logs.map((l) => ({
+            id: l.id,
+            action: l.action,
+            actor: l.actorUserId ? (porId[l.actorUserId] || `#${l.actorUserId}`) : 'Sistema/anônimo',
+            target: l.targetUserId ? (porId[l.targetUserId] || `#${l.targetUserId}`) : null,
+            detail: l.detail,
+            ip: l.ip,
+            createdAt: l.createdAt,
+        }));
+        res.json(formatted);
+    } catch (error) {
+        console.error("❌ Erro ao buscar logs de auditoria:", error);
+        res.status(500).json({ error: "Erro ao carregar logs." });
+    }
+});
+
+// GET /api/reports/summary — relatorios basicos (RF30), so ADMIN.
+app.get('/api/reports/summary', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
+    try {
+        await concluirReservasVencidas(); // RF09 — numeros refletem o status atual
+        const [porStatus, porRole, totalEquipamentos, totalReservas, totalUsuarios] = await Promise.all([
+            prisma.appointment.groupBy({ by: ['status'], _count: true }),
+            prisma.user.groupBy({ by: ['role'], _count: true }),
+            prisma.equipment.count(),
+            prisma.appointment.count(),
+            prisma.user.count(),
+        ]);
+
+        const porEquip = await prisma.appointment.groupBy({ by: ['equipmentId'], _count: true });
+        const equipIds = porEquip.map((e) => e.equipmentId);
+        const equips = equipIds.length
+            ? await prisma.equipment.findMany({ where: { id: { in: equipIds } }, select: { id: true, name: true } })
+            : [];
+        const nomeEquip = Object.fromEntries(equips.map((e) => [e.id, e.name]));
+        const topEquipamentos = porEquip
+            .map((e) => ({ equipamento: nomeEquip[e.equipmentId] || `#${e.equipmentId}`, total: e._count }))
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 5);
+
+        res.json({
+            totalReservas,
+            totalEquipamentos,
+            totalUsuarios,
+            reservasPorStatus: porStatus.map((s) => ({ status: s.status, total: s._count })),
+            usuariosPorPapel: porRole.map((r) => ({ papel: r.role, total: r._count })),
+            topEquipamentos,
+        });
+    } catch (error) {
+        console.error("❌ Erro ao gerar relatório:", error);
+        res.status(500).json({ error: "Erro ao gerar relatório." });
+    }
+});
+
+app.listen(PORT, async () => {
+    console.log(`🔥 Servidor AcademAI: http://localhost:${PORT}`);
+    const concluidas = await concluirReservasVencidas(); // RF09 — regulariza ao subir
+    if (concluidas) console.log(`✅ RF09: ${concluidas} reserva(s) vencida(s) marcada(s) como CONCLUIDA.`);
+});
