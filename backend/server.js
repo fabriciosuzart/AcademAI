@@ -12,25 +12,20 @@ import { buscarBloqueioQueImpede, criarBloqueioSeNovo, motivoDoBloqueio, normali
 import { validarRegrasTemporais, contarReservasAtivas, sujeitoAoLimite, REGRAS_RESERVA } from './config-reservas.js';
 import { JWT_SECRET } from './config-jwt.js';
 import { validarEmailInstitucional, validarSenha } from './validacao-cadastro.js';
-import { pipeline } from '@xenova/transformers';
 import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
 import multer from 'multer';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import {
     toolConsultarEquipamentos, executarConsultaEquipamentos,
     toolSolicitarReserva, executarSolicitacaoReserva
 } from './mcp_tools.js';
-
-const execPromise = promisify(exec);
-
-const require = createRequire(import.meta.url);
-const pdf = require('pdf-parse');
-const mammoth = require('mammoth');
+import {
+    FORMATOS_ACEITOS, FORMATOS_DOCLING, MIN_CARACTERES_UTEIS, TOP_K,
+    sourceDoArquivo, nomeDoSource, carregarDocumentos, caracteresUteis,
+    criarEmbedder, embedding, vetorizar as vetorizarBlocos, buscar, converterComDocling
+} from './rag.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -243,11 +238,6 @@ async function repassarStreamOllama(res, ollamaResponse) {
     }
 }
 
-// Cada bloco carrega a origem no formato "Arquivo: nome.md" (ver loadDocuments).
-// Essas duas funcoes sao o unico lugar que conhece esse formato.
-const sourceDoArquivo = (nome) => `Arquivo: ${nome}`;
-const nomeDoSource = (source) => String(source || '').replace(/^Arquivo:\s*/, '');
-
 // Resolve o nome vindo da URL para um caminho seguro dentro de documents/.
 // Sem isso, um ".." no parametro viraria caminho para fora da pasta e o unlink
 // apagaria outro arquivo do projeto. Devolve null quando o nome nao serve.
@@ -269,51 +259,11 @@ function caminhoSeguroDoDocumento(nomeBruto) {
     return { nome, caminho: destino };
 }
 
-// Lê os documentos da pasta e devolve os blocos.
+// Lê os documentos da pasta e devolve os blocos (rag.js faz a leitura e o corte).
 // Quando `apenas` é informado, lê só aquele arquivo — usado após um upload,
 // para não reprocessar o corpus inteiro a cada treino.
-async function loadDocuments(apenas = null) {
-    const blocos = [];
-
-    if (!fs.existsSync(DOCUMENTS_PATH)) {
-        fs.mkdirSync(DOCUMENTS_PATH);
-        console.log("📂 Pasta 'documents' criada.");
-        return blocos;
-    }
-    const files = apenas ? [apenas] : fs.readdirSync(DOCUMENTS_PATH);
-    console.log(`📂 Lendo ${files.length} arquivo(s)...`);
-
-    for (const file of files) {
-        const filePath = path.join(DOCUMENTS_PATH, file);
-        const ext = path.extname(file).toLowerCase();
-        let textContent = "";
-        try {
-            if (ext === '.pdf') {
-                const dataBuffer = fs.readFileSync(filePath);
-                const data = await pdf(dataBuffer);
-                textContent = data.text;
-            } else if (ext === '.docx') {
-                const result = await mammoth.extractRawText({ path: filePath });
-                textContent = result.value;
-            } else if (ext === '.md' || ext === '.txt') {
-                textContent = fs.readFileSync(filePath, 'utf-8');
-            }
-            if (textContent) {
-                const cleanText = textContent.replace(/\r/g, '').replace(/\n\s*\n/g, '\n').trim();
-                const chunkSize = 2000;
-                for (let i = 0; i < cleanText.length; i += chunkSize) {
-                    blocos.push({
-                        source: sourceDoArquivo(file),
-                        text: cleanText.substring(i, i + chunkSize)
-                    });
-                }
-                console.log(`   ✅ Lido: ${file}`);
-            }
-        } catch (error) {
-            console.error(`   ❌ Erro ao ler ${file}:`, error.message);
-        }
-    }
-    return blocos;
+function loadDocuments(apenas = null) {
+    return carregarDocumentos(DOCUMENTS_PATH, { apenas });
 }
 
 // Carrega o modelo de embeddings uma única vez por processo.
@@ -322,7 +272,7 @@ async function garantirEmbedder() {
     if (embedder) return true;
     console.log("\n🧠 Inicializando Motor de IA...");
     try {
-        embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+        embedder = await criarEmbedder();
         console.log("✅ Modelo de Embeddings carregado na memória.");
         return true;
     } catch (e) {
@@ -331,18 +281,8 @@ async function garantirEmbedder() {
     }
 }
 
-async function vetorizar(blocos) {
-    const vetores = [];
-    for (const bloco of blocos) {
-        try {
-            const output = await embedder(bloco.text, { pooling: 'mean', normalize: true });
-            vetores.push({ text: bloco.text, source: bloco.source, vector: output.data });
-            process.stdout.write(`.`);
-        } catch (e) {
-            console.error(`\n❌ Erro ao vetorizar bloco de ${bloco.source}:`, e.message);
-        }
-    }
-    return vetores;
+function vetorizar(blocos) {
+    return vetorizarBlocos(embedder, blocos);
 }
 
 function salvarCache() {
@@ -441,16 +381,6 @@ async function indexarDocumento(nomeArquivo) {
 }
 
 initAI();
-
-function cosineSimilarity(vecA, vecB) {
-    let dot = 0.0, normA = 0.0, normB = 0.0;
-    for (let i = 0; i < vecA.length; i++) {
-        dot += vecA[i] * vecB[i];
-        normA += vecA[i] * vecA[i];
-        normB += vecB[i] * vecB[i];
-    }
-    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
-}
 
 // ============================================================
 // ======================== ROTAS =============================
@@ -1468,35 +1398,126 @@ app.put('/api/notifications/read-all/:userId', authMiddleware, async (req, res) 
 });
 
 // --- TREINAMENTO IA (ADMIN, RNF05 - protegido) ---
-app.post('/api/train', authMiddleware, roleMiddleware(['ADMIN']), upload.single('file'), async (req, res) => {
-    try {
-        if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado." });
-        const inputPath = req.file.path;
-        const mdFileName = `${req.file.filename}.md`;
-        const outputPath = path.join(DOCUMENTS_PATH, mdFileName);
-        console.log(`\n🔄 Iniciando conversão: ${req.file.originalname} -> Markdown`);
-        const cmdPython = process.platform === 'win32' ? 'python' : 'python3';
-        const pythonCommand = `${cmdPython} converter.py "${inputPath}" "${outputPath}"`;
-        const { stdout } = await execPromise(pythonCommand);
+// Upload próprio para documentos: só aceita os formatos do acervo e guarda o
+// original em uploads/ apenas até o fim da conversão.
+const uploadDocumento = multer({
+    storage,
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB (Seção 1.6.1)
+    fileFilter: (req, file, cb) => {
+        const ext = path.extname(file.originalname || '').toLowerCase();
+        if (FORMATOS_ACEITOS.includes(ext)) return cb(null, true);
+        req.formatoRecusado = ext || '(sem extensão)';
+        cb(null, false);
+    }
+});
 
-        if (stdout.includes("SUCESSO")) {
-            console.log("✅ Conversão concluída pelo Docling.");
-            // Indexa só o arquivo recém-convertido. Antes isto zerava a base e
-            // rodava initAI() de novo, recarregando o modelo e revetorizando
-            // todos os documentos — o upload demorava mais a cada treino.
-            const novos = await indexarDocumento(mdFileName);
-            res.json({
-                message: "IA Treinada com sucesso!",
-                file: mdFileName,
-                blocosIndexados: novos,
-                totalVetores: vectorStore.length
-            });
+// Registra a ingestão na trilha de auditoria (aba de logs, RF30).
+function logIngestao(req, ok, arquivo, info) {
+    const partes = [`arquivo=${arquivo}`, ...Object.entries(info)
+        .filter(([, v]) => v !== undefined && v !== null && v !== '')
+        .map(([k, v]) => `${k}=${v}`)];
+    return registrarAuditoria({
+        action: ok ? 'INGESTAO_OK' : 'INGESTAO_FALHA',
+        actorUserId: req.userId || null,
+        detail: partes.join('; ').slice(0, 1000),
+        ip: ipDaRequisicao(req),
+    });
+}
+
+function apagarSeExiste(caminho) {
+    try {
+        if (caminho && fs.existsSync(caminho)) fs.unlinkSync(caminho);
+    } catch (e) {
+        console.warn(`⚠️ Não consegui apagar ${caminho}:`, e.message);
+    }
+}
+
+// Recebe o arquivo tratando os erros do multer (ex.: arquivo > 50 MB), que
+// antes caíam no handler padrão do Express e voltavam como HTML 500.
+function receberDocumento(req, res, next) {
+    uploadDocumento.single('file')(req, res, async (erro) => {
+        if (!erro) return next();
+        const motivo = erro.code === 'LIMIT_FILE_SIZE' ? 'Arquivo maior que 50 MB.' : `Upload inválido: ${erro.message}`;
+        await logIngestao(req, false, '(não recebido)', { motivo });
+        res.status(erro.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ error: motivo });
+    });
+}
+
+app.post('/api/train', authMiddleware, roleMiddleware(['ADMIN']), receberDocumento, async (req, res) => {
+    if (req.formatoRecusado) {
+        await logIngestao(req, false, '(não recebido)', { formato: req.formatoRecusado, motivo: 'formato não aceito' });
+        return res.status(400).json({ error: `Formato ${req.formatoRecusado} não aceito. Envie PDF, DOCX, MD ou TXT.` });
+    }
+    if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado." });
+
+    const original = req.file.originalname;
+    const inputPath = req.file.path;
+    const ext = path.extname(original).toLowerCase();
+    const formato = ext.slice(1).toUpperCase();
+    // PDF/DOCX viram "<nome>.pdf.md"; MD/TXT são guardados como vieram.
+    const nomeFinal = FORMATOS_DOCLING.includes(ext) ? `${req.file.filename}.md` : req.file.filename;
+    const outputPath = path.join(DOCUMENTS_PATH, nomeFinal);
+    const inicio = Date.now();
+    let conversao = {};
+
+    // RN14: documento com falha não é indexado e não fica nem em uploads/ nem em documents/.
+    const recusar = async (status, motivo) => {
+        apagarSeExiste(outputPath);
+        await logIngestao(req, false, original, { formato, motivo, tempo_docling_s: conversao.tempo_s });
+        return res.status(status).json({ error: `Documento recusado: ${motivo}` });
+    };
+
+    try {
+        if (!fs.existsSync(DOCUMENTS_PATH)) fs.mkdirSync(DOCUMENTS_PATH, { recursive: true });
+
+        if (FORMATOS_DOCLING.includes(ext)) {
+            console.log(`\n🔄 Iniciando conversão: ${original} -> Markdown`);
+            conversao = await converterComDocling(inputPath, outputPath);
+            if (conversao.status !== 'SUCESSO') {
+                console.warn(`❌ Docling recusou ${original}: ${conversao.motivo}`);
+                return await recusar(422, conversao.motivo || 'falha na conversão.');
+            }
+            console.log(`✅ Conversão concluída pelo Docling em ${conversao.tempo_s}s.`);
         } else {
-            throw new Error(stdout);
+            const texto = fs.readFileSync(inputPath, 'utf-8');
+            if (caracteresUteis(texto) < MIN_CARACTERES_UTEIS) {
+                return await recusar(422, 'nenhum texto aproveitável no arquivo.');
+            }
+            fs.writeFileSync(outputPath, texto, 'utf-8');
         }
+
+        // Indexa só o arquivo novo, somando ao que já está em memória.
+        const novos = await indexarDocumento(nomeFinal);
+        if (novos === 0) {
+            return await recusar(422, 'nenhum fragmento pôde ser indexado.');
+        }
+
+        await logIngestao(req, true, original, {
+            salvo_como: nomeFinal,
+            formato,
+            paginas: conversao.paginas,
+            tabelas: conversao.tabelas,
+            imagens: conversao.imagens,
+            ocr: conversao.ocr,
+            hash: conversao.hash,
+            fragmentos: novos,
+            tempo_docling_s: conversao.tempo_s,
+            tempo_total_s: ((Date.now() - inicio) / 1000).toFixed(2),
+        });
+        res.json({
+            message: "IA Treinada com sucesso!",
+            file: nomeFinal,
+            blocosIndexados: novos,
+            totalVetores: vectorStore.length
+        });
     } catch (error) {
         console.error("❌ Erro no treinamento:", error);
+        apagarSeExiste(outputPath);
+        await logIngestao(req, false, original, { formato, motivo: error.message });
         res.status(500).json({ error: "Falha ao processar documento." });
+    } finally {
+        // O original só serve para a conversão; não fica guardado.
+        apagarSeExiste(inputPath);
     }
 });
 
@@ -1588,10 +1609,8 @@ app.post('/api/chat', optionalAuthMiddleware, async (req, res) => {
         let contextText = "";
         let ragSources = [];
         if (vectorStore.length > 0) {
-            const output = await embedder(message, { pooling: 'mean', normalize: true });
-            const queryVector = output.data;
-            const results = vectorStore.map(item => ({ item, score: cosineSimilarity(queryVector, item.vector) }));
-            const topResults = results.sort((a, b) => b.score - a.score).slice(0, 4); // RF19/UC11: top-4
+            const queryVector = await embedding(embedder, message);
+            const topResults = buscar(queryVector, vectorStore, TOP_K); // RF19/UC11: top-4
             ragSources = [...new Set(topResults.map(r => r.item.source))]; // fontes únicas
             // Inclui fonte no contexto para o LLM poder citá-la (RF19 obrigatório)
             contextText = topResults.map(r => `[Fonte: ${r.item.source}]\n${r.item.text}`).join("\n\n");
