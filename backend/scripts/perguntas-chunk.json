@@ -1,0 +1,22 @@
+[
+  { "pergunta": "Quantos treinamentos estão disponíveis no laboratório?", "trechos": ["Os treinamentos disponíveis hoje são quatro"] },
+  { "pergunta": "Quais são os perfis de acesso do sistema?", "trechos": ["O sistema tem três perfis"] },
+  { "pergunta": "A reserva feita por um professor precisa ser aprovada?", "trechos": ["As reservas dele são aprovadas automaticamente", "a reserva é **aprovada automaticamente**"] },
+  { "pergunta": "O que eu faço depois de terminar o treinamento online?", "trechos": ["você agenda uma validação presencial"] },
+  { "pergunta": "Onde posso divulgar os projetos que eu fiz no laboratório?", "trechos": ["Galeria de Projetos"] },
+  { "pergunta": "Preciso deixar algum documento na recepção para usar as máquinas?", "trechos": ["deixar um documento de identificação na recepção"] },
+  { "pergunta": "Com quanto tempo de antecedência devo chegar?", "trechos": ["Chegue com no mínimo 10 minutos de antecedência"] },
+  { "pergunta": "Qual é a tolerância de atraso para uma reserva?", "trechos": ["As reservas têm tolerância de 10 minutos"] },
+  { "pergunta": "Posso entrar no laboratório de bermuda ou chinelo?", "trechos": ["proibida a entrada com bermuda"] },
+  { "pergunta": "Quantas máquinas o laboratório tem ao todo?", "trechos": ["17 máquinas"] },
+  { "pergunta": "Quantas unidades da impressora 3D Finder existem?", "trechos": ["3 unidades: Impressora 3D Finder 01"] },
+  { "pergunta": "A estação de solda exige treinamento?", "trechos": ["| Estação de Solda | 2 | Não |"] },
+  { "pergunta": "Em quais estados um equipamento pode estar?", "trechos": ["Cada máquina está sempre em um destes três estados"] },
+  { "pergunta": "Qual é o horário disponível para reservas?", "trechos": ["08:00 às 18:00"] },
+  { "pergunta": "Quais são os status possíveis de uma reserva?", "trechos": ["Status possíveis de uma reserva"] },
+  { "pergunta": "Posso cancelar uma reserva que já foi concluída?", "trechos": ["Depois de concluída, não há cancelamento"] },
+  { "pergunta": "Uma reserva pendente já bloqueia o horário?", "trechos": ["Reservas pendentes também bloqueiam o horário"] },
+  { "pergunta": "Como faço uma reserva conversando com a assistente?", "trechos": ["quero reservar a cortadora a laser amanhã às 14h"] },
+  { "pergunta": "Posso reservar um equipamento que está em manutenção?", "trechos": ["Equipamentos em manutenção não aceitam reservas", "Máquinas nesse estado não aceitam reserva"] },
+  { "pergunta": "O administrador pode bloquear datas no calendário?", "trechos": ["O administrador pode bloquear dias específicos"] }
+]

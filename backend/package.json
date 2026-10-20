@@ -6,7 +6,11 @@
   "scripts": {
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "medir": "node scripts/medir-ingestao.js",
+    "simular-chunk": "node scripts/simular-chunk.js",
+    "carga-chat": "node scripts/carga-chat.js",
+    "backup": "node scripts/backup.js"
   },
   "keywords": [],
   "author": "",
