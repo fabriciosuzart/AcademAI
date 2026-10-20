@@ -14,6 +14,11 @@ export default [
                 process: "readonly",
                 Buffer: "readonly",
                 __dirname: "readonly",
+                fetch: "readonly",
+                performance: "readonly",
+                AbortSignal: "readonly",
+                setInterval: "readonly",
+                clearInterval: "readonly",
             }
         },
         rules: {
