@@ -19,8 +19,12 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import {
     toolConsultarEquipamentos, executarConsultaEquipamentos,
-    toolSolicitarReserva, executarSolicitacaoReserva
+    toolSolicitarReserva, validarSolicitacaoReserva, executarSolicitacaoReserva
 } from './mcp_tools.js';
+import {
+    obterRascunho, salvarRascunho, encerrarEsperaDeConfirmacao, descartarRascunho,
+    classificarResposta, perguntaDeConfirmacao, formatarDataBR, MENSAGEM_RECUSA
+} from './confirmacao-reserva.js';
 import {
     FORMATOS_ACEITOS, FORMATOS_DOCLING, MIN_CARACTERES_UTEIS, TOP_K,
     sourceDoArquivo, nomeDoSource, carregarDocumentos, caracteresUteis,
@@ -1595,6 +1599,42 @@ app.delete('/api/train/documents/:nome', authMiddleware, roleMiddleware(['ADMIN'
 });
 
 // --- CHAT (MCP + RAG + RESERVAS) ---
+
+// Resposta fixa (sem passar pelo modelo), no mesmo formato text/plain do
+// stream. Usada nas falas do protocolo de confirmação, que precisam sair
+// exatamente como especificado — o modelo poderia parafrasear ou omitir.
+function responderTexto(res, texto) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.end(texto);
+}
+
+// --- SEGUNDA CHAMADA (injeção do resultado) ---
+// Pede ao modelo que relate ao usuário, em linguagem natural, o resultado de
+// uma ação do sistema (consulta, reserva gravada, erro de validação).
+async function relatarResultadoAoUsuario(res, messagesBase, resultado, userInfo) {
+    const promptInjetado = `Você consultou o sistema e obteve:
+            ${resultado}
+
+            Responda ao usuário de forma natural. NUNCA mencione "banco de dados", "SQLite" ou "ferramentas".
+            ${userInfo ? `Lembre: ${userInfo}` : ''}`;
+
+    const finalResponse = await fetch('http://127.0.0.1:11434/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: "llama3.2",
+            messages: [...messagesBase, { role: "user", content: promptInjetado }],
+            stream: true,
+            options: {
+                temperature: 0.1 // Tira a "criatividade" ao relatar o resultado
+            }
+        })
+    });
+
+    // Repassa a resposta e ENCERRA a requisição.
+    await repassarStreamOllama(res, finalResponse);
+}
+
 app.post('/api/chat', optionalAuthMiddleware, async (req, res) => {
     const { message, history = [] } = req.body;
     // A identidade vem do TOKEN, nunca do corpo. A rota segue aberta a visitante
@@ -1605,18 +1645,6 @@ app.post('/api/chat', optionalAuthMiddleware, async (req, res) => {
     console.log(`💬 Pergunta do Usuário (ID: ${userId || 'Visitante'}):`, message);
 
     try {
-        // --- 1. RAG (Busca nos PDFs) — RF19: top-4 fragmentos com fonte obrigatória ---
-        let contextText = "";
-        let ragSources = [];
-        if (vectorStore.length > 0) {
-            const queryVector = await embedding(embedder, message);
-            const topResults = buscar(queryVector, vectorStore, TOP_K); // RF19/UC11: top-4
-            ragSources = [...new Set(topResults.map(r => r.item.source))]; // fontes únicas
-            // Inclui fonte no contexto para o LLM poder citá-la (RF19 obrigatório)
-            contextText = topResults.map(r => `[Fonte: ${r.item.source}]\n${r.item.text}`).join("\n\n");
-        }
-
-
         // Informação sobre o perfil do usuário para RF23
         let userInfo = '';
         let statusLogin = '';
@@ -1633,6 +1661,66 @@ app.post('/api/chat', optionalAuthMiddleware, async (req, res) => {
             statusLogin = `Você está falando com um VISITANTE NÃO LOGADO. Se o usuário falar em agendar, reservar ou perguntar sobre a disponibilidade de equipamentos para reservar, RECUSE IMEDIATAMENTE informando que ele precisa fazer login na plataforma. NÃO CHAME nenhuma ferramenta (nem consultar_equipamentos, nem solicitar_reserva). Encerre o assunto ali mesmo.`;
         }
 
+        // --- 1. RESPOSTA À PERGUNTA DE CONFIRMAÇÃO (Regras 2 e 3) ---
+        // Se a última fala do assistente foi "Confirma a reserva...?", esta
+        // mensagem é a resposta. Este é o ÚNICO ponto do chat que grava reserva,
+        // e só diante de uma confirmação explícita.
+        const rascunhoPendente = userId ? obterRascunho(userId) : null;
+        if (rascunhoPendente?.aguardandoConfirmacao) {
+            const intencao = classificarResposta(message);
+            console.log(`📝 Resposta à confirmação: ${intencao}`);
+
+            if (intencao === 'CONFIRMA') {
+                const resultado = await executarSolicitacaoReserva(rascunhoPendente.args, userId);
+                console.log("📦 RETORNO:", resultado.mensagem);
+                if (resultado.ok) {
+                    descartarRascunho(userId);
+                } else {
+                    // Falhou na revalidação (ex.: horário ocupado nesse meio tempo).
+                    // Mantém os dados para o usuário trocar só o que precisa.
+                    encerrarEsperaDeConfirmacao(userId);
+                }
+                const messagesBase = [
+                    { role: "system", content: `Você é o assistente virtual do AcademAI.\n\nINFORMAÇÃO DO USUÁRIO ATUAL: ${statusLogin}\n\nSeja direto e educado.` },
+                    ...history,
+                    { role: "user", content: message }
+                ];
+                await relatarResultadoAoUsuario(res, messagesBase, resultado.mensagem, userInfo);
+                return;
+            }
+
+            // Qualquer coisa diferente de um "sim" explícito: nada é gravado e a
+            // espera acaba (um "sim" solto depois não grava sem nova pergunta).
+            encerrarEsperaDeConfirmacao(userId);
+            if (intencao === 'RECUSA') {
+                return responderTexto(res, MENSAGEM_RECUSA);
+            }
+            // OUTRO (ex.: "não, muda para as 15h"): segue para a IA, que vê o
+            // rascunho no prompt e chama 'solicitar_reserva' com o dado alterado,
+            // o que gera uma NOVA pergunta de confirmação.
+        }
+        const rascunhoAtual = userId ? obterRascunho(userId) : null;
+
+        // --- 2. RAG (Busca nos PDFs) — RF19: top-4 fragmentos com fonte obrigatória ---
+        let contextText = "";
+        let ragSources = [];
+        if (vectorStore.length > 0) {
+            const queryVector = await embedding(embedder, message);
+            const topResults = buscar(queryVector, vectorStore, TOP_K); // RF19/UC11: top-4
+            ragSources = [...new Set(topResults.map(r => r.item.source))]; // fontes únicas
+            // Inclui fonte no contexto para o LLM poder citá-la (RF19 obrigatório)
+            contextText = topResults.map(r => `[Fonte: ${r.item.source}]\n${r.item.text}`).join("\n\n");
+        }
+
+        // Data de hoje, para o modelo converter "amanhã", "sexta" etc.
+        const agora = new Date();
+        const hojeISO = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
+        const diaDaSemana = agora.toLocaleDateString('pt-BR', { weekday: 'long' });
+
+        const blocoRascunho = rascunhoAtual
+            ? `7. RESERVA EM ANDAMENTO (AINDA NÃO GRAVADA): máquina "${rascunhoAtual.args.equipmentName}", dia ${formatarDataBR(rascunhoAtual.args.date)} (${rascunhoAtual.args.date}), às ${rascunhoAtual.args.time}. Se o usuário quiser alterar algo, chame 'solicitar_reserva' de novo com os TRÊS dados, trocando só o que ele pediu.`
+            : '';
+
         const systemPromptBase = `Você é o assistente virtual do AcademAI.
 
         INFORMAÇÃO DO USUÁRIO ATUAL: ${statusLogin}
@@ -1642,11 +1730,13 @@ app.post('/api/chat', optionalAuthMiddleware, async (req, res) => {
         2. AÇÕES DO SISTEMA: SÓ use 'consultar_equipamentos' ou 'solicitar_reserva' quando houver intenção clara de reserva (ex: "quero agendar", "reservar", "quais máquinas disponíveis").
 
         PROTOCOLO DE RESERVA (SIGA RIGOROSAMENTE):
-        1. 'solicitar_reserva' aceita o NOME do equipamento, DATA e HORA. Você NÃO precisa de ID nem de chamar 'consultar_equipamentos' antes.
-        2. Se o pedido vier completo (ex: "Quero agendar a Impressora 3D Finder 01 para 2026-07-17 às 19:30"), chame 'solicitar_reserva' DIRETAMENTE.
-        3. A data vai no formato AAAA-MM-DD e a hora em HH:MM.
-        4. Se faltar algum dado, peça o pedido completo numa única frase: "Quero agendar a [Máquina] para o dia [Data] às [Horário]".
-        5. Informe ao usuário se a reserva foi aprovada automaticamente ou ficou pendente.
+        1. Seu objetivo é coletar TRÊS dados: a MÁQUINA (nome do equipamento), a DATA e o HORÁRIO de início. 'solicitar_reserva' aceita o NOME — você NÃO precisa de ID nem de chamar 'consultar_equipamentos' antes.
+        2. Se faltar algum dado, pergunte APENAS o que falta, numa frase curta. Nunca invente máquina, data ou horário.
+        3. Hoje é ${diaDaSemana}, ${formatarDataBR(hojeISO)} (${hojeISO}). Converta datas como "amanhã" ou "sexta" para AAAA-MM-DD; a hora vai em HH:MM.
+        4. Assim que tiver os três dados, chame 'solicitar_reserva'. Ela NÃO grava a reserva: o sistema pergunta ao usuário "Confirma a reserva da máquina [X] para o dia [Y] às [Z]?" e só grava depois que ele confirmar.
+        5. NUNCA diga que a reserva foi feita, registrada ou aprovada antes da confirmação do usuário. Não faça você mesmo a pergunta de confirmação — chame a função.
+        6. Depois de gravada, informe se a reserva foi aprovada automaticamente ou ficou pendente.
+        ${blocoRascunho}
 
         REGRAS DE CITAÇÃO DE FONTE (RF19 — OBRIGATÓRIO):
         - Se a sua resposta for baseada em algum trecho do contexto documental abaixo, cite obrigatoriamente a fonte ao final, no formato: "📄 Fonte: [nome do arquivo]"
@@ -1667,7 +1757,16 @@ app.post('/api/chat', optionalAuthMiddleware, async (req, res) => {
         // --- 2. PRIMEIRA CHAMADA (A IA pensa e o roteador decide) ---
 
         // Filtro ultrarrápido por palavra-chave, antes de gastar uma chamada com ferramentas.
-        const usarMCP = precisaDeFerramentas(message);
+        // Também liga quando há reserva em andamento ou se o usuário acabou de
+        // falar em reservar: respostas como "amanhã às 14h" não têm palavra-chave,
+        // mas completam a coleta de máquina/data/horário.
+        const ultimasFalasDoUsuario = (Array.isArray(history) ? history : [])
+            .filter(m => m?.role === 'user')
+            .slice(-2)
+            .map(m => String(m.content || ''));
+        const usarMCP = precisaDeFerramentas(message)
+            || !!rascunhoAtual
+            || ultimasFalasDoUsuario.some(precisaDeFerramentas);
         console.log(usarMCP ? "🔌 MODO MCP ATIVADO (Ferramentas ligadas)" : "💬 MODO CHAT/RAG (Ferramentas desligadas)");
 
         const requestBody = {
@@ -1704,33 +1803,24 @@ app.post('/api/chat', optionalAuthMiddleware, async (req, res) => {
             if (toolCall.function.name === "consultar_equipamentos") {
                 resultadoBanco = await executarConsultaEquipamentos();
             } else if (toolCall.function.name === "solicitar_reserva") {
-                resultadoBanco = await executarSolicitacaoReserva(toolCall.function.arguments, userId);
+                // Regra 2: a IA NÃO grava. Validamos (somente leitura), guardamos
+                // um rascunho e PAUSAMOS com a pergunta fixa da Regra 1.
+                const validacao = await validarSolicitacaoReserva(toolCall.function.arguments, userId);
+                if (validacao.ok) {
+                    const { equipamento, date, time, fim } = validacao.dados;
+                    const dadosReserva = { equipmentName: equipamento.name, date, time, endTime: fim };
+                    salvarRascunho(userId, dadosReserva);
+                    console.log("⏸️ Reserva aguardando confirmação do usuário:", dadosReserva);
+                    return responderTexto(res, perguntaDeConfirmacao(dadosReserva));
+                }
+                // Dado faltando/inválido, conflito etc.: a IA explica e pede correção.
+                resultadoBanco = validacao.mensagem;
             }
 
             console.log("📦 RETORNO:", resultadoBanco);
 
             // --- 4. SEGUNDA CHAMADA (injeção do resultado) ---
-            const promptInjetado = `Você consultou o sistema e obteve:
-            ${resultadoBanco}
-
-            Responda ao usuário de forma natural. NUNCA mencione "banco de dados", "SQLite" ou "ferramentas".
-            ${userInfo ? `Lembre: ${userInfo}` : ''}`;
-
-            const finalResponse = await fetch('http://127.0.0.1:11434/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: "llama3.2",
-                    messages: [...messagesArray, { role: "user", content: promptInjetado }],
-                    stream: true,
-                    options: {
-                        temperature: 0.1 // Tira a "criatividade" ao relatar o resultado
-                    }
-                })
-            });
-
-            // Repassa a confirmação da ferramenta e ENCERRA a requisição aqui.
-            await repassarStreamOllama(res, finalResponse);
+            await relatarResultadoAoUsuario(res, messagesArray, resultadoBanco, userInfo);
             return;
         }
 

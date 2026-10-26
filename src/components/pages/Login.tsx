@@ -217,6 +217,7 @@ const Login: React.FC = () => {
                     <input
                       id="login-email"
                       type="email"
+                      autoComplete="username"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       placeholder="seu.nome@unisanta.br"
@@ -233,6 +234,7 @@ const Login: React.FC = () => {
                     <input
                       id="login-password"
                       type="password"
+                      autoComplete="current-password"
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       placeholder="Sua senha"
@@ -267,6 +269,7 @@ const Login: React.FC = () => {
                     <input
                       id="recover-email"
                       type="email"
+                      autoComplete="email"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       placeholder="seu.nome@unisanta.br"
@@ -300,14 +303,14 @@ const Login: React.FC = () => {
               <label htmlFor="new-password">Nova Senha</label>
               <div className="input-wrapper">
                 <span className="input-icon"><Lock size={18} aria-hidden="true" /></span>
-                <input id="new-password" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" aria-label="Digite a nova senha definitiva" />
+                <input id="new-password" type="password" autoComplete="new-password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" aria-label="Digite a nova senha definitiva" />
               </div>
             </div>
             <div className="login-field" style={{ marginBottom: '25px' }}>
               <label htmlFor="confirm-password">Confirmar Nova Senha</label>
               <div className="input-wrapper">
                 <span className="input-icon"><KeyRound size={18} aria-hidden="true" /></span>
-                <input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Digite novamente" aria-label="Confirme a nova senha definitiva" />
+                <input id="confirm-password" type="password" autoComplete="new-password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Digite novamente" aria-label="Confirme a nova senha definitiva" />
               </div>
             </div>
 

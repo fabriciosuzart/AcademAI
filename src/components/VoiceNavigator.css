@@ -262,6 +262,22 @@
   font-family: inherit;
 }
 
+.voice-shortcut-setting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.voice-shortcut-setting input {
+  accent-color: var(--accent-strong);
+  cursor: pointer;
+}
+
 /* ================================================
    Dica de atalho (rodapé do FAB)
    ================================================ */

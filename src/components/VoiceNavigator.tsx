@@ -208,6 +208,9 @@ const VoiceNavigator: React.FC = () => {
     const [showTtsWarning, setShowTtsWarning] = useState(false);
     const [showHelp, setShowHelp] = useState(false);
     const [showOnboarding, setShowOnboarding] = useState(false);
+    const [shortcutEnabled, setShortcutEnabled] = useState(
+        () => localStorage.getItem('voice_shortcut_enabled') !== 'false',
+    );
 
     const isListeningRef = useRef(false);
     const recognitionRef = useRef<any>(null);
@@ -290,15 +293,27 @@ const VoiceNavigator: React.FC = () => {
 
     // ── Onboarding: exibe tooltip na primeira visita ────────────
     useEffect(() => {
+        if (!shortcutEnabled) {
+            setShowOnboarding(false);
+            return;
+        }
+
         const onboarded = localStorage.getItem('voice_onboarded');
         if (!onboarded) {
-            setTimeout(() => setShowOnboarding(true), 1200);
-            setTimeout(() => {
+            const showTimer = setTimeout(() => setShowOnboarding(true), 1200);
+            const dismissTimer = setTimeout(() => {
                 setShowOnboarding(false);
                 localStorage.setItem('voice_onboarded', '1');
             }, 7000);
+
+            return () => {
+                clearTimeout(showTimer);
+                clearTimeout(dismissTimer);
+            };
         }
-    }, []);
+
+        return undefined;
+    }, [shortcutEnabled]);
 
     // ── Notificações sob Demanda (Jarvis Mode) ────────────────
     const checkNotifications = useCallback(async () => {
@@ -691,7 +706,7 @@ const VoiceNavigator: React.FC = () => {
             const tag = (e.target as HTMLElement).tagName;
             if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
-            if ((e.key === 'm' || e.key === 'M') && !isListeningRef.current) {
+            if (shortcutEnabled && (e.key === 'm' || e.key === 'M') && !isListeningRef.current) {
                 e.preventDefault();
                 startRecording();
                 return;
@@ -710,7 +725,7 @@ const VoiceNavigator: React.FC = () => {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [startRecording]);
+    }, [shortcutEnabled, startRecording]);
 
     // ── Fecha painel de ajuda ao clicar fora ──────────────────
     useEffect(() => {
@@ -785,8 +800,22 @@ const VoiceNavigator: React.FC = () => {
                             </div>
                         ))}
                         <div className="voice-help-shortcut">
-                            <kbd>M</kbd> para ativar &nbsp;·&nbsp; <kbd>Esc</kbd> para cancelar
+                            {shortcutEnabled && <><kbd>M</kbd> para ativar &nbsp;·&nbsp; </>}
+                            <kbd>Esc</kbd> para cancelar
                         </div>
+                        <label className="voice-shortcut-setting">
+                            <input
+                                type="checkbox"
+                                checked={shortcutEnabled}
+                                onChange={e => {
+                                    const enabled = e.target.checked;
+                                    setShortcutEnabled(enabled);
+                                    localStorage.setItem('voice_shortcut_enabled', String(enabled));
+                                    if (!enabled) setShowOnboarding(false);
+                                }}
+                            />
+                            <span>Ativar atalho M</span>
+                        </label>
                     </div>
                 )}
 
@@ -813,8 +842,8 @@ const VoiceNavigator: React.FC = () => {
                 <button
                     className={`voice-fab${isListening ? ' listening' : ''}`}
                     onClick={isListening ? undefined : startRecording}
-                    title={isListening ? 'Ouvindo... (Esc para cancelar)' : 'Pressione M ou clique para comandos de voz'}
-                    aria-label={isListening ? 'Microfone ativo. Pressione Escape para cancelar.' : 'Ativar comandos de voz. Atalho: tecla M'}
+                    title={isListening ? 'Ouvindo... (Esc para cancelar)' : shortcutEnabled ? 'Pressione M ou clique para comandos de voz' : 'Clique para comandos de voz'}
+                    aria-label={isListening ? 'Microfone ativo. Pressione Escape para cancelar.' : shortcutEnabled ? 'Ativar comandos de voz. Atalho: tecla M' : 'Ativar comandos de voz'}
                     aria-pressed={isListening}
                 >
                     {isListening ? <Circle size={20} fill="currentColor" aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
@@ -822,9 +851,11 @@ const VoiceNavigator: React.FC = () => {
             </div>
 
             {/* Dica de atalho */}
-            <div className="voice-shortcut-hint" aria-hidden="true">
-                Pressione <kbd>M</kbd>
-            </div>
+            {shortcutEnabled && (
+                <div className="voice-shortcut-hint" aria-hidden="true">
+                    Pressione <kbd>M</kbd>
+                </div>
+            )}
 
             {/* RNF07 — Aviso de privacidade TTS (primeira utilização) */}
             {showTtsWarning && (
