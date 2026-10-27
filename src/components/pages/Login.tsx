@@ -5,6 +5,9 @@ import './Login.css';
 import api from '../../api/axios';
 import { API_URL } from '../../api/config';
 import { mensagemDeErro } from '../../utils/erros';
+import { setAccessToken } from '../../api/session';
+import { useAuth } from '../../context/useAuth';
+import type { RespostaLogin } from '../../types/api';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -19,6 +22,7 @@ const Login: React.FC = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const { login, logout } = useAuth();
 
   // Removido: speak() local para evitar conflitos de TTS com o VoiceNavigator
 
@@ -122,20 +126,17 @@ const Login: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      const data = await response.json();
-
-      if (response.ok) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('refreshToken', data.refreshToken || '');
+      // Pelo api (axios) para o navegador guardar o cookie do refresh token.
+      const { data } = await api.post<RespostaLogin>('/login', { email, password });
+      if (data.auth) {
+        setAccessToken(data.token);
+        login(data);
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
         localStorage.setItem('userName', data.name);
-        localStorage.setItem('userId', data.id);
+        localStorage.setItem('userId', String(data.id));
         localStorage.setItem('userEmail', data.email);
-        localStorage.setItem('userRA', data.ra);
+        localStorage.setItem('userRA', data.ra ?? '');
         localStorage.setItem('userRole', data.role);
 
         if (data.isTempPassword === 1) {
@@ -155,13 +156,12 @@ const Login: React.FC = () => {
              navigate('/');
           }
         }
-      } else {
-        window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text: `Erro: ${data.error}` } }));
-        alert('Erro: ' + data.error);
       }
-    } catch {
-      window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text: 'Erro de conexão com o servidor.' } }));
-      alert('Erro de conexão com o servidor.');
+    } catch (error) {
+      // Credenciais erradas, conta bloqueada (429) ou servidor fora do ar.
+      const message = mensagemDeErro(error, 'Erro de conexão com o servidor.');
+      window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text: message } }));
+      alert('Erro: ' + message);
     }
   };
 
@@ -173,9 +173,10 @@ const Login: React.FC = () => {
       // O login (mesmo com senha temporaria) ja gravou o token; api o injeta.
       // O backend identifica o usuario pelo token — nao mandamos id no corpo.
       await api.post('/change-password', { currentPassword: password, newPassword });
-      alert("Senha atualizada com sucesso! Entrando...");
+      await logout();
+      alert("Senha atualizada com sucesso! Faça login novamente.");
       setShowChangePasswordModal(false);
-      navigate('/');
+      navigate('/login');
     } catch (error) {
       alert("Erro: " + mensagemDeErro(error, "falha ao atualizar senha."));
     }

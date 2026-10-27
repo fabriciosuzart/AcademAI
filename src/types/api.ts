@@ -22,11 +22,13 @@ export interface Notificacao {
   relatedId: number | null;
 }
 
-/** Corpo de POST /api/login. */
+/** Corpo de POST /api/auth/refresh: dados da sessão restaurada pelo cookie. */
+export type RespostaSessao = Omit<RespostaLogin, 'auth'>;
+
+/** Corpo de POST /api/login. O refresh token não vem aqui: vai num cookie HttpOnly. */
 export interface RespostaLogin {
   auth: boolean;
   token: string;
-  refreshToken?: string;
   id: number;
   name: string;
   email: string;

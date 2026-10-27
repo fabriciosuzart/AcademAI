@@ -2,7 +2,7 @@
 // Fast Refresh do Vite só funciona quando um arquivo .tsx exporta apenas componentes;
 // o hook está em ./useAuth.ts.
 import { createContext } from 'react';
-import type { RespostaLogin } from '../types/api';
+import type { RespostaSessao } from '../types/api';
 
 export interface UsuarioSessao {
   id: string;
@@ -13,9 +13,11 @@ export interface UsuarioSessao {
 
 export interface AuthContextType {
   isLoggedIn: boolean;
+  /** true enquanto a sessão é restaurada pelo cookie, ao abrir ou recarregar a página. */
+  isAuthLoading: boolean;
   user: UsuarioSessao | null;
-  login: (userData: RespostaLogin) => void;
-  logout: () => void;
+  login: (userData: RespostaSessao) => void;
+  logout: () => Promise<void>;
   requireAuth: (action: () => void) => void;
   
   // Controle do Modal

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api/axios';
+import { getAccessToken } from '../../api/session';
 import { CalendarDays, CheckCircle2 } from 'lucide-react';
 import CalendarPicker from '../CalendarPicker';
 import './Agendamento.css';
@@ -8,6 +9,7 @@ import { ehManutencao } from '../../utils/status';
 import { duracaoEntre, formatarDuracao } from '../../utils/horarios';
 import { mensagemDeErro } from '../../utils/erros';
 import type { Equipamento } from '../../types/api';
+import { useAuth } from '../../context/useAuth';
 
 const Agendamento: React.FC = () => {
     const navigate = useNavigate();
@@ -27,6 +29,7 @@ const Agendamento: React.FC = () => {
     const [justification, setJustification] = useState('');
     
     const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const { isAuthLoading } = useAuth();
 
     // ── Preenchimento e Submissão por Voz ────────────────────
     useEffect(() => {
@@ -70,14 +73,16 @@ const Agendamento: React.FC = () => {
             }
         };
 
-        const token = localStorage.getItem('token');
-        if (!token) {
+        // Espera a sessão ser restaurada pelo cookie antes de decidir: o token só
+        // existe em memória e some ao recarregar a página.
+        if (isAuthLoading) return;
+        if (!getAccessToken()) {
             navigate('/');
         } else {
             setIsLoggedIn(true);
             fetchEquipments();
         }
-    }, [navigate, preselectedEquipmentId]);
+    }, [isAuthLoading, navigate, preselectedEquipmentId]);
 
     if (!isLoggedIn) return null;
 

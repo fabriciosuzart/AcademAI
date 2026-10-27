@@ -1,43 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import { API_URL } from '../api/config';
-import type { RespostaLogin } from '../types/api';
+import type { AxiosResponse } from 'axios';
+import api from '../api/axios';
+import { setAccessToken } from '../api/session';
+import type { RespostaSessao } from '../types/api';
 import { AuthContext, type UsuarioSessao } from './authContexto';
 
-
+// Sessão (RNF04): o token de acesso fica só em memória (src/api/session.ts) e o
+// refresh token num cookie HttpOnly, que o JavaScript não lê. Ao abrir ou recarregar
+// a página, a sessão é restaurada pedindo um token novo em /auth/refresh.
+//
+// A promessa é compartilhada: no modo estrito do React o efeito roda duas vezes,
+// e dois refresh seguidos invalidariam um ao outro (o refresh token é rotacionado).
+let sessionRestorePromise: Promise<AxiosResponse<RespostaSessao>> | null = null;
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [user, setUser] = useState<UsuarioSessao | null>(null);
-  
+
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
-  useEffect(() => {
-    // Restaurar sessão do localStorage
-    const token = localStorage.getItem('token');
-    if (token) {
-      setIsLoggedIn(true);
-      setUser({
-        id: localStorage.getItem('userId') ?? '',
-        name: localStorage.getItem('userName') ?? '',
-        email: localStorage.getItem('userEmail') ?? '',
-        role: localStorage.getItem('userRole') ?? '',
-      });
-    }
-  }, []);
-
-  const login = (data: RespostaLogin) => {
-    localStorage.setItem('token', data.token);
+  const login = useCallback((data: RespostaSessao) => {
+    setAccessToken(data.token);
     localStorage.setItem('userId', String(data.id));
     localStorage.setItem('userName', data.name);
     localStorage.setItem('userEmail', data.email);
     localStorage.setItem('userRole', data.role);
-    // Armazena refresh token (RNF04)
-    if (data.refreshToken) {
-      localStorage.setItem('refreshToken', data.refreshToken);
-    }
-    
+    // Restos da versão antiga, que guardava os tokens no localStorage.
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+
     setIsLoggedIn(true);
     setUser({
       id: String(data.id),
@@ -45,22 +39,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       email: data.email,
       role: data.role,
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    localStorage.removeItem('token');
+    let active = true;
+    sessionRestorePromise ??= api.post<RespostaSessao>('/auth/refresh');
+    sessionRestorePromise
+      .then(({ data }) => {
+        if (active) login(data);
+      })
+      .catch(() => {
+        if (active) {
+          setAccessToken(null);
+          localStorage.removeItem('userId');
+          localStorage.removeItem('userName');
+          localStorage.removeItem('userEmail');
+          localStorage.removeItem('userRA');
+          localStorage.removeItem('userRole');
+          setIsLoggedIn(false);
+          setUser(null);
+        }
+      })
+      .finally(() => {
+        if (active) setIsAuthLoading(false);
+      });
+    return () => { active = false; };
+  }, [login]);
 
   const logout = async () => {
-    // Invalida refresh token no servidor
-    const refreshToken = localStorage.getItem('refreshToken');
-    if (refreshToken) {
-      try {
-        await fetch(`${API_URL}/api/auth/logout`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken })
-        });
-      } catch {
-        // Silencioso - mesmo que falhe, limpa localmente
-      }
+    // O cookie HttpOnly vai sozinho; o servidor apaga o refresh token e o cookie.
+    try {
+      await api.post('/auth/logout');
+    } catch (e) {
+      console.error('Não foi possível invalidar a sessão no servidor.', e);
     }
+    setAccessToken(null);
+    // A próxima carga da página tenta restaurar de novo (e falha, sem cookie).
+    sessionRestorePromise = null;
     localStorage.clear();
     setIsLoggedIn(false);
     setUser(null);
@@ -83,6 +99,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <AuthContext.Provider value={{
       isLoggedIn,
+      isAuthLoading,
       user,
       login,
       logout,
