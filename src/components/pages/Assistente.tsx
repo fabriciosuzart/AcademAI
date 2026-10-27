@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, User, Brain, Volume2, VolumeX, Mic, Square, Send } from 'lucide-react';
 import './Assistente.css';
+import { getAccessToken } from '../../api/session';
 
 interface Message {
   id: string | number;
@@ -102,7 +103,7 @@ const Assistente: React.FC = () => {
       abortControllerRef.current = new AbortController();
 
       const idLogado = localStorage.getItem('userId');
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
 
       // O backend aceita 'history' e monta o contexto da conversa com ele, mas
       // nada estava enviando — cada pergunta chegava sem memória do que veio

@@ -17,6 +17,9 @@ model User {
   role           String         @default("ALUNO") // "ALUNO", "PROFESSOR", "ADMIN"
   isActive       Boolean        @default(true)
   isTempPassword Int            @default(0) // 1 = senha temporária, exige troca no login
+  failedLoginAttempts Int       @default(0)
+  lockedUntil      DateTime?
+  sessionVersion  Int            @default(0)
   trainings      String         @default("")
   appointments   Appointment[]
   notifications  Notification[]

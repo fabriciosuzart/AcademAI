@@ -39,8 +39,46 @@ const VECTOR_CACHE_PATH = path.join(__dirname, 'vector_cache.json');
 const app = express();
 const PORT = 3000;
 const JWT_EXPIRATION = '15m'; // RNF04 — access token 15 min (política definitiva)
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
 
-app.use(cors());
+async function invalidarSessoesDoUsuario(userId) {
+    await prisma.$transaction([
+        prisma.user.update({
+            where: { id: userId },
+            data: { sessionVersion: { increment: 1 } },
+        }),
+        prisma.refreshToken.deleteMany({ where: { userId } }),
+    ]);
+}
+const REFRESH_COOKIE = 'academai_refresh';
+const REFRESH_MAX_AGE = 7 * 24 * 60 * 60;
+const refreshCookieOptions = [
+    `Max-Age=${REFRESH_MAX_AGE}`,
+    'HttpOnly',
+    'Path=/api/auth',
+    'SameSite=Lax',
+    ...(process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true' ? ['Secure'] : []),
+];
+
+function refreshTokenFromCookie(req) {
+    const cookies = req.headers.cookie?.split(';').map((part) => part.trim()) || [];
+    const cookie = cookies.find((part) => part.startsWith(`${REFRESH_COOKIE}=`));
+    return cookie ? decodeURIComponent(cookie.slice(REFRESH_COOKIE.length + 1)) : null;
+}
+
+function setRefreshCookie(res, token) {
+    res.setHeader('Set-Cookie', `${REFRESH_COOKIE}=${encodeURIComponent(token)}; ${refreshCookieOptions.join('; ')}`);
+}
+
+function clearRefreshCookie(res) {
+    res.setHeader('Set-Cookie', `${REFRESH_COOKIE}=; Max-Age=0; HttpOnly; Path=/api/auth; SameSite=Lax${process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`);
+}
+
+app.use(cors({
+    origin: process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
+    credentials: true,
+}));
 app.use(express.json());
 
 // --- CONFIGURAÇÃO DE UPLOAD DE IMAGENS/ÁUDIOS (MULTER) ---
@@ -425,11 +463,35 @@ app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) return res.status(404).json({ error: "Usuário não encontrado." });
+        const credenciaisInvalidas = "E-mail ou senha inválidos.";
+        if (!user) return res.status(401).json({ error: credenciaisInvalidas });
         if (!user.isActive) return res.status(403).json({ error: "Conta desativada. Contate o administrador." });
-        if (!(await bcrypt.compare(password, user.password))) return res.status(401).json({ error: "Senha inválida." });
+        if (user.lockedUntil && user.lockedUntil > new Date()) {
+            return res.status(429).json({ error: "Muitas tentativas inválidas. Tente novamente mais tarde." });
+        }
+        if (user.lockedUntil) {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { failedLoginAttempts: 0, lockedUntil: null }
+            });
+        }
+        if (!(await bcrypt.compare(password, user.password))) {
+            const failedLoginAttempts = user.failedLoginAttempts + 1;
+            const lockedUntil = failedLoginAttempts >= MAX_LOGIN_ATTEMPTS
+                ? new Date(Date.now() + LOGIN_LOCK_DURATION_MS)
+                : null;
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { failedLoginAttempts, lockedUntil }
+            });
+            return res.status(401).json({ error: credenciaisInvalidas });
+        }
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { failedLoginAttempts: 0, lockedUntil: null }
+        });
 
-        const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRATION });
+        const token = jwt.sign({ id: user.id, sessionVersion: user.sessionVersion }, JWT_SECRET, { expiresIn: JWT_EXPIRATION });
 
         // Gera Refresh Token (RNF04)
         const refreshToken = crypto.randomUUID();
@@ -437,9 +499,10 @@ app.post('/api/login', async (req, res) => {
         await prisma.refreshToken.create({
             data: { token: refreshToken, userId: user.id, expiresAt: refreshExpiresAt }
         });
+        setRefreshCookie(res, refreshToken);
 
         res.json({
-            auth: true, token, refreshToken,
+            auth: true, token,
             name: user.name, id: user.id, role: user.role,
             email: user.email, ra: user.ra,
             isTempPassword: user.isTempPassword
@@ -453,7 +516,7 @@ app.post('/api/login', async (req, res) => {
 // POST /api/auth/refresh (RNF04 - Renovação silenciosa)
 app.post('/api/auth/refresh', async (req, res) => {
     try {
-        const { refreshToken } = req.body;
+        const refreshToken = refreshTokenFromCookie(req);
         if (!refreshToken) return res.status(400).json({ error: "Refresh token é obrigatório." });
 
         const stored = await prisma.refreshToken.findUnique({ where: { token: refreshToken } });
@@ -470,7 +533,7 @@ app.post('/api/auth/refresh', async (req, res) => {
         }
 
         // Gera novos tokens (rotação)
-        const newAccessToken = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRATION });
+        const newAccessToken = jwt.sign({ id: user.id, sessionVersion: user.sessionVersion }, JWT_SECRET, { expiresIn: JWT_EXPIRATION });
         const newRefreshToken = crypto.randomUUID();
         const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -479,8 +542,14 @@ app.post('/api/auth/refresh', async (req, res) => {
         await prisma.refreshToken.create({
             data: { token: newRefreshToken, userId: user.id, expiresAt: newExpiresAt }
         });
+        setRefreshCookie(res, newRefreshToken);
 
-        res.json({ token: newAccessToken, refreshToken: newRefreshToken });
+        res.json({
+            token: newAccessToken,
+            name: user.name, id: user.id, role: user.role,
+            email: user.email, ra: user.ra,
+            isTempPassword: user.isTempPassword
+        });
     } catch (error) {
         console.error("Erro no refresh:", error);
         res.status(500).json({ error: "Erro interno na renovação." });
@@ -490,10 +559,11 @@ app.post('/api/auth/refresh', async (req, res) => {
 // POST /api/auth/logout (Invalida refresh token)
 app.post('/api/auth/logout', async (req, res) => {
     try {
-        const { refreshToken } = req.body;
+        const refreshToken = refreshTokenFromCookie(req);
         if (refreshToken) {
             await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
         }
+        clearRefreshCookie(res);
         res.json({ message: "Logout realizado com sucesso." });
     } catch (error) {
         res.status(500).json({ error: "Erro no logout." });
@@ -528,6 +598,8 @@ app.post('/api/change-password', authMiddleware, async (req, res) => {
             where: { id: userId },
             data: { password: hashedNew, isTempPassword: 0 }
         });
+        await invalidarSessoesDoUsuario(userId);
+        clearRefreshCookie(res);
 
         // RF07 - trilha de auditoria: o próprio usuário trocou a senha.
         await registrarAuditoria({
@@ -562,6 +634,7 @@ app.post('/api/reset-password', async (req, res) => {
                 where: { id: user.id },
                 data: { password: hashedTemp, isTempPassword: 1 }
             });
+            await invalidarSessoesDoUsuario(user.id);
             await registrarAuditoria({
                 action: 'SENHA_RESET',
                 targetUserId: user.id,
@@ -599,6 +672,7 @@ app.post('/api/users/:id/reset-password', authMiddleware, roleMiddleware(['ADMIN
             where: { id: alvoId },
             data: { password: hashedTemp, isTempPassword: 1 }
         });
+        await invalidarSessoesDoUsuario(alvoId);
         await registrarAuditoria({
             action: 'SENHA_RESET_ADMIN',
             actorUserId: req.userId,

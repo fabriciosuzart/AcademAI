@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import type { AxiosResponse } from 'axios';
+import api from '../api/axios';
+import { setAccessToken } from '../api/session';
 interface AuthContextType {
   isLoggedIn: boolean;
+  isAuthLoading: boolean;
   user: {
     id: string;
     name: string;
@@ -19,38 +23,60 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+interface SessionData {
+  token: string;
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  ra?: string | null;
+  isTempPassword?: number;
+}
+
+let sessionRestorePromise: Promise<AxiosResponse<SessionData>> | null = null;
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
   useEffect(() => {
-    // Restaurar sessão do localStorage
-    const token = localStorage.getItem('token');
-    if (token) {
-      setIsLoggedIn(true);
-      setUser({
-        id: localStorage.getItem('userId'),
-        name: localStorage.getItem('userName'),
-        email: localStorage.getItem('userEmail'),
-        role: localStorage.getItem('userRole'),
+    localStorage.removeItem('token');
+    let active = true;
+    sessionRestorePromise ??= api.post<SessionData>('/auth/refresh');
+    sessionRestorePromise
+      .then(({ data }) => {
+        if (active) login(data);
+      })
+      .catch(() => {
+        if (active) {
+          setAccessToken(null);
+          localStorage.removeItem('userId');
+          localStorage.removeItem('userName');
+          localStorage.removeItem('userEmail');
+          localStorage.removeItem('userRA');
+          localStorage.removeItem('userRole');
+          setIsLoggedIn(false);
+          setUser(null);
+        }
+      })
+      .finally(() => {
+        if (active) setIsAuthLoading(false);
       });
-    }
+    return () => { active = false; };
   }, []);
 
   const login = (data: any) => {
-    localStorage.setItem('token', data.token);
+    setAccessToken(data.token);
     localStorage.setItem('userId', data.id);
     localStorage.setItem('userName', data.name);
     localStorage.setItem('userEmail', data.email);
     localStorage.setItem('userRole', data.role);
-    // Armazena refresh token (RNF04)
-    if (data.refreshToken) {
-      localStorage.setItem('refreshToken', data.refreshToken);
-    }
+    // O refresh token é mantido pelo navegador em cookie HttpOnly.
+    localStorage.removeItem('refreshToken');
     
     setIsLoggedIn(true);
     setUser({
@@ -62,19 +88,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = async () => {
-    // Invalida refresh token no servidor
-    const refreshToken = localStorage.getItem('refreshToken');
-    if (refreshToken) {
-      try {
-        await fetch('http://localhost:3000/api/auth/logout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken })
-        });
-      } catch (e) {
-        // Silencioso - mesmo que falhe, limpa localmente
-      }
+    // O cookie HttpOnly é enviado automaticamente; o token nunca fica acessível ao JavaScript.
+    try {
+      await api.post('/auth/logout');
+    } catch (e) {
+      console.error('Não foi possível invalidar a sessão no servidor.', e);
     }
+    setAccessToken(null);
     localStorage.clear();
     setIsLoggedIn(false);
     setUser(null);
@@ -97,6 +117,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <AuthContext.Provider value={{
       isLoggedIn,
+      isAuthLoading,
       user,
       login,
       logout,

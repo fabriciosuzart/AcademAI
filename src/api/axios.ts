@@ -1,7 +1,9 @@
 import axios from 'axios';
+import { getAccessToken, setAccessToken } from './session';
 
 const api = axios.create({
   baseURL: 'http://localhost:3000/api',
+  withCredentials: true,
 });
 
 // Flag para evitar múltiplas tentativas de refresh simultâneas
@@ -22,7 +24,7 @@ const processQueue = (error: any, token: string | null = null) => {
 // Interceptor de REQUEST: injeta headers de autenticação
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = getAccessToken();
     const userId = localStorage.getItem('userId');
 
     if (token) {
@@ -48,7 +50,7 @@ api.interceptors.response.use(
     // Se recebeu 401 e ainda não tentou refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
       // Não tenta refresh nas rotas de autenticação
-      if (originalRequest.url?.includes('/auth/refresh') || originalRequest.url?.includes('/login')) {
+      if (originalRequest.url?.includes('/auth/refresh') || originalRequest.url?.includes('/auth/logout') || originalRequest.url?.includes('/login')) {
         return Promise.reject(error);
       }
 
@@ -67,23 +69,13 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (!refreshToken) {
-        // Sem refresh token, redireciona para login
-        localStorage.clear();
-        window.location.href = '/login';
-        return Promise.reject(error);
-      }
-
       try {
-        const response = await axios.post('http://localhost:3000/api/auth/refresh', {
-          refreshToken
-        });
+        const response = await api.post('/auth/refresh');
 
-        const { token: newToken, refreshToken: newRefreshToken } = response.data;
+        const { token: newToken } = response.data;
 
-        localStorage.setItem('token', newToken);
-        localStorage.setItem('refreshToken', newRefreshToken);
+        setAccessToken(newToken);
+        localStorage.removeItem('refreshToken');
 
         // Atualiza o header da requisição original
         originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
@@ -93,6 +85,7 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         // Refresh falhou: limpa sessão e redireciona
+        setAccessToken(null);
         localStorage.clear();
         window.location.href = '/login';
         return Promise.reject(refreshError);

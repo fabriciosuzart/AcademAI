@@ -2,19 +2,18 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Navbar.css';
 import { GraduationCap, Bell } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const Navbar: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigate = useNavigate();
-
-  // Recupera os dados do usuário salvos no login
-  const userName = localStorage.getItem('userName');
+  const { logout, isLoggedIn, user } = useAuth();
 
   const closeMobileMenu = () => setIsMenuOpen(false);
 
   // Função para limpar o acesso e deslogar
-  const handleLogout = () => {
-    localStorage.clear();
+  const handleLogout = async () => {
+    await logout();
     closeMobileMenu();
     navigate('/login');
   };
@@ -49,10 +48,10 @@ const Navbar: React.FC = () => {
 
           {/* LÓGICA DE LOGIN / LOGOUT */}
           <li className="nav-item">
-            {userName ? (
+            {isLoggedIn && user ? (
               <div className="user-nav-box">
                 <Link to="/perfil" className="nav-user-name" style={{ textDecoration: 'none', color: '#004aad', fontWeight: 'bold' }} onClick={closeMobileMenu}>
-                  Olá, {userName.split(' ')[0]}
+                  Olá, {user.name.split(' ')[0]}
                 </Link>
                 <Link to="/notificacoes" className="nav-link nav-icon-link" onClick={closeMobileMenu} aria-label="Ver Notificações" title="Notificações">
                   <Bell size={20} aria-hidden="true" />

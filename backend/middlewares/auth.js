@@ -5,12 +5,19 @@ import { JWT_SECRET } from '../config-jwt.js';
 const prisma = new PrismaClient();
 
 // 1. Middleware de Autenticação (verifica JWT — RNF05/RN08)
-export const authMiddleware = (req, res, next) => {
+export const authMiddleware = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.split(' ')[1];
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
+            const user = await prisma.user.findUnique({
+                where: { id: decoded.id },
+                select: { isActive: true, sessionVersion: true },
+            });
+            if (!user || !user.isActive || decoded.sessionVersion !== user.sessionVersion) {
+                return res.status(401).json({ error: 'Token inválido ou expirado. Faça login novamente.' });
+            }
             req.userId = decoded.id;
             return next();
         } catch (err) {
@@ -27,13 +34,19 @@ export const authMiddleware = (req, res, next) => {
 // (req.userId indefinido). Nunca bloqueia. O objetivo é tirar a identidade do
 // CORPO da requisição — antes o /chat confiava no userId que o cliente mandava,
 // e dava para agir em nome de qualquer pessoa só trocando o número.
-export const optionalAuthMiddleware = (req, res, next) => {
+export const optionalAuthMiddleware = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.split(' ')[1];
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            req.userId = decoded.id;
+            const user = await prisma.user.findUnique({
+                where: { id: decoded.id },
+                select: { isActive: true, sessionVersion: true },
+            });
+            if (user?.isActive && decoded.sessionVersion === user.sessionVersion) {
+                req.userId = decoded.id;
+            }
         } catch (err) {
             // Token inválido/expirado num contexto opcional: trata como visitante,
             // sem derrubar a requisição.

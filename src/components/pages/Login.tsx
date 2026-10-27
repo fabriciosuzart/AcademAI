@@ -3,6 +3,8 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, KeyRound, Sparkles, ArrowLeft, AlertTriangle } from 'lucide-react';
 import './Login.css';
 import api from '../../api/axios';
+import { setAccessToken } from '../../api/session';
+import { useAuth } from '../../context/AuthContext';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -17,6 +19,7 @@ const Login: React.FC = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const { login, logout } = useAuth();
 
   // Removido: speak() local para evitar conflitos de TTS com o VoiceNavigator
 
@@ -120,16 +123,12 @@ const Login: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:3000/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      const data = await response.json();
-
-      if (response.ok) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('refreshToken', data.refreshToken || '');
+      const { data } = await api.post('/login', { email, password });
+      if (data.auth) {
+        setAccessToken(data.token);
+        login(data);
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
         localStorage.setItem('userName', data.name);
         localStorage.setItem('userId', data.id);
         localStorage.setItem('userEmail', data.email);
@@ -153,13 +152,11 @@ const Login: React.FC = () => {
              navigate('/');
           }
         }
-      } else {
-        window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text: `Erro: ${data.error}` } }));
-        alert('Erro: ' + data.error);
       }
-    } catch (error) {
+    } catch (error: any) {
+      const message = error.response?.data?.error || 'Erro de conexão com o servidor.';
       window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text: 'Erro de conexão com o servidor.' } }));
-      alert('Erro de conexão com o servidor.');
+      alert('Erro: ' + message);
     }
   };
 
@@ -171,9 +168,10 @@ const Login: React.FC = () => {
       // O login (mesmo com senha temporaria) ja gravou o token; api o injeta.
       // O backend identifica o usuario pelo token — nao mandamos id no corpo.
       await api.post('/change-password', { currentPassword: password, newPassword });
-      alert("Senha atualizada com sucesso! Entrando...");
+      await logout();
+      alert("Senha atualizada com sucesso! Faça login novamente.");
       setShowChangePasswordModal(false);
-      navigate('/');
+      navigate('/login');
     } catch (error: any) {
       alert("Erro: " + (error.response?.data?.error || "falha ao atualizar senha."));
     }

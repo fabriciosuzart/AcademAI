@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Login.css';
 import api from '../../api/axios';
+import { useAuth } from '../../context/AuthContext';
 
 const NovaSenha: React.FC = () => {
     const [password, setPassword] = useState('');
     const [confirm, setConfirm] = useState('');
     const navigate = useNavigate();
+    const { logout } = useAuth();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -18,8 +20,9 @@ const NovaSenha: React.FC = () => {
             // Troca forcada de senha temporaria: o backend dispensa a senha atual
             // quando isTempPassword=1, mas continua exigindo o token (api o injeta).
             await api.post('/change-password', { newPassword: password });
-            alert("Senha atualizada com sucesso! Acesso liberado.");
-            navigate('/');
+            await logout();
+            alert("Senha atualizada com sucesso! Faça login novamente.");
+            navigate('/login');
         } catch (error: any) {
             alert("Erro: " + (error.response?.data?.error || "falha ao salvar senha."));
         }

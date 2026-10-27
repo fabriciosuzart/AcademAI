@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../api/axios';
+import { getAccessToken } from '../../api/session';
 import { CalendarDays, CheckCircle2 } from 'lucide-react';
 import CalendarPicker from '../CalendarPicker';
 import './Agendamento.css';
 import { ehManutencao } from '../../utils/status';
 import { duracaoEntre, formatarDuracao } from '../../utils/horarios';
+import { useAuth } from '../../context/AuthContext';
 
 const Agendamento: React.FC = () => {
     const navigate = useNavigate();
@@ -25,6 +27,7 @@ const Agendamento: React.FC = () => {
     const [justification, setJustification] = useState('');
     
     const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const { isAuthLoading } = useAuth();
 
     // ── Preenchimento e Submissão por Voz ────────────────────
     useEffect(() => {
@@ -53,14 +56,14 @@ const Agendamento: React.FC = () => {
 
     // Trava de login
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) {
+        if (isAuthLoading) return;
+        if (!getAccessToken()) {
             navigate('/');
         } else {
             setIsLoggedIn(true);
             fetchEquipments();
         }
-    }, [navigate]);
+    }, [isAuthLoading, navigate]);
 
     const fetchEquipments = async () => {
         try {
