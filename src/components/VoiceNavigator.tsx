@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axios';
-import { Bell, CheckCircle2, XCircle, HelpCircle, Volume2, Mic, Mail, Lock, Bot,
-         ClipboardList, Zap, Map, KeyRound, Circle, AlertTriangle,
-         type LucideIcon } from 'lucide-react';
+import {
+    Bell, CheckCircle2, XCircle, HelpCircle, Volume2, Mic, Mail, Lock, Bot,
+    ClipboardList, Zap, Map, KeyRound, Circle, AlertTriangle,
+    type LucideIcon
+} from 'lucide-react';
 import './VoiceNavigator.css';
+import { useWhisper } from '../useWhisper';
 
 // =====================================================
 // Levenshtein distance — fuzzy matching leve
@@ -32,7 +35,7 @@ function fuzzyIncludes(text: string, keyword: string): boolean {
         if (keyword === 'conta' && text.includes('contato')) return false;
         return true;
     }
-    
+
     if (keyword.length <= 4) return false; // Palavras muito curtas exigem match exato
 
     // 2. Tokenização: separa em palavras e avalia n-grams baseados no tamanho da keyword
@@ -197,6 +200,20 @@ function playActivationBeep() {
 
 const VoiceNavigator: React.FC = () => {
     const [isListening, setIsListening] = useState(false);
+
+    // NOVO: Referência para repassar o callback dinâmico (login vs tela principal)
+    const activeCallbackRef = useRef<((text: string, confidence?: number) => void) | null>(null);
+
+    // NOVO: Hook do Whisper local
+    const { startRecording: startWhisper, stopRecording: stopWhisper } = useWhisper((text) => {
+        setIsListening(false);
+        isListeningRef.current = false;
+        if (activeCallbackRef.current) {
+            // DEPOIS: Remove o 1.0 e passa undefined, pois o Whisper não expõe confidence
+            activeCallbackRef.current(text, undefined);
+            activeCallbackRef.current = null;
+        }
+    });
     // O status carrega icone + texto. Antes o icone era um emoji embutido na
     // propria string, o que impedia troca-lo por SVG sem mudar o formato.
     const [status, setStatus] = useState<{ Icone: LucideIcon | null; texto: string }>({ Icone: null, texto: '' });
@@ -212,10 +229,10 @@ const VoiceNavigator: React.FC = () => {
     const isListeningRef = useRef(false);
     const recognitionRef = useRef<any>(null);
     const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    
+
     // Estado para confirmação de comandos com baixa confiança
     const [pendingConfirmation, setPendingConfirmation] = useState<{ text: string, action: () => void } | null>(null);
-    const startRecordingRef = useRef<() => void>(() => {});
+    const startRecordingRef = useRef<() => void>(() => { });
 
     // A escuta se re-arma sozinha quando não entende, e sem um teto ela repetia
     // "Não entendi" indefinidamente. Este contador zera a cada acerto.
@@ -270,7 +287,7 @@ const VoiceNavigator: React.FC = () => {
         utterance.lang = 'pt-BR';
         utterance.rate = 1.3;  // mais rápido: menos tempo de espera antes de poder falar
         utterance.pitch = 1.0;
-        
+
         // Aplica a voz preferida (Jarvis Mode)
         const preferredURI = localStorage.getItem('preferredVoiceURI');
         if (preferredURI) {
@@ -311,7 +328,7 @@ const VoiceNavigator: React.FC = () => {
             const res = await api.get(`/notifications/${userId}`);
             const notifications = res.data?.notifications || [];
             const unread = notifications.filter((n: any) => !n.isRead);
-            
+
             if (unread.length > 0) {
                 const latest = unread[unread.length - 1]; // Assume order by ID
                 const typeLabel = latest.type.replace('_', ' ');
@@ -347,89 +364,43 @@ const VoiceNavigator: React.FC = () => {
     // ── Função auxiliar de gravação com TTS integrado ─────────
     const listenWithNativeSpeech = useCallback((
         onResult: (text: string, confidence?: number) => void,
-        listeningStatus = 'Ouvindo...',
+        listeningStatus = 'Ouvindo (Whisper local)...',
         onStartSpeak = ''
     ) => {
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            speak('Seu navegador não suporta reconhecimento de voz nativo.');
-            mostrarStatus(XCircle, 'Navegador não suportado');
-            isListeningRef.current = false;
-            setIsListening(false);
-            return;
-        }
+        activeCallbackRef.current = onResult;
 
         const doListen = () => {
-            // Cancela qualquer TTS em andamento (ex: anúncio de página) para não interferir
             window.speechSynthesis.cancel();
+            isListeningRef.current = true;
+            setIsListening(true);
+            mostrarStatus(Mic, listeningStatus);
 
-            const recognition = new SpeechRecognition();
-            recognitionRef.current = recognition;
-            recognition.lang = 'pt-BR';
-            recognition.interimResults = false;
-            recognition.maxAlternatives = 3; // mais alternativas = mais chances de acerto
+            // Mantém a compatibilidade com a tecla Esc do código atual sem alterar os atalhos
+            recognitionRef.current = { abort: () => stopWhisper() };
 
-            recognition.onstart = () => {
-                isListeningRef.current = true;
-                setIsListening(true);
-                mostrarStatus(Mic, listeningStatus);
-            };
-
-            recognition.onresult = (event: any) => {
-                // Pega a melhor alternativa
-                const transcript = event.results[0][0].transcript;
-                const confidence = event.results[0][0].confidence;
-                onResult(transcript, confidence);
-            };
-
-            recognition.onerror = (event: any) => {
-                if (event.error === 'no-speech') {
-                    speak('Não ouvi nada. Pressione M e tente novamente.');
-                    mostrarStatus(XCircle, 'Nada ouvido');
-                    clearStatus(4000);
-                } else if (event.error === 'aborted') {
-                    limparStatus();
-                } else {
-                    speak('Erro no microfone.');
-                    mostrarStatus(XCircle, 'Erro no microfone');
-                    clearStatus(3000);
-                }
-            };
-
-            recognition.onend = () => {
-                isListeningRef.current = false;
-                recognitionRef.current = null;
-                setIsListening(false);
-            };
-
-            try {
-                recognition.start();
-            } catch (e) {
-                console.error('Erro ao iniciar reconhecimento', e);
-                isListeningRef.current = false;
-                setIsListening(false);
-            }
+            startWhisper();
         };
 
-        // CRÍTICO: aguarda TTS terminar antes de abrir o microfone
         if (onStartSpeak) {
             speak(onStartSpeak, doListen);
         } else {
             doListen();
         }
-    }, [speak, clearStatus]);
+    }, [speak, startWhisper, stopWhisper]);
 
     // ── Processa comando transcrito ────────────────────────────
     const processCommand = useCallback((text: string, confidence?: number) => {
         const lower = text.toLowerCase()
             .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^\w\s]/g, ' ') // NOVO: Remove pontuação (. , ! ? etc)
+            .replace(/\s+/g, ' ')     // NOVO: Substitui múltiplos espaços por um só
             .trim();
 
         console.log('Comando ouvido:', lower, 'Confiança:', confidence);
 
         // ── Tratar Confirmação Pendente ────────────────────────
         if (pendingConfirmation) {
-            if (lower === 'sim' || lower.includes('sim') || lower === 'yes') {
+            if (lower.includes('sim') || lower.includes('yes') || lower.includes('confirmo')) {
                 speak('Confirmado.');
                 pendingConfirmation.action();
             } else {
@@ -441,8 +412,8 @@ const VoiceNavigator: React.FC = () => {
         }
 
         // Função wrapper para checar confiança antes de executar ação
-        const executeOrConfirm = (commandName: string, action: () => void) => {
-            if (confidence !== undefined && confidence < 0.65) {
+        const executeOrConfirm = (commandName: string, action: () => void, isCritical: boolean = false) => {
+            if (isCritical || (confidence !== undefined && confidence < 0.65)) {
                 speak(`Você disse ${commandName}? Diga sim ou não.`, () => setTimeout(() => startRecordingRef.current(), 350));
                 mostrarStatus(HelpCircle, `Confirma "${commandName}"?`);
                 setPendingConfirmation({ text: commandName, action });
@@ -499,14 +470,13 @@ const VoiceNavigator: React.FC = () => {
         }
 
         // Submissão Genérica (Cadastrar / Enviar Reserva)
-        if (lower === 'cadastrar' || lower.includes('enviar reserva') || lower === 'enviar') {
+        if (lower.includes('cadastrar') || lower.includes('enviar') || lower.includes('submeter')) {
             executeOrConfirm('enviar formulário', () => {
                 speak('Enviando formulário.');
                 window.dispatchEvent(new Event('voice-submit-form'));
-                // Também tenta o botão de submit genérico se não houver listener
                 const form = document.querySelector('form') as HTMLFormElement;
                 if (form && form.requestSubmit) form.requestSubmit();
-            });
+            }, true); // NOVO: Força confirmação (true)
             return;
         }
 
@@ -599,18 +569,22 @@ const VoiceNavigator: React.FC = () => {
         if (isAdminContext) {
             // Ação: aprovar primeira reserva pendente
             if (lower.includes('aprovar') || lower.includes('approve')) {
-                speak('Aprovando a primeira reserva pendente.');
-                mostrarStatus(CheckCircle2, 'Aprovando reserva...');
-                window.dispatchEvent(new CustomEvent('voice-admin-action', { detail: { action: 'approve-first' } }));
-                clearStatus(3000);
+                executeOrConfirm('aprovar reserva', () => {
+                    speak('Aprovando a primeira reserva pendente.');
+                    mostrarStatus(CheckCircle2, 'Aprovando reserva...');
+                    window.dispatchEvent(new CustomEvent('voice-admin-action', { detail: { action: 'approve-first' } }));
+                    clearStatus(3000);
+                }, true); // NOVO: Força confirmação (true)
                 return;
             }
             // Ação: rejeitar primeira reserva pendente
             if (lower.includes('rejeitar') || lower.includes('reject') || lower.includes('recusar')) {
-                speak('Rejeitando a primeira reserva pendente.');
-                mostrarStatus(XCircle, 'Rejeitando reserva...');
-                window.dispatchEvent(new CustomEvent('voice-admin-action', { detail: { action: 'reject-first' } }));
-                clearStatus(3000);
+                executeOrConfirm('rejeitar reserva', () => {
+                    speak('Rejeitando a primeira reserva pendente.');
+                    mostrarStatus(XCircle, 'Rejeitando reserva...');
+                    window.dispatchEvent(new CustomEvent('voice-admin-action', { detail: { action: 'reject-first' } }));
+                    clearStatus(3000);
+                }, true); // NOVO: Força confirmação (true)
                 return;
             }
             // Troca de aba
@@ -664,12 +638,13 @@ const VoiceNavigator: React.FC = () => {
     // ── Gravação principal ─────────────────────────────────────
     const startRecording = useCallback(() => {
         if (isListeningRef.current) return;
-        playActivationBeep(); // bipe instantâneo — sem delay antes
+        playActivationBeep();
         listenWithNativeSpeech(
-            (text) => {
+            (text, confidence) => {
                 if (text) {
                     mostrarStatus(null, `"${text}"`);
-                    processCommand(text);
+                    // ANTES: processCommand(text);
+                    processCommand(text, confidence); // DEPOIS: repassando confidence
                 } else {
                     speak('Não consegui entender. Pressione M e tente novamente.');
                     mostrarStatus(XCircle, 'Não entendi.');
@@ -750,104 +725,104 @@ const VoiceNavigator: React.FC = () => {
                     <div className="siri-orb-ring siri-orb-ring-2"></div>
                     <div className="siri-orb-ring siri-orb-ring-3"></div>
                     <div className="siri-orb-core"></div>
-                    <div className="siri-orb-text">Ouvindo... <br/><small>Esc para cancelar</small></div>
+                    <div className="siri-orb-text">Ouvindo... <br /><small>Esc para cancelar</small></div>
                 </div>
             )}
 
             <div className="voice-navigator-container">
 
-            {/* Status bubble com animação de saída */}
-            {status.texto && !isListening && (
-                <div className={`voice-status-bubble${statusFading ? ' fade-out' : ''}`}>
-                    {status.Icone && <status.Icone size={16} aria-hidden="true" />}
-                    <span>{status.texto}</span>
-                </div>
-            )}
+                {/* Status bubble com animação de saída */}
+                {status.texto && !isListening && (
+                    <div className={`voice-status-bubble${statusFading ? ' fade-out' : ''}`}>
+                        {status.Icone && <status.Icone size={16} aria-hidden="true" />}
+                        <span>{status.texto}</span>
+                    </div>
+                )}
 
-            {/* Linha com botão de ajuda + FAB */}
-            <div className="voice-controls-row" style={{ position: 'relative' }}>
+                {/* Linha com botão de ajuda + FAB */}
+                <div className="voice-controls-row" style={{ position: 'relative' }}>
 
-                {/* Painel de ajuda — contextual por página */}
-                {showHelp && (
-                    <div id="voice-help-panel" className="voice-help-panel" role="dialog" aria-label="Comandos de voz disponíveis">
-                        <h4><Mic size={18} aria-hidden="true" /> Comandos Disponíveis</h4>
-                        {getHelpSections(locationRef.current).map((section) => (
-                            <div key={section.title} className="voice-help-section">
-                                <div className="voice-help-section-title">
-                                    <section.Icone size={15} aria-hidden="true" />
-                                    <span>{section.title}</span>
+                    {/* Painel de ajuda — contextual por página */}
+                    {showHelp && (
+                        <div id="voice-help-panel" className="voice-help-panel" role="dialog" aria-label="Comandos de voz disponíveis">
+                            <h4><Mic size={18} aria-hidden="true" /> Comandos Disponíveis</h4>
+                            {getHelpSections(locationRef.current).map((section) => (
+                                <div key={section.title} className="voice-help-section">
+                                    <div className="voice-help-section-title">
+                                        <section.Icone size={15} aria-hidden="true" />
+                                        <span>{section.title}</span>
+                                    </div>
+                                    <div className="voice-help-tags">
+                                        {section.tags.map(tag => (
+                                            <span key={tag} className="voice-help-tag">"{tag}"</span>
+                                        ))}
+                                    </div>
                                 </div>
-                                <div className="voice-help-tags">
-                                    {section.tags.map(tag => (
-                                        <span key={tag} className="voice-help-tag">"{tag}"</span>
-                                    ))}
-                                </div>
+                            ))}
+                            <div className="voice-help-shortcut">
+                                <kbd>M</kbd> para ativar &nbsp;·&nbsp; <kbd>Esc</kbd> para cancelar
                             </div>
-                        ))}
-                        <div className="voice-help-shortcut">
-                            <kbd>M</kbd> para ativar &nbsp;·&nbsp; <kbd>Esc</kbd> para cancelar
                         </div>
-                    </div>
-                )}
+                    )}
 
-                {/* Tooltip de onboarding (primeira visita) */}
-                {showOnboarding && (
-                    <div className="voice-onboarding-tooltip" role="tooltip">
-                        <Mic size={16} aria-hidden="true" /> Pressione <strong>M</strong> para controlar por voz!
-                    </div>
-                )}
+                    {/* Tooltip de onboarding (primeira visita) */}
+                    {showOnboarding && (
+                        <div className="voice-onboarding-tooltip" role="tooltip">
+                            <Mic size={16} aria-hidden="true" /> Pressione <strong>M</strong> para controlar por voz!
+                        </div>
+                    )}
 
-                {/* Botão de ajuda */}
-                <button
-                    id="voice-help-btn"
-                    className={`voice-help-btn${showHelp ? ' active' : ''}`}
-                    onClick={() => setShowHelp(v => !v)}
-                    title="Ver comandos disponíveis"
-                    aria-label="Abrir painel de ajuda de comandos de voz"
-                    aria-expanded={showHelp}
-                >
-                    ?
-                </button>
-
-                {/* FAB principal */}
-                <button
-                    className={`voice-fab${isListening ? ' listening' : ''}`}
-                    onClick={isListening ? undefined : startRecording}
-                    title={isListening ? 'Ouvindo... (Esc para cancelar)' : 'Pressione M ou clique para comandos de voz'}
-                    aria-label={isListening ? 'Microfone ativo. Pressione Escape para cancelar.' : 'Ativar comandos de voz. Atalho: tecla M'}
-                    aria-pressed={isListening}
-                >
-                    {isListening ? <Circle size={20} fill="currentColor" aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
-                </button>
-            </div>
-
-            {/* Dica de atalho */}
-            <div className="voice-shortcut-hint" aria-hidden="true">
-                Pressione <kbd>M</kbd>
-            </div>
-
-            {/* RNF07 — Aviso de privacidade TTS (primeira utilização) */}
-            {showTtsWarning && (
-                <div className="tts-warning-banner" role="alert">
-                    <p className="tts-warning-banner__title">
-                        <AlertTriangle size={16} aria-hidden="true" /> Aviso de Privacidade — Síntese de Voz
-                    </p>
-                    <p className="tts-warning-banner__text">
-                        O reconhecimento e a síntese de voz usam a <strong>Web Speech API</strong> do
-                        navegador (Chrome), que pode enviar o áudio e o texto a servidores externos.
-                    </p>
+                    {/* Botão de ajuda */}
                     <button
-                        className="tts-warning-banner__btn"
-                        onClick={() => {
-                            localStorage.setItem('tts_privacy_warning_shown', '1');
-                            setShowTtsWarning(false);
-                        }}
+                        id="voice-help-btn"
+                        className={`voice-help-btn${showHelp ? ' active' : ''}`}
+                        onClick={() => setShowHelp(v => !v)}
+                        title="Ver comandos disponíveis"
+                        aria-label="Abrir painel de ajuda de comandos de voz"
+                        aria-expanded={showHelp}
                     >
-                        Entendi, não mostrar novamente
+                        ?
+                    </button>
+
+                    {/* FAB principal */}
+                    <button
+                        className={`voice-fab${isListening ? ' listening' : ''}`}
+                        onClick={isListening ? undefined : startRecording}
+                        title={isListening ? 'Ouvindo... (Esc para cancelar)' : 'Pressione M ou clique para comandos de voz'}
+                        aria-label={isListening ? 'Microfone ativo. Pressione Escape para cancelar.' : 'Ativar comandos de voz. Atalho: tecla M'}
+                        aria-pressed={isListening}
+                    >
+                        {isListening ? <Circle size={20} fill="currentColor" aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
                     </button>
                 </div>
-            )}
-        </div>
+
+                {/* Dica de atalho */}
+                <div className="voice-shortcut-hint" aria-hidden="true">
+                    Pressione <kbd>M</kbd>
+                </div>
+
+                {/* RNF07 — Aviso de privacidade TTS (primeira utilização) */}
+                {showTtsWarning && (
+                    <div className="tts-warning-banner" role="alert">
+                        <p className="tts-warning-banner__title">
+                            <AlertTriangle size={16} aria-hidden="true" /> Aviso de Privacidade — Síntese de Voz
+                        </p>
+                        <p className="tts-warning-banner__text">
+                            O reconhecimento e a síntese de voz usam a <strong>Web Speech API</strong> do
+                            navegador (Chrome), que pode enviar o áudio e o texto a servidores externos.
+                        </p>
+                        <button
+                            className="tts-warning-banner__btn"
+                            onClick={() => {
+                                localStorage.setItem('tts_privacy_warning_shown', '1');
+                                setShowTtsWarning(false);
+                            }}
+                        >
+                            Entendi, não mostrar novamente
+                        </button>
+                    </div>
+                )}
+            </div>
         </>
     );
 };
