@@ -17,7 +17,8 @@ interface Message {
 
 declare global {
   interface Window {
-    webkitSpeechRecognition: any;
+    // Só é consultada com `'webkitSpeechRecognition' in window`; quem cria o objeto faz o cast.
+    webkitSpeechRecognition?: unknown;
   }
 }
 
@@ -178,8 +179,9 @@ const Assistente: React.FC = () => {
         speak(fullText);
       }
 
-    } catch (error: any) {
-      if (error.name === "AbortError") return;
+    } catch (error) {
+      // O abort do botão de parar chega como DOMException, que é um Error.
+      if (error instanceof Error && error.name === "AbortError") return;
 
       console.error(error);
       setMessages(prev => prev.map(msg =>
