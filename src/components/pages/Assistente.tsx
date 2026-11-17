@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, User, Brain, Volume2, VolumeX, Mic, Square, Send } from 'lucide-react';
 import './Assistente.css';
-import CardChat, { type CardChatDados } from '../chat/CardChat';
+import CardChat, { type CardChatDados, type EstadoConfirmacao } from '../chat/CardChat';
+import api from '../../api/axios';
+import { respostaDeConfirmacao } from '../../utils/confirmacao';
 
 interface Message {
   id: string | number;
@@ -13,6 +15,29 @@ interface Message {
   resumo?: string;
   // 'local': o backend não conseguiu falar com a IA e usou o analisador de palavras-chave.
   fonte?: 'ia' | 'local';
+  // Card "Confirmar reserva" (UC12): pendente até o usuário confirmar ou desistir.
+  confirmacao?: EstadoConfirmacao;
+}
+
+/** Corpo JSON das respostas de ação do backend (/api/chat e /api/chat/confirmar-reserva). */
+interface RespostaAcao {
+  texto?: string;
+  error?: string;
+  card?: CardChatDados | null;
+  resumo?: string;
+  fonte?: 'ia' | 'local';
+}
+
+/** Campos da mensagem do assistente a partir de uma resposta JSON do backend. */
+function camposDaResposta(data: RespostaAcao): Omit<Message, 'id' | 'sender'> {
+  const card = data.card ?? undefined;
+  return {
+    text: data.texto ?? data.error ?? 'Erro na conexão.',
+    card,
+    resumo: data.resumo || undefined,
+    fonte: data.fonte,
+    confirmacao: card?.tipo === 'confirmar' ? 'pendente' : undefined,
+  };
 }
 
 declare global {
@@ -90,11 +115,56 @@ const Assistente: React.FC = () => {
     }]);
   };
 
+  const mudarConfirmacao = (msgId: Message['id'], confirmacao: EstadoConfirmacao) =>
+    setMessages(prev => prev.map(msg => (msg.id === msgId ? { ...msg, confirmacao } : msg)));
+
+  const responder = (campos: Omit<Message, 'id' | 'sender'>) => {
+    setMessages(prev => [...prev, { id: `ai-${Date.now()}`, sender: 'ai', ...campos }]);
+    if (isSpeechEnabled) speak(campos.text);
+  };
+
+  // --- CONFIRMAÇÃO DA RESERVA (UC12) ---
+  // A prévia já foi validada; o backend valida de novo ao gravar.
+  const confirmarReserva = async (msgId: Message['id'], finalidade = '') => {
+    const alvo = messages.find(m => m.id === msgId);
+    if (alvo?.card?.tipo !== 'confirmar' || alvo.confirmacao !== 'pendente') return;
+    const { equipmentId, date, time, endTime } = alvo.card.previa;
+    mudarConfirmacao(msgId, 'enviando');
+    try {
+      const { data } = await api.post<RespostaAcao>('/chat/confirmar-reserva', {
+        equipmentId, date, time, endTime, justification: finalidade.trim() || undefined,
+      });
+      mudarConfirmacao(msgId, 'feita');
+      responder(camposDaResposta(data));
+    } catch (error) {
+      console.error(error);
+      mudarConfirmacao(msgId, 'pendente');
+      responder({ text: 'Não consegui confirmar a reserva agora. Tente de novo.' });
+    }
+  };
+
+  const descartarReserva = (msgId: Message['id']) => {
+    mudarConfirmacao(msgId, 'descartada');
+    responder({ text: 'Tudo bem, não reservei.' });
+  };
+
   // --- NOVA FUNÇÃO DE ENVIO COM STREAMING ---
   const handleSend = async (textOverride?: string) => {
     const textToSend = typeof textOverride === 'string' ? textOverride : input;
 
     if (!textToSend || !textToSend.trim()) return;
+
+    // Com uma prévia de reserva aberta, "sim" confirma e "não" descarta, sem IA:
+    // funciona igual digitando ou falando.
+    const pendente = [...messages].reverse().find(m => m.sender === 'ai' && m.text);
+    const resposta = pendente?.confirmacao === 'pendente' ? respostaDeConfirmacao(textToSend) : null;
+    if (pendente && resposta) {
+      setMessages(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: textToSend }]);
+      setInput('');
+      if (resposta === 'sim') await confirmarReserva(pendente.id);
+      else descartarReserva(pendente.id);
+      return;
+    }
 
     const timestamp = Date.now();
     const userMsgId = `user-${timestamp}`;
@@ -145,14 +215,9 @@ const Assistente: React.FC = () => {
       // Ações (listar, reservar, ajuda...) vêm prontas em JSON: frase fixa + card.
       // Dúvidas sobre os documentos continuam em texto, em streaming.
       if ((response.headers.get('content-type') ?? '').includes('application/json')) {
-        const data = await response.json();
-        const texto: string = data.texto ?? data.error ?? 'Erro na conexão.';
-        setMessages(prev => prev.map(msg =>
-          msg.id === aiMsgId
-            ? { ...msg, text: texto, card: data.card ?? undefined, resumo: data.resumo || undefined, fonte: data.fonte }
-            : msg
-        ));
-        if (isSpeechEnabled) speak(texto);
+        const campos = camposDaResposta(await response.json());
+        setMessages(prev => prev.map(msg => (msg.id === aiMsgId ? { ...msg, ...campos } : msg)));
+        if (isSpeechEnabled) speak(campos.text);
         return;
       }
 
@@ -251,7 +316,14 @@ const Assistente: React.FC = () => {
                   )}
                 </p>
 
-                {msg.card && <CardChat card={msg.card} />}
+                {msg.card && (
+                  <CardChat
+                    card={msg.card}
+                    estado={msg.confirmacao}
+                    onConfirmar={(finalidade) => confirmarReserva(msg.id, finalidade)}
+                    onDescartar={() => descartarReserva(msg.id)}
+                  />
+                )}
 
                 {msg.fonte === 'local' && (
                   <span className="msg-offline" title="Pedido interpretado sem IA, por palavras-chave">

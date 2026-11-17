@@ -143,3 +143,41 @@
   background: rgba(var(--danger-rgb), 0.15);
   color: var(--danger-soft);
 }
+
+.chat-card-btn.danger {
+  background: linear-gradient(135deg, var(--danger), #b91c1c);
+}
+
+.chat-card-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.chat-card-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.chat-card-field input {
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+  background: rgba(var(--bg-rgb), 0.6);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.chat-card-field input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.chat-card-erro {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--danger-soft);
+}
