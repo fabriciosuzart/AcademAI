@@ -8,18 +8,19 @@
 
 import { ehDisponivel } from './status';
 
+/** O mínimo que o agrupamento lê. As funções são genéricas: o resto dos campos
+ *  (imagem, descrição...) passa adiante com o tipo de quem chamou. */
 export interface UnidadeAgrupada {
   id: number | string;
   name: string;
   modelo?: string;
   status: string;
-  [chave: string]: any;
 }
 
-export interface GrupoDeModelo extends UnidadeAgrupada {
+export type GrupoDeModelo<T extends UnidadeAgrupada = UnidadeAgrupada> = T & {
   quantidade: number;
-  unidades: UnidadeAgrupada[];
-}
+  unidades: T[];
+};
 
 /** Nome do grupo de uma unidade. O fallback cobre registro antigo sem modelo. */
 export function modeloDe(item: UnidadeAgrupada): string {
@@ -31,8 +32,8 @@ export function modeloDe(item: UnidadeAgrupada): string {
  * O grupo aparece como disponível se ao menos uma unidade estiver — é o que o
  * usuário quer saber ao olhar o card: dá para reservar alguma?
  */
-export function agruparPorModelo(itens: UnidadeAgrupada[]): GrupoDeModelo[] {
-  const grupos: Record<string, GrupoDeModelo> = {};
+export function agruparPorModelo<T extends UnidadeAgrupada>(itens: T[]): GrupoDeModelo<T>[] {
+  const grupos: Record<string, GrupoDeModelo<T>> = {};
 
   for (const item of itens) {
     const modelo = modeloDe(item);
@@ -49,10 +50,10 @@ export function agruparPorModelo(itens: UnidadeAgrupada[]): GrupoDeModelo[] {
 }
 
 /** As unidades irmãs de um equipamento, ele incluído, em ordem de nome. */
-export function unidadesDoMesmoModelo(
-  todos: UnidadeAgrupada[],
+export function unidadesDoMesmoModelo<T extends UnidadeAgrupada>(
+  todos: T[],
   alvo: UnidadeAgrupada,
-): UnidadeAgrupada[] {
+): T[] {
   const modelo = modeloDe(alvo);
   return todos
     .filter((e) => modeloDe(e) === modelo)

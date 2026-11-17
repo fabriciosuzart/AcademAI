@@ -2,7 +2,7 @@ export async function convertBlobToFloat32(blob: Blob): Promise<Float32Array> {
     const arrayBuffer = await blob.arrayBuffer();
     
     // Inicia o contexto de áudio forçando a amostragem em 16.000 Hz (exigência do Whisper)
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+    const audioContext = new (window.AudioContext || window.webkitAudioContext!)({ sampleRate: 16000 });
     
     // Decodifica o áudio do formato do navegador (webm/ogg) para PCM bruto
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);

@@ -6,6 +6,8 @@ import CalendarPicker from '../CalendarPicker';
 import './Agendamento.css';
 import { ehManutencao } from '../../utils/status';
 import { duracaoEntre, formatarDuracao } from '../../utils/horarios';
+import { mensagemDeErro } from '../../utils/erros';
+import type { Equipamento } from '../../types/api';
 
 const Agendamento: React.FC = () => {
     const navigate = useNavigate();
@@ -17,7 +19,7 @@ const Agendamento: React.FC = () => {
     const preDate: string | undefined = location.state?.preDate;
     const preTime: string | undefined = location.state?.preTime;
 
-    const [equipmentList, setEquipmentList] = useState<any[]>([]);
+    const [equipmentList, setEquipmentList] = useState<Equipamento[]>([]);
     const [equipmentId, setEquipmentId] = useState<string>(preselectedEquipmentId);
     const [date, setDate] = useState('');
     const [time, setTime] = useState('');
@@ -53,6 +55,21 @@ const Agendamento: React.FC = () => {
 
     // Trava de login
     useEffect(() => {
+        const fetchEquipments = async () => {
+            try {
+                const res = await api.get<Equipamento[]>('/equipment');
+                // Filtra apenas os que estão disponíveis, opcional.
+                setEquipmentList(res.data);
+
+                // Se veio com ID preselecionado mas era numérico, converte para string para o select bater certinho.
+                if (preselectedEquipmentId) {
+                    setEquipmentId(preselectedEquipmentId.toString());
+                }
+            } catch {
+                console.error("Erro ao buscar equipamentos.");
+            }
+        };
+
         const token = localStorage.getItem('token');
         if (!token) {
             navigate('/');
@@ -60,22 +77,7 @@ const Agendamento: React.FC = () => {
             setIsLoggedIn(true);
             fetchEquipments();
         }
-    }, [navigate]);
-
-    const fetchEquipments = async () => {
-        try {
-            const res = await api.get('/equipment');
-            // Filtra apenas os que estão disponíveis, opcional.
-            setEquipmentList(res.data);
-            
-            // Se veio com ID preselecionado mas era numérico, converte para string para o select bater certinho.
-            if (preselectedEquipmentId) {
-                setEquipmentId(preselectedEquipmentId.toString());
-            }
-        } catch (error) {
-            console.error("Erro ao buscar equipamentos.");
-        }
-    };
+    }, [navigate, preselectedEquipmentId]);
 
     if (!isLoggedIn) return null;
 
@@ -100,8 +102,8 @@ const Agendamento: React.FC = () => {
                 alert(`Reserva enviada com sucesso! Acompanhe o status no seu perfil.`);
                 navigate('/perfil');
             }
-        } catch (error: any) {
-            alert(error.response?.data?.error || 'Erro ao agendar. Tente novamente.');
+        } catch (error) {
+            alert(mensagemDeErro(error, 'Erro ao agendar. Tente novamente.'));
         }
     };
 

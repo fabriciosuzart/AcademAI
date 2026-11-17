@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import './Disponibilidade.css';
 import { classeStatus, ehDisponivel, normalizarStatus, rotuloStatus, OPCOES_STATUS } from '../../utils/status';

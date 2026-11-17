@@ -84,7 +84,7 @@ const Cadastro: React.FC = () => {
             } else {
                 alert('Erro: ' + data.error);
             }
-        } catch (error) {
+        } catch {
             alert('Erro de conexão com o servidor.');
         }
     };
