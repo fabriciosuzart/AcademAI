@@ -19,7 +19,8 @@ const mammoth = require('mammoth');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Tamanho fixo do fragmento, em caracteres, sem sobreposição.
-// A justificativa está em docs/tcc/contribuicoes-mafe.md (tópico 4).
+// A justificativa está no TCC (Seção 2.2); a comparação entre tamanhos sai de
+// `npm run simular-chunk` (scripts/simular-chunk.js).
 export const CHUNK_SIZE = 2000;
 
 // Quantos fragmentos vão para o contexto do LLM (RF19/UC11).

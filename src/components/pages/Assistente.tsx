@@ -3,7 +3,7 @@ import { Bot, User, Brain, Volume2, VolumeX, Mic, Square, Send } from 'lucide-re
 import './Assistente.css';
 import CardChat, { type CardChatDados, type EstadoConfirmacao } from '../chat/CardChat';
 import api from '../../api/axios';
-import { respostaDeConfirmacao } from '../../utils/confirmacao';
+import { MENSAGEM_RECUSA, respostaDeConfirmacao } from '../../utils/confirmacao';
 import { useWhisper } from '../../useWhisper';
 import { API_URL } from '../../api/config';
 import { getAccessToken } from '../../api/session';
@@ -148,7 +148,7 @@ const Assistente: React.FC = () => {
 
   const descartarReserva = (msgId: Message['id']) => {
     mudarConfirmacao(msgId, 'descartada');
-    responder({ text: 'Tudo bem, não reservei.' });
+    responder({ text: MENSAGEM_RECUSA });
   };
 
   // --- NOVA FUNÇÃO DE ENVIO COM STREAMING ---
@@ -160,7 +160,8 @@ const Assistente: React.FC = () => {
     // Com uma prévia de reserva aberta, "sim" confirma e "não" descarta, sem IA:
     // funciona igual digitando ou falando.
     const pendente = [...messages].reverse().find(m => m.sender === 'ai' && m.text);
-    const resposta = pendente?.confirmacao === 'pendente' ? respostaDeConfirmacao(textToSend) : null;
+    const aguardando = pendente?.confirmacao === 'pendente';
+    const resposta = aguardando ? respostaDeConfirmacao(textToSend) : null;
     if (pendente && resposta) {
       setMessages(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: textToSend }]);
       setInput('');
@@ -168,6 +169,10 @@ const Assistente: React.FC = () => {
       else descartarReserva(pendente.id);
       return;
     }
+    // Qualquer outra resposta ("não, muda para as 15h") segue para o assistente,
+    // e a prévia deixa de valer: um "sim" solto mais tarde não confirma uma reserva
+    // que já não é a que o usuário quer (regra do protocolo da Juliana).
+    if (pendente && aguardando) mudarConfirmacao(pendente.id, 'descartada');
 
     const timestamp = Date.now();
     const userMsgId = `user-${timestamp}`;
