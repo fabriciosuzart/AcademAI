@@ -15,6 +15,8 @@ import { horarioValido, paraMinutos } from './horarios.js';
 import { normalizarStatus, STATUS } from './status.js';
 
 export const INTENTS = ['duvida', 'listar_equipamentos', 'reservar', 'ajuda', 'fora_do_tema'];
+// Filtro da listagem: "quais estão disponíveis?" mostra só as livres; "quais máquinas tem?", todas.
+export const FILTROS = ['disponiveis', 'todos'];
 export const MAX_MENSAGEM = 1000;
 export const MAX_HISTORICO = 8;
 export const FUSO = 'America/Sao_Paulo';
@@ -125,7 +127,11 @@ Regras para "reservar":
   Só preencha "fim" se o usuário disser o término ou a duração ("por 2 horas" a partir das 14:00 -> "16:00").
 - Use o histórico para completar pedidos como "e às 16h?" ou "pode ser amanhã".
 
-Nos outros intents, "equipamento", "data", "inicio" e "fim" ficam "".`;
+Regras para "listar_equipamentos":
+- "filtro": "disponiveis" se perguntar pelas disponíveis, livres ou vagas ("quais máquinas estão disponíveis?",
+  "tem impressora livre?"); "todos" se perguntar quais existem ou pedir a lista ("quais máquinas tem?").
+
+Nos outros intents, "equipamento", "data", "inicio" e "fim" ficam "", e "filtro" fica "todos".`;
 }
 
 /**
@@ -141,8 +147,9 @@ export function schemaClassificador(nomes) {
             data: { type: 'string' },
             inicio: { type: 'string' },
             fim: { type: 'string' },
+            filtro: { type: 'string', enum: FILTROS },
         },
-        required: ['intent', 'equipamento', 'data', 'inicio', 'fim'],
+        required: ['intent', 'equipamento', 'data', 'inicio', 'fim', 'filtro'],
     };
 }
 
@@ -160,7 +167,11 @@ function nomeCanonico(bruto, nomes) {
  */
 export function sanitizar(bruto, nomes) {
     const intent = INTENTS.includes(bruto?.intent) ? bruto.intent : 'fora_do_tema';
-    if (intent !== 'reservar') return { intent, equipamento: null, data: null, inicio: null, fim: null };
+    const vazio = { intent, equipamento: null, data: null, inicio: null, fim: null, filtro: null };
+    if (intent === 'listar_equipamentos') {
+        return { ...vazio, filtro: bruto?.filtro === 'disponiveis' ? 'disponiveis' : 'todos' };
+    }
+    if (intent !== 'reservar') return vazio;
 
     const inicio = normalizarHora(bruto?.inicio);
     let fim = normalizarHora(bruto?.fim);
@@ -172,6 +183,7 @@ export function sanitizar(bruto, nomes) {
         data: dataValida(bruto?.data) ? bruto.data : null,
         inicio,
         fim,
+        filtro: null,
     };
 }
 
@@ -253,7 +265,8 @@ export function classificarLocal(texto, nomes, hoje) {
         return sanitizar({ intent: 'reservar', equipamento: citado ?? '', data: extrairData(t, hoje), inicio, fim }, nomes);
     }
     if (/\b(quais|lista\w*|mostr\w*|ver)\b.*\b(maquinas?|equipamentos?)\b|\b(maquinas?|equipamentos?)\b.*\b(tem|existem|disponiveis|ha)\b|\bdisponibilidade\b/.test(t)) {
-        return sanitizar({ intent: 'listar_equipamentos' }, nomes);
+        const filtro = /\b(disponive\w*|disponibilidade|livres?|vagas?|desocupad\w*)\b/.test(t) ? 'disponiveis' : 'todos';
+        return sanitizar({ intent: 'listar_equipamentos', filtro }, nomes);
     }
     if (SAUDACAO.test(t)) return sanitizar({ intent: 'ajuda' }, nomes);
     return sanitizar({ intent: 'duvida' }, nomes);
@@ -291,15 +304,42 @@ export function textoFaltamDados({ equipamento, data, inicio }) {
         'ou abra a tela de agendamento:';
 }
 
-/** Resumo da lista de equipamentos ("Encontrei 5 equipamentos: 3 disponíveis, 1 em uso e 1 em manutenção."). */
-export function textoLista(equipamentos) {
+const ORDEM_STATUS = [STATUS.DISPONIVEL, STATUS.EM_USO, STATUS.MANUTENCAO];
+
+/**
+ * Equipamentos para o card: disponíveis primeiro, depois em uso e em manutenção, por nome
+ * dentro de cada grupo. Com filtro "disponiveis", só os livres.
+ */
+export function listarParaCard(equipamentos, filtro) {
+    const ordenados = [...equipamentos].sort((a, b) =>
+        ORDEM_STATUS.indexOf(normalizarStatus(a.status)) - ORDEM_STATUS.indexOf(normalizarStatus(b.status))
+        || a.name.localeCompare(b.name, 'pt-BR'));
+    return filtro === 'disponiveis'
+        ? ordenados.filter((e) => normalizarStatus(e.status) === STATUS.DISPONIVEL)
+        : ordenados;
+}
+
+/**
+ * Resumo da lista de equipamentos.
+ * - todos: "Encontrei 17 equipamentos: 13 disponíveis e 4 em uso."
+ * - disponiveis: "13 equipamentos disponíveis agora (4 em uso)."
+ */
+export function textoLista(equipamentos, filtro = 'todos') {
     if (!equipamentos.length) return TEXTOS.sem_equipamentos;
     const conta = (s) => equipamentos.filter((e) => normalizarStatus(e.status) === s).length;
-    const partes = [
-        [conta(STATUS.DISPONIVEL), 'disponível', 'disponíveis'],
+    const parte = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+    const disponiveis = conta(STATUS.DISPONIVEL);
+    const ocupados = [
         [conta(STATUS.EM_USO), 'em uso', 'em uso'],
         [conta(STATUS.MANUTENCAO), 'em manutenção', 'em manutenção'],
-    ].filter(([n]) => n > 0).map(([n, um, varios]) => `${n} ${n === 1 ? um : varios}`);
+    ].filter(([n]) => n > 0).map(([n, um, varios]) => parte(n, um, varios));
+
+    if (filtro === 'disponiveis') {
+        if (!disponiveis) return `Nenhum equipamento está disponível agora (${juntar(ocupados)}).`;
+        const livres = parte(disponiveis, 'equipamento disponível', 'equipamentos disponíveis');
+        return ocupados.length ? `${livres} agora (${juntar(ocupados)}).` : `${livres} agora.`;
+    }
+    const partes = disponiveis ? [parte(disponiveis, 'disponível', 'disponíveis'), ...ocupados] : ocupados;
     const n = equipamentos.length;
     return `Encontrei ${n} ${n === 1 ? 'equipamento' : 'equipamentos'}: ${juntar(partes)}.`;
 }
@@ -342,7 +382,9 @@ export function resumoParaHistorico(card) {
         const s = card.sugestao;
         return `[reserva não concluída: equipamento=${s.equipamento ?? '?'}, data=${s.data ?? '?'}, inicio=${s.inicio ?? '?'}]`;
     }
-    if (card.tipo === 'equipamentos') return `[lista com ${card.itens.length} equipamentos]`;
+    if (card.tipo === 'equipamentos') {
+        return `[lista com ${card.itens.length} equipamentos${card.filtro === 'disponiveis' ? ' disponíveis' : ''}]`;
+    }
     return '';
 }
 

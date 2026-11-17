@@ -53,6 +53,22 @@
   overflow-y: auto;
 }
 
+/* Degradê no fim da lista enquanto houver itens abaixo (CardEquipamentos). */
+.chat-card-scroll {
+  position: relative;
+}
+
+.chat-card-scroll.tem-mais::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 48px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--surface));
+}
+
 .chat-card-list li {
   display: flex;
   flex-direction: column;

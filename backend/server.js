@@ -20,7 +20,7 @@ import multer from 'multer';
 import { executarConsultaEquipamentos, executarSolicitacaoReserva } from './mcp_tools.js';
 import {
     precisaDeFerramentas, promptClassificador, schemaClassificador, sanitizar, classificarLocal,
-    validarEntrada, hojeISO, TEXTOS, textoFaltamDados, textoLista, textoReserva, resumoParaHistorico,
+    validarEntrada, hojeISO, TEXTOS, textoFaltamDados, textoLista, listarParaCard, textoReserva, resumoParaHistorico,
 } from './chat_intent.js';
 import {
     FORMATOS_ACEITOS, FORMATOS_DOCLING, MIN_CARACTERES_UTEIS, TOP_K,
@@ -1619,7 +1619,7 @@ async function classificarComIA({ message, history, hoje, nomes }) {
 
 /** Responde uma ação (listar, reservar, ajuda, fora do tema) com frase fixa e card. */
 async function responderAcao(res, pedido, { userId, equipamentos, fonte }) {
-    const { intent, equipamento, data, inicio, fim } = pedido;
+    const { intent, equipamento, data, inicio, fim, filtro } = pedido;
     const enviar = (texto, card = null) =>
         res.json({ tipo: intent, texto, card, resumo: resumoParaHistorico(card), fonte });
 
@@ -1627,8 +1627,12 @@ async function responderAcao(res, pedido, { userId, equipamentos, fonte }) {
     if (intent === 'fora_do_tema') return enviar(TEXTOS.fora_do_tema);
 
     if (intent === 'listar_equipamentos') {
-        const itens = await executarConsultaEquipamentos();
-        return enviar(textoLista(itens), itens.length ? { tipo: 'equipamentos', itens, logado: Boolean(userId) } : null);
+        const todos = await executarConsultaEquipamentos();
+        const itens = listarParaCard(todos, filtro);
+        return enviar(
+            textoLista(todos, filtro),
+            itens.length ? { tipo: 'equipamentos', itens, total: todos.length, filtro, logado: Boolean(userId) } : null,
+        );
     }
 
     // reservar

@@ -1,7 +1,7 @@
 import {
     precisaDeFerramentas, sanitizar, classificarLocal, schemaClassificador, promptClassificador,
     validarEntrada, textoReserva, textoLista, textoFaltamDados, resumoParaHistorico,
-    hojeISO, somarDias, dataValida, dataPorExtenso, normalizarHora, TEXTOS,
+    hojeISO, somarDias, dataValida, dataPorExtenso, normalizarHora, TEXTOS, listarParaCard,
 } from '../chat_intent.js';
 
 const NOMES = ['Impressora 3D Finder 01', 'Impressora 3D Finder 02', 'Cortadora a Laser', 'Micro Retífica'];
@@ -68,7 +68,7 @@ describe('Prompt e schema do classificador', () => {
 describe('sanitizar (resposta do modelo)', () => {
     it('intent desconhecido vira fora_do_tema e zera os dados', () => {
         expect(sanitizar({ intent: 'contar_piada', equipamento: NOMES[0] }, NOMES))
-            .toEqual({ intent: 'fora_do_tema', equipamento: null, data: null, inicio: null, fim: null });
+            .toEqual({ intent: 'fora_do_tema', equipamento: null, data: null, inicio: null, fim: null, filtro: null });
     });
 
     it('mantém só dados válidos de uma reserva', () => {
@@ -76,13 +76,19 @@ describe('sanitizar (resposta do modelo)', () => {
             intent: 'reservar', equipamento: 'impressora 3d finder 02', data: '2026-11-20', inicio: '9:30', fim: '11:00',
         }, NOMES)).toEqual({
             intent: 'reservar', equipamento: 'Impressora 3D Finder 02', data: '2026-11-20', inicio: '09:30', fim: '11:00',
+            filtro: null,
         });
     });
 
     it('descarta equipamento inventado, data impossível e fim antes do início', () => {
         expect(sanitizar({
             intent: 'reservar', equipamento: 'Torno CNC 99', data: '2026-02-30', inicio: '14:00', fim: '13:00',
-        }, NOMES)).toEqual({ intent: 'reservar', equipamento: null, data: null, inicio: '14:00', fim: null });
+        }, NOMES)).toEqual({ intent: 'reservar', equipamento: null, data: null, inicio: '14:00', fim: null, filtro: null });
+    });
+
+    it('listagem leva o filtro, e filtro desconhecido vira "todos"', () => {
+        expect(sanitizar({ intent: 'listar_equipamentos', filtro: 'disponiveis' }, NOMES).filtro).toBe('disponiveis');
+        expect(sanitizar({ intent: 'listar_equipamentos', filtro: 'quebrados' }, NOMES).filtro).toBe('todos');
     });
 });
 
@@ -90,6 +96,7 @@ describe('classificarLocal (sem IA)', () => {
     it('entende um pedido de reserva completo', () => {
         expect(classificarLocal('reservar a Cortadora a Laser amanhã às 14h', NOMES, HOJE)).toEqual({
             intent: 'reservar', equipamento: 'Cortadora a Laser', data: '2026-11-18', inicio: '14:00', fim: null,
+            filtro: null,
         });
     });
 
@@ -118,7 +125,10 @@ describe('classificarLocal (sem IA)', () => {
     });
 
     it('reconhece listagem e saudação', () => {
-        expect(classificarLocal('quais máquinas vocês têm?', NOMES, HOJE).intent).toBe('listar_equipamentos');
+        expect(classificarLocal('quais máquinas vocês têm?', NOMES, HOJE))
+            .toMatchObject({ intent: 'listar_equipamentos', filtro: 'todos' });
+        expect(classificarLocal('quais máquinas estão disponíveis?', NOMES, HOJE))
+            .toMatchObject({ intent: 'listar_equipamentos', filtro: 'disponiveis' });
         expect(classificarLocal('oi, tudo bem?', NOMES, HOJE).intent).toBe('ajuda');
     });
 });
@@ -150,9 +160,23 @@ describe('Textos fixos', () => {
     });
 
     it('resume a lista de equipamentos por status', () => {
-        expect(textoLista([{ status: 'DISPONIVEL' }, { status: 'DISPONIVEL' }, { status: 'MANUTENCAO' }]))
-            .toBe('Encontrei 3 equipamentos: 2 disponíveis e 1 em manutenção.');
+        const lista = [{ status: 'DISPONIVEL' }, { status: 'DISPONIVEL' }, { status: 'EM_USO' }, { status: 'MANUTENCAO' }];
+        expect(textoLista(lista)).toBe('Encontrei 4 equipamentos: 2 disponíveis, 1 em uso e 1 em manutenção.');
+        expect(textoLista(lista, 'disponiveis')).toBe('2 equipamentos disponíveis agora (1 em uso e 1 em manutenção).');
+        expect(textoLista([{ status: 'DISPONIVEL' }], 'disponiveis')).toBe('1 equipamento disponível agora.');
+        expect(textoLista([{ status: 'EM_USO' }], 'disponiveis')).toBe('Nenhum equipamento está disponível agora (1 em uso).');
         expect(textoLista([])).toBe(TEXTOS.sem_equipamentos);
+    });
+
+    it('ordena disponíveis primeiro e filtra quando pedido', () => {
+        const lista = [
+            { name: 'Torno', status: 'MANUTENCAO' },
+            { name: 'Serra', status: 'EM_USO' },
+            { name: 'Laser', status: 'DISPONIVEL' },
+            { name: 'Bambu', status: 'DISPONIVEL' },
+        ];
+        expect(listarParaCard(lista, 'todos').map((e) => e.name)).toEqual(['Bambu', 'Laser', 'Serra', 'Torno']);
+        expect(listarParaCard(lista, 'disponiveis').map((e) => e.name)).toEqual(['Bambu', 'Laser']);
     });
 });
 

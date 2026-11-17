@@ -1,7 +1,7 @@
 // Cards das respostas de ação do assistente (lista de equipamentos, reserva,
 // agendamento a completar, login). O backend manda o card pronto em JSON junto da
 // frase fixa — ver backend/chat_intent.js e a rota /api/chat em backend/server.js.
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarDays, CheckCircle2, Clock, LogIn, User } from 'lucide-react';
 import { classeStatus, ehManutencao, rotuloStatus } from '../../utils/status';
@@ -33,7 +33,7 @@ export interface SugestaoAgendamento {
 
 export type CardChatDados =
   | { tipo: 'reserva'; reserva: ReservaChat }
-  | { tipo: 'equipamentos'; itens: EquipamentoChat[]; logado: boolean }
+  | { tipo: 'equipamentos'; itens: EquipamentoChat[]; total?: number; filtro?: 'disponiveis' | 'todos'; logado: boolean }
   | { tipo: 'agendar'; sugestao: SugestaoAgendamento }
   | { tipo: 'login' };
 
@@ -78,12 +78,33 @@ const CardReserva: React.FC<{ reserva: ReservaChat }> = ({ reserva }) => {
   );
 };
 
-const CardEquipamentos: React.FC<{ itens: EquipamentoChat[]; logado: boolean }> = ({ itens, logado }) => {
+const CardEquipamentos: React.FC<{
+  itens: EquipamentoChat[];
+  total?: number;
+  filtro?: 'disponiveis' | 'todos';
+  logado: boolean;
+}> = ({ itens, total, filtro, logado }) => {
   const navigate = useNavigate();
   const abrirAgendamento = useAbrirAgendamento();
+
+  // A lista rola dentro do card: sem um sinal, parecia ter só os itens visíveis.
+  // O degradê no rodapé some quando a rolagem chega ao fim.
+  const listaRef = useRef<HTMLUListElement>(null);
+  const [temMais, setTemMais] = useState(false);
+  const atualizarTemMais = () => {
+    const el = listaRef.current;
+    if (el) setTemMais(el.scrollTop + el.clientHeight < el.scrollHeight - 4);
+  };
+  useEffect(atualizarTemMais, [itens]);
+
+  const rodape = filtro === 'disponiveis' && total && total > itens.length
+    ? `Mostrando ${itens.length} de ${total} equipamentos (só os disponíveis)`
+    : `${itens.length} ${itens.length === 1 ? 'equipamento' : 'equipamentos'}`;
+
   return (
     <div className="chat-card">
-      <ul className="chat-card-list">
+      <div className={`chat-card-scroll ${temMais ? 'tem-mais' : ''}`}>
+      <ul className="chat-card-list" ref={listaRef} onScroll={atualizarTemMais}>
         {itens.map((e) => (
           <li key={e.id}>
             <div className="chat-card-item">
@@ -111,6 +132,8 @@ const CardEquipamentos: React.FC<{ itens: EquipamentoChat[]; logado: boolean }> 
           </li>
         ))}
       </ul>
+      </div>
+      <p className="chat-card-note">{rodape}{temMais ? ' · role para ver mais' : ''}</p>
     </div>
   );
 };
@@ -150,7 +173,8 @@ const CardLogin: React.FC = () => {
 const CardChat: React.FC<{ card: CardChatDados }> = ({ card }) => {
   switch (card.tipo) {
     case 'reserva': return <CardReserva reserva={card.reserva} />;
-    case 'equipamentos': return <CardEquipamentos itens={card.itens} logado={card.logado} />;
+    case 'equipamentos':
+      return <CardEquipamentos itens={card.itens} total={card.total} filtro={card.filtro} logado={card.logado} />;
     case 'agendar': return <CardAgendar sugestao={card.sugestao} />;
     case 'login': return <CardLogin />;
     default: return null;
