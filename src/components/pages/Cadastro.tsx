@@ -109,6 +109,7 @@ const Cadastro: React.FC = () => {
                                 <input
                                     type="text"
                                     id="fullName"
+                                    autoComplete="name"
                                     placeholder="Ex: Juliana Santos"
                                     value={formData.fullName}
                                     onChange={handleChange}
@@ -127,6 +128,7 @@ const Cadastro: React.FC = () => {
                                     <input
                                         type="email"
                                         id="email"
+                                        autoComplete="email"
                                         placeholder="nome@unisanta.br"
                                         value={formData.email}
                                         onChange={handleChange}
@@ -185,6 +187,7 @@ const Cadastro: React.FC = () => {
                                     <input
                                         type="password"
                                         id="password"
+                                        autoComplete="new-password"
                                         placeholder="Mínimo 8 caracteres"
                                         value={formData.password}
                                         onChange={handleChange}
@@ -201,6 +204,7 @@ const Cadastro: React.FC = () => {
                                     <input
                                         type="password"
                                         id="confirmPassword"
+                                        autoComplete="new-password"
                                         placeholder="Repita a senha"
                                         value={formData.confirmPassword}
                                         onChange={handleChange}

@@ -55,6 +55,7 @@ const LoginModal: React.FC = () => {
             <label>E-mail Institucional</label>
             <input 
               type="email" 
+              autoComplete="username"
               value={email} 
               onChange={e => setEmail(e.target.value)} 
               placeholder="seu.nome@unisanta.br"
@@ -65,6 +66,7 @@ const LoginModal: React.FC = () => {
             <label>Senha</label>
             <input 
               type="password" 
+              autoComplete="current-password"
               value={password} 
               onChange={e => setPassword(e.target.value)} 
               placeholder="Sua senha"
