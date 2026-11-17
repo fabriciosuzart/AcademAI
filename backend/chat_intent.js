@@ -314,7 +314,7 @@ export const TEXTOS = {
         'Para reservar você precisa entrar na sua conta. Depois de entrar, é só pedir de novo aqui.',
     login_reservas:
         'Para ver ou cancelar suas reservas você precisa entrar na sua conta.',
-    reserva_descartada: 'Tudo bem, não reservei.',
+    reserva_descartada: 'Tudo bem, a reserva NÃO foi feita. O que você deseja alterar: a máquina, a data ou o horário?',
     sem_equipamentos: 'Ainda não há equipamentos cadastrados no laboratório.',
 };
 
