@@ -1,18 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import type { AxiosResponse } from 'axios';
-import api from '../api/axios';
+import api, { renovarSessao } from '../api/axios';
 import { setAccessToken } from '../api/session';
 import type { RespostaSessao } from '../types/api';
 import { AuthContext, type UsuarioSessao } from './authContexto';
 
 // Sessão (RNF04): o token de acesso fica só em memória (src/api/session.ts) e o
 // refresh token num cookie HttpOnly, que o JavaScript não lê. Ao abrir ou recarregar
-// a página, a sessão é restaurada pedindo um token novo em /auth/refresh.
-//
-// A promessa é compartilhada: no modo estrito do React o efeito roda duas vezes,
-// e dois refresh seguidos invalidariam um ao outro (o refresh token é rotacionado).
-let sessionRestorePromise: Promise<AxiosResponse<RespostaSessao>> | null = null;
+// a página, a sessão é restaurada pedindo um token novo em /auth/refresh, pela
+// mesma renovarSessao() que o interceptor usa (uma renovação por vez).
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -44,9 +40,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     localStorage.removeItem('token');
     let active = true;
-    sessionRestorePromise ??= api.post<RespostaSessao>('/auth/refresh');
-    sessionRestorePromise
-      .then(({ data }) => {
+    renovarSessao()
+      .then((data) => {
         if (active) login(data);
       })
       .catch(() => {
@@ -75,8 +70,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Não foi possível invalidar a sessão no servidor.', e);
     }
     setAccessToken(null);
-    // A próxima carga da página tenta restaurar de novo (e falha, sem cookie).
-    sessionRestorePromise = null;
     localStorage.clear();
     setIsLoggedIn(false);
     setUser(null);

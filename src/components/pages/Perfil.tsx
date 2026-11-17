@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import api from "../../api/axios";
+import { useAuth } from "../../context/useAuth";
 import { Check, Circle, User, Pencil, Power, KeyRound, Trash2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "./Perfil.css";
@@ -88,6 +89,7 @@ type AbaPerfil =
 const Perfil: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { logout } = useAuth();
   // Estado para guardar os dados do usuário
   const [userData, setUserData] = useState({ name: "", email: "", ra: "" });
   const [userRole, setUserRole] = useState("ALUNO");
@@ -843,11 +845,12 @@ const Perfil: React.FC = () => {
 
     try {
       // O backend identifica o usuario pelo token; o corpo leva so as senhas.
-      const { data } = await api.post("/change-password", { currentPassword, newPassword });
-      alert(data.message);
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
+      await api.post("/change-password", { currentPassword, newPassword });
+      // Trocar a senha encerra todas as sessões (sessionVersion), inclusive esta:
+      // sem isso, a próxima ação da tela daria 401 e mandaria ao login sem explicar.
+      await logout();
+      alert("Senha atualizada com sucesso! Faça login novamente.");
+      navigate("/login");
     } catch (error) {
       alert("Erro: " + mensagemDeErro(error, "falha de conexão com o servidor."));
     }
