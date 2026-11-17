@@ -1,11 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, User, Brain, Volume2, VolumeX, Mic, Square, Send } from 'lucide-react';
 import './Assistente.css';
+import CardChat, { type CardChatDados } from '../chat/CardChat';
 
 interface Message {
   id: string | number;
   sender: 'user' | 'ai';
   text: string;
+  // Respostas de ação (listar, reservar...) chegam em JSON com um card e uma linha
+  // de resumo, que volta no histórico para a IA entender "e às 16h?".
+  card?: CardChatDados;
+  resumo?: string;
+  // 'local': o backend não conseguiu falar com a IA e usou o analisador de palavras-chave.
+  fonte?: 'ia' | 'local';
 }
 
 declare global {
@@ -113,7 +120,7 @@ const Assistente: React.FC = () => {
         .slice(-HISTORICO_MAX)
         .map(m => ({
           role: m.sender === 'user' ? 'user' : 'assistant',
-          content: m.text
+          content: m.resumo ? `${m.text} ${m.resumo}` : m.text
         }));
 
       // Continuamos com fetch em vez do cliente axios porque esta rota responde
@@ -133,6 +140,20 @@ const Assistente: React.FC = () => {
         }),
         signal: abortControllerRef.current.signal,
       });
+
+      // Ações (listar, reservar, ajuda...) vêm prontas em JSON: frase fixa + card.
+      // Dúvidas sobre os documentos continuam em texto, em streaming.
+      if ((response.headers.get('content-type') ?? '').includes('application/json')) {
+        const data = await response.json();
+        const texto: string = data.texto ?? data.error ?? 'Erro na conexão.';
+        setMessages(prev => prev.map(msg =>
+          msg.id === aiMsgId
+            ? { ...msg, text: texto, card: data.card ?? undefined, resumo: data.resumo || undefined, fonte: data.fonte }
+            : msg
+        ));
+        if (isSpeechEnabled) speak(texto);
+        return;
+      }
 
       if (!response.body) throw new Error("Sem corpo na resposta");
 
@@ -227,6 +248,14 @@ const Assistente: React.FC = () => {
                     msg.text
                   )}
                 </p>
+
+                {msg.card && <CardChat card={msg.card} />}
+
+                {msg.fonte === 'local' && (
+                  <span className="msg-offline" title="Pedido interpretado sem IA, por palavras-chave">
+                    modo offline · IA indisponível
+                  </span>
+                )}
 
                 {msg.sender === 'ai' && msg.text !== '' && (
                   <button type="button" className="speak-btn" onClick={() => speak(msg.text)} title="Ouvir resposta" aria-label="Ouvir resposta da Inteligência Artificial em áudio"><Volume2 size={16} aria-hidden="true" /></button>
