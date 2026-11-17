@@ -110,6 +110,19 @@
   border-bottom-left-radius: 4px;
 }
 
+/* Quebras de linha da resposta (ex.: a linha "📄 Fonte" que o servidor acrescenta). */
+.message-content p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.msg-offline {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
 /* Área de Input */
 .chat-input-area {
   padding: 20px;

@@ -1,17 +1,44 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, User, Brain, Volume2, VolumeX, Mic, Square, Send } from 'lucide-react';
 import './Assistente.css';
+import CardChat, { type CardChatDados, type EstadoConfirmacao } from '../chat/CardChat';
+import api from '../../api/axios';
+import { respostaDeConfirmacao } from '../../utils/confirmacao';
+import { useWhisper } from '../../useWhisper';
 
 interface Message {
   id: string | number;
   sender: 'user' | 'ai';
   text: string;
+  // Respostas de ação (listar, reservar...) chegam em JSON com um card e uma linha
+  // de resumo, que volta no histórico para a IA entender "e às 16h?".
+  card?: CardChatDados;
+  resumo?: string;
+  // 'local': o backend não conseguiu falar com a IA e usou o analisador de palavras-chave.
+  fonte?: 'ia' | 'local';
+  // Card "Confirmar reserva" (UC12): pendente até o usuário confirmar ou desistir.
+  confirmacao?: EstadoConfirmacao;
 }
 
-declare global {
-  interface Window {
-    webkitSpeechRecognition: any;
-  }
+/** Corpo JSON das respostas de ação do backend (/api/chat e /api/chat/confirmar-reserva). */
+interface RespostaAcao {
+  texto?: string;
+  error?: string;
+  card?: CardChatDados | null;
+  resumo?: string;
+  fonte?: 'ia' | 'local';
+}
+
+/** Campos da mensagem do assistente a partir de uma resposta JSON do backend. */
+function camposDaResposta(data: RespostaAcao): Omit<Message, 'id' | 'sender'> {
+  const card = data.card ?? undefined;
+  return {
+    text: data.texto ?? data.error ?? 'Erro na conexão.',
+    card,
+    resumo: data.resumo || undefined,
+    fonte: data.fonte,
+    confirmacao: card?.tipo === 'confirmar' ? 'pendente' : undefined,
+  };
 }
 
 const Assistente: React.FC = () => {
@@ -21,7 +48,6 @@ const Assistente: React.FC = () => {
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isListening, setIsListening] = useState(false);
   const [isSpeechEnabled, setIsSpeechEnabled] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -31,13 +57,21 @@ const Assistente: React.FC = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
+  // A versão mais recente do handleSend, para quem é chamado fora do render (comando de
+  // voz global e microfone). Chamar o handleSend capturado na montagem mandava a
+  // mensagem com o histórico vazio e o estado antigo da conversa.
+  const handleSendRef = useRef<(texto?: string) => Promise<void>>(async () => {});
+  useEffect(() => {
+    handleSendRef.current = handleSend;
+  });
+
   // Processa comandos de voz globais
   useEffect(() => {
     const checkPendingCommand = () => {
       const pendingCmd = sessionStorage.getItem('pending_voice_command');
       if (pendingCmd) {
         sessionStorage.removeItem('pending_voice_command');
-        handleSend(pendingCmd);
+        handleSendRef.current(pendingCmd);
       }
     };
 
@@ -82,11 +116,56 @@ const Assistente: React.FC = () => {
     }]);
   };
 
+  const mudarConfirmacao = (msgId: Message['id'], confirmacao: EstadoConfirmacao) =>
+    setMessages(prev => prev.map(msg => (msg.id === msgId ? { ...msg, confirmacao } : msg)));
+
+  const responder = (campos: Omit<Message, 'id' | 'sender'>) => {
+    setMessages(prev => [...prev, { id: `ai-${Date.now()}`, sender: 'ai', ...campos }]);
+    if (isSpeechEnabled) speak(campos.text);
+  };
+
+  // --- CONFIRMAÇÃO DA RESERVA (UC12) ---
+  // A prévia já foi validada; o backend valida de novo ao gravar.
+  const confirmarReserva = async (msgId: Message['id'], finalidade = '') => {
+    const alvo = messages.find(m => m.id === msgId);
+    if (alvo?.card?.tipo !== 'confirmar' || alvo.confirmacao !== 'pendente') return;
+    const { equipmentId, date, time, endTime } = alvo.card.previa;
+    mudarConfirmacao(msgId, 'enviando');
+    try {
+      const { data } = await api.post<RespostaAcao>('/chat/confirmar-reserva', {
+        equipmentId, date, time, endTime, justification: finalidade.trim() || undefined,
+      });
+      mudarConfirmacao(msgId, 'feita');
+      responder(camposDaResposta(data));
+    } catch (error) {
+      console.error(error);
+      mudarConfirmacao(msgId, 'pendente');
+      responder({ text: 'Não consegui confirmar a reserva agora. Tente de novo.' });
+    }
+  };
+
+  const descartarReserva = (msgId: Message['id']) => {
+    mudarConfirmacao(msgId, 'descartada');
+    responder({ text: 'Tudo bem, não reservei.' });
+  };
+
   // --- NOVA FUNÇÃO DE ENVIO COM STREAMING ---
   const handleSend = async (textOverride?: string) => {
     const textToSend = typeof textOverride === 'string' ? textOverride : input;
 
     if (!textToSend || !textToSend.trim()) return;
+
+    // Com uma prévia de reserva aberta, "sim" confirma e "não" descarta, sem IA:
+    // funciona igual digitando ou falando.
+    const pendente = [...messages].reverse().find(m => m.sender === 'ai' && m.text);
+    const resposta = pendente?.confirmacao === 'pendente' ? respostaDeConfirmacao(textToSend) : null;
+    if (pendente && resposta) {
+      setMessages(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: textToSend }]);
+      setInput('');
+      if (resposta === 'sim') await confirmarReserva(pendente.id);
+      else descartarReserva(pendente.id);
+      return;
+    }
 
     const timestamp = Date.now();
     const userMsgId = `user-${timestamp}`;
@@ -113,7 +192,7 @@ const Assistente: React.FC = () => {
         .slice(-HISTORICO_MAX)
         .map(m => ({
           role: m.sender === 'user' ? 'user' : 'assistant',
-          content: m.text
+          content: m.resumo ? `${m.text} ${m.resumo}` : m.text
         }));
 
       // Continuamos com fetch em vez do cliente axios porque esta rota responde
@@ -133,6 +212,15 @@ const Assistente: React.FC = () => {
         }),
         signal: abortControllerRef.current.signal,
       });
+
+      // Ações (listar, reservar, ajuda...) vêm prontas em JSON: frase fixa + card.
+      // Dúvidas sobre os documentos continuam em texto, em streaming.
+      if ((response.headers.get('content-type') ?? '').includes('application/json')) {
+        const campos = camposDaResposta(await response.json());
+        setMessages(prev => prev.map(msg => (msg.id === aiMsgId ? { ...msg, ...campos } : msg)));
+        if (isSpeechEnabled) speak(campos.text);
+        return;
+      }
 
       if (!response.body) throw new Error("Sem corpo na resposta");
 
@@ -157,8 +245,9 @@ const Assistente: React.FC = () => {
         speak(fullText);
       }
 
-    } catch (error: any) {
-      if (error.name === "AbortError") return;
+    } catch (error) {
+      // O abort do botão de parar chega como DOMException, que é um Error.
+      if (error instanceof Error && error.name === "AbortError") return;
 
       console.error(error);
       setMessages(prev => prev.map(msg =>
@@ -170,35 +259,13 @@ const Assistente: React.FC = () => {
   };
 
   // --- SPEECH TO TEXT ---
-  const startListening = () => {
-    if (!('webkitSpeechRecognition' in window)) {
-      alert("Use o Google Chrome para reconhecimento de voz.");
-      return;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const recognition = new (window as any).webkitSpeechRecognition();
-    recognition.lang = 'pt-BR';
-    recognition.continuous = false;
-    recognition.interimResults = true;
-
-    recognition.onstart = () => setIsListening(true);
-
-    // Garante que o estado visual do microfone desligue
-    recognition.onend = () => setIsListening(false);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setInput(transcript);
-
-      if (event.results[0].isFinal) {
-        recognition.stop(); // <--- FORÇA O MICROFONE A PARAR
-        setIsListening(false);
-        handleSend(transcript);
-      }
-    };
-    recognition.start();
-  };
+  // Whisper local (useWhisper), o mesmo do VoiceNavigator: o áudio não sai do navegador.
+  // Antes era o webkitSpeechRecognition do Chrome, que envia o áudio a servidores externos.
+  const { startRecording, stopRecording, isRecording, isProcessing: isTranscribing } = useWhisper((texto) => {
+    if (!texto) return;
+    setInput(texto);
+    handleSendRef.current(texto);
+  });
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -228,6 +295,21 @@ const Assistente: React.FC = () => {
                   )}
                 </p>
 
+                {msg.card && (
+                  <CardChat
+                    card={msg.card}
+                    estado={msg.confirmacao}
+                    onConfirmar={(finalidade) => confirmarReserva(msg.id, finalidade)}
+                    onDescartar={() => descartarReserva(msg.id)}
+                  />
+                )}
+
+                {msg.fonte === 'local' && (
+                  <span className="msg-offline" title="Pedido interpretado sem IA, por palavras-chave">
+                    modo offline · IA indisponível
+                  </span>
+                )}
+
                 {msg.sender === 'ai' && msg.text !== '' && (
                   <button type="button" className="speak-btn" onClick={() => speak(msg.text)} title="Ouvir resposta" aria-label="Ouvir resposta da Inteligência Artificial em áudio"><Volume2 size={16} aria-hidden="true" /></button>
                 )}
@@ -254,20 +336,20 @@ const Assistente: React.FC = () => {
 
               <button
                 type="button"
-                className={`icon-button mic-button ${isListening ? 'listening' : ''}`}
-                onClick={startListening}
-                disabled={isLoading}
-                title={isListening ? "Parar gravação" : "Falar no microfone"}
-                aria-label={isListening ? "Parar de ouvir o microfone" : "Iniciar reconhecimento de voz pelo microfone"}
+                className={`icon-button mic-button ${isRecording ? 'listening' : ''}`}
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isLoading || isTranscribing}
+                title={isRecording ? "Parar gravação" : "Falar no microfone"}
+                aria-label={isRecording ? "Parar de gravar e transcrever" : "Gravar uma mensagem de voz (transcrita no próprio navegador)"}
               >
-                {isListening ? <Square size={20} aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
+                {isRecording ? <Square size={20} aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
               </button>
 
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Digite sua dúvida ou use o microfone..."
+                placeholder={isTranscribing ? 'Transcrevendo o áudio...' : 'Digite sua dúvida ou use o microfone...'}
                 rows={1}
                 disabled={isLoading}
                 aria-label="Caixa de texto para digitar sua mensagem para o assistente"

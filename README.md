@@ -1,73 +1,37 @@
-# React + TypeScript + Vite
+# AcademAI - Assistente Acadêmico (Frontend)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Repositório da interface web do TCC **AcademAI**, desenvolvido com React, TypeScript, Vite e Tailwind, integrando reconhecimento de voz 100% offline via **Whisper (Transformers.js)** para atender aos requisitos de privacidade e execução estritamente *offline* do projeto acadêmico.
 
-Currently, two official plugins are available:
+## 🚀 Como Executar o Projeto Localmente
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+1. **Clone a branch de desenvolvimento local:**
+   ```bash
+   git clone -b feat-whisper-local https://github.com/fabriciosuzart/academai.git
+   cd academai
+   ```
 
-## React Compiler
+2. **Instale as dependências:**
+   ```bash
+   npm install
+   ```
 
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
+3. **Configuração dos Modelos Offline (Whisper & ONNX):**
+   Para garantir o funcionamento sem internet (RNF de operação offline), certifique-se de que os arquivos do modelo e do ONNX Runtime encontram-se nas pastas estáticas corretas:
+   * **Binários WASM:** `public/wasm/`
+   * **Pesos do Whisper Base:** `public/models/Xenova/whisper-base/`
 
-## Expanding the ESLint configuration
+4. **Inicie o servidor de desenvolvimento:**
+   ```bash
+   npm run dev
+   ```
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🛠️ Tecnologias e Arquitetura
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+* **React 19 + TypeScript + Vite**
+* **Transformers.js & ONNX Runtime Web:** Execução local de modelos de Inteligência Artificial diretamente no navegador do cliente.
+* **Web Workers:** Isolamento do processamento ASR (*Automatic Speech Recognition*) em background para evitar travamentos da interface principal.
+* **Lucide React:** Sistema de ícones.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 👥 Equipe / Autoria
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+* **Desenvolvedor:** Fabricio Suzart Andrade (Universidade Santa Cecília - Unisanta
