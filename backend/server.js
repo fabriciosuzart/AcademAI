@@ -17,10 +17,11 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
+import { executarConsultaEquipamentos, executarSolicitacaoReserva } from './mcp_tools.js';
 import {
-    toolConsultarEquipamentos, executarConsultaEquipamentos,
-    toolSolicitarReserva, executarSolicitacaoReserva
-} from './mcp_tools.js';
+    precisaDeFerramentas, promptClassificador, schemaClassificador, sanitizar, classificarLocal,
+    validarEntrada, hojeISO, TEXTOS, textoFaltamDados, textoLista, listarParaCard, textoReserva, resumoParaHistorico,
+} from './chat_intent.js';
 import {
     FORMATOS_ACEITOS, FORMATOS_DOCLING, MIN_CARACTERES_UTEIS, TOP_K,
     sourceDoArquivo, nomeDoSource, carregarDocumentos, caracteresUteis,
@@ -168,35 +169,13 @@ let knowledgeBase = [];
 let vectorStore = [];
 let embedder = null;
 
-// --- ROTEADOR DE INTENÇÃO (INTENT ROUTER) ---
-function precisaDeFerramentas(mensagemUsuario) {
-    const texto = mensagemUsuario.toLowerCase();
-
-    // 1. Verbos e ações de agendamento
-    const acoes = [
-        'agendar', 'reservar', 'marcar', 'alugar', 'alocar', 'usar',
-        'emprestar', 'utilizar', 'disponível', 'disponibilidade',
-        'horário', 'cancelar', 'quais máquinas', 'equipamentos tem'
-    ];
-
-    // 2. Termos genéricos e específicos do AcademAI
-    // Adicione aqui as categorias de tudo o que vocês pretendem ter no laboratório
-    const equipamentos = [
-        'equipamento', 'máquina', 'impressora', '3d', 'bambu',
-        'laser', 'cnc', 'torno', 'solda', 'osciloscópio', 'câmera',
-        'notebook', 'ferramenta', 'arduino', 'raspberry'
-    ];
-
-    // Verifica se a frase do usuário contém alguma palavra de ação OU nome de equipamento
-    const temAcao = acoes.some(acao => texto.includes(acao));
-    const temEquipamento = equipamentos.some(eq => texto.includes(eq));
-
-    // Retorna TRUE se ele citou uma ação ou um equipamento. FALSE se for conversa geral (ex: "Judas")
-    return temAcao || temEquipamento;
-}
+// --- ROTEADOR DE INTENÇÃO ---
+// O pré-filtro por palavra-chave (precisaDeFerramentas) e a classificação moram em
+// chat_intent.js, que é testável sem subir o servidor.
 
 // --- REPASSA O STREAM DO OLLAMA PARA O CLIENTE ---
-// Usado tanto pela resposta pós-ferramenta quanto pelo RAG direto.
+// Usado pelas respostas de dúvida (RAG). `rodape(textoCompleto)` pode devolver um
+// trecho escrito ao final, antes de encerrar (as fontes consultadas).
 //
 // O Ollama responde em NDJSON: um objeto JSON por linha. Um chunk da rede NÃO
 // corresponde a uma linha — pode trazer várias coladas ou cortar uma no meio.
@@ -204,17 +183,21 @@ function precisaDeFerramentas(mensagemUsuario) {
 // resto para o próximo chunk. Fazer JSON.parse direto no chunk estourava, o erro
 // era engolido, e quando a linha perdida era a do 'done' o res.end() nunca
 // acontecia: o cliente ficava preso esperando um fim que não vinha.
-async function repassarStreamOllama(res, ollamaResponse) {
+async function repassarStreamOllama(res, ollamaResponse, rodape = null) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
 
     let buffer = '';
+    let completo = '';
 
     const processarLinha = (linha) => {
         const texto = linha.trim();
         if (!texto) return;
         try {
             const json = JSON.parse(texto);
-            if (json.message?.content) res.write(json.message.content);
+            if (json.message?.content) {
+                completo += json.message.content;
+                res.write(json.message.content);
+            }
         } catch (e) {
             console.warn('⚠️ Linha NDJSON ilegível descartada:', texto.slice(0, 120));
         }
@@ -232,6 +215,8 @@ async function repassarStreamOllama(res, ollamaResponse) {
         }
         // Resto sem quebra de linha ao final do stream
         processarLinha(buffer);
+        const extra = rodape?.(completo);
+        if (extra && !res.writableEnded) res.write(extra);
     } finally {
         // Encerra ao término do stream, tenha ou não chegado um 'done'.
         if (!res.writableEnded) res.end();
@@ -1594,162 +1579,183 @@ app.delete('/api/train/documents/:nome', authMiddleware, roleMiddleware(['ADMIN'
     }
 });
 
-// --- CHAT (MCP + RAG + RESERVAS) ---
+// --- CHAT (RAG + RESERVAS) ---
+// Padrão "a IA classifica, o sistema responde" (detalhes em chat_intent.js):
+//  - Mensagem sem cara de ação vai direto ao RAG (texto livre em stream, como antes).
+//  - Senão, o modelo devolve só um JSON {intent, equipamento, data, inicio, fim} num
+//    schema fechado; o backend valida, executa e responde com frase fixa + card (JSON).
+//  - Se o Ollama não classificar a tempo, um analisador local de palavras-chave assume.
+// Contrato: ações respondem application/json { tipo, texto, card, resumo, fonte };
+// dúvidas respondem text/plain em stream.
+const OLLAMA_URL = 'http://127.0.0.1:11434/api/chat';
+const MODELO_CHAT = 'llama3.2';
+const TIMEOUT_CLASSIFICACAO_MS = 15000;
+const NAO_ENCONTREI = 'Não encontrei essa informação nos documentos institucionais disponíveis.';
+// Falhas de reserva que se resolvem escolhendo outro dia/horário na tela de agendamento.
+const FALHAS_COM_AGENDAMENTO = ['CONFLITO', 'DATA_BLOQUEADA', 'REGRA_TEMPORAL', 'HORARIO_INVALIDO', 'MANUTENCAO'];
+
+/** Pede ao modelo só a classificação do pedido, no formato do schema. */
+async function classificarComIA({ message, history, hoje, nomes }) {
+    const resposta = await fetch(OLLAMA_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(TIMEOUT_CLASSIFICACAO_MS),
+        body: JSON.stringify({
+            model: MODELO_CHAT,
+            stream: false,
+            format: schemaClassificador(nomes),
+            options: { temperature: 0 },
+            messages: [
+                { role: 'system', content: promptClassificador({ hoje, nomes }) },
+                ...history,
+                { role: 'user', content: message },
+            ],
+        }),
+    });
+    if (!resposta.ok) throw new Error(`Ollama HTTP ${resposta.status}`);
+    const data = await resposta.json();
+    return JSON.parse(data.message?.content ?? '');
+}
+
+/** Responde uma ação (listar, reservar, ajuda, fora do tema) com frase fixa e card. */
+async function responderAcao(res, pedido, { userId, equipamentos, fonte }) {
+    const { intent, equipamento, data, inicio, fim, filtro } = pedido;
+    const enviar = (texto, card = null) =>
+        res.json({ tipo: intent, texto, card, resumo: resumoParaHistorico(card), fonte });
+
+    if (intent === 'ajuda') return enviar(TEXTOS.ajuda);
+    if (intent === 'fora_do_tema') return enviar(TEXTOS.fora_do_tema);
+
+    if (intent === 'listar_equipamentos') {
+        const todos = await executarConsultaEquipamentos();
+        const itens = listarParaCard(todos, filtro);
+        return enviar(
+            textoLista(todos, filtro),
+            itens.length ? { tipo: 'equipamentos', itens, total: todos.length, filtro, logado: Boolean(userId) } : null,
+        );
+    }
+
+    // reservar
+    if (!userId) return enviar(TEXTOS.login_necessario, { tipo: 'login' });
+
+    const equipmentId = equipamentos.find((e) => e.name === equipamento)?.id ?? null;
+    const sugestao = { equipamento, equipmentId, data, inicio };
+    if (!equipamento || !data || !inicio) {
+        return enviar(textoFaltamDados(sugestao), { tipo: 'agendar', sugestao });
+    }
+
+    const resultado = await executarSolicitacaoReserva(
+        { equipmentName: equipamento, date: data, time: inicio, endTime: fim ?? undefined },
+        userId,
+    );
+    if (resultado.ok) return enviar(textoReserva(resultado), { tipo: 'reserva', reserva: resultado.reserva });
+
+    let card = null;
+    if (resultado.codigo === 'SEM_LOGIN') card = { tipo: 'login' };
+    if (FALHAS_COM_AGENDAMENTO.includes(resultado.codigo)) {
+        // Em manutenção, o que muda é o equipamento: o card abre o agendamento sem ele.
+        card = resultado.codigo === 'MANUTENCAO'
+            ? { tipo: 'agendar', sugestao: { equipamento: null, equipmentId: null, data, inicio } }
+            : { tipo: 'agendar', sugestao };
+    }
+    return enviar(textoReserva(resultado), card);
+}
+
+/** Dúvida sobre o laboratório: RAG com texto livre em stream e as fontes anexadas pelo servidor. */
+async function responderComRag(res, { message, history, userId }) {
+    // RF19: top-4 fragmentos, com a fonte de cada um no contexto.
+    let contextText = '';
+    let fontes = [];
+    if (vectorStore.length > 0) {
+        const queryVector = await embedding(embedder, message);
+        const topResults = buscar(queryVector, vectorStore, TOP_K);
+        fontes = [...new Set(topResults.map((r) => nomeDoSource(r.item.source)))];
+        contextText = topResults.map((r) => `[Fonte: ${r.item.source}]\n${r.item.text}`).join('\n\n');
+    }
+
+    // Perfil do usuário (RF23): muda a resposta de dúvidas como "minha reserva precisa de aprovação?".
+    let perfil = 'O usuário é um visitante que não entrou na conta.';
+    if (userId) {
+        const user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
+        if (user) {
+            perfil = user.role === 'PROFESSOR' || user.role === 'ADMIN'
+                ? `O usuário é ${user.role}: as reservas dele são aprovadas automaticamente.`
+                : 'O usuário é ALUNO: as reservas dele ficam pendentes até um professor ou administrador aprovar.';
+        }
+    }
+
+    const systemPrompt = `Você é o assistente virtual do AcademAI, de um laboratório universitário.
+${perfil}
+
+Responda em português, de forma direta e educada, APENAS com base no contexto documental abaixo.
+- Se a resposta não estiver no contexto, diga exatamente: "${NAO_ENCONTREI}"
+- Nunca invente informações sobre o laboratório.
+- Não escreva a fonte: o sistema acrescenta as fontes consultadas automaticamente.
+- Não mencione termos técnicos como "banco de dados", "contexto" ou "fragmento".
+- Para ver os equipamentos ou fazer uma reserva, o usuário pode pedir aqui mesmo
+  (ex.: "quais equipamentos existem?" ou "reservar a Impressora 3D Finder 01 amanhã às 14:00").
+${contextText ? `\nContexto dos documentos do laboratório:\n${contextText}` : '\nNão há documentos institucionais indexados no momento.'}`;
+
+    const resposta = await fetch(OLLAMA_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: MODELO_CHAT,
+            messages: [{ role: 'system', content: systemPrompt }, ...history, { role: 'user', content: message }],
+            stream: true,
+        }),
+    });
+
+    // RF19: a fonte é anexada pelo servidor, não depende de a IA lembrar de citar.
+    await repassarStreamOllama(res, resposta, (texto) => {
+        if (!fontes.length || texto.includes('Não encontrei essa informação')) return '';
+        return `\n\n📄 ${fontes.length === 1 ? 'Fonte' : 'Fontes'}: ${fontes.join(', ')}`;
+    });
+}
+
 app.post('/api/chat', optionalAuthMiddleware, async (req, res) => {
-    const { message, history = [] } = req.body;
+    let entrada;
+    try {
+        entrada = validarEntrada(req.body);
+    } catch (e) {
+        return res.status(400).json({ error: e.message });
+    }
+    const { message, history } = entrada;
     // A identidade vem do TOKEN, nunca do corpo. A rota segue aberta a visitante
-    // (req.userId indefinido), mas quem esta logado nao pode mais ser
-    // personificado: antes bastava mandar o userId de outra pessoa no JSON para
-    // a IA criar reserva em nome dela.
+    // (req.userId indefinido), mas quem esta logado nao pode ser personificado
+    // mandando o userId de outra pessoa no JSON.
     const userId = req.userId || null;
     console.log(`💬 Pergunta do Usuário (ID: ${userId || 'Visitante'}):`, message);
 
     try {
-        // --- 1. RAG (Busca nos PDFs) — RF19: top-4 fragmentos com fonte obrigatória ---
-        let contextText = "";
-        let ragSources = [];
-        if (vectorStore.length > 0) {
-            const queryVector = await embedding(embedder, message);
-            const topResults = buscar(queryVector, vectorStore, TOP_K); // RF19/UC11: top-4
-            ragSources = [...new Set(topResults.map(r => r.item.source))]; // fontes únicas
-            // Inclui fonte no contexto para o LLM poder citá-la (RF19 obrigatório)
-            contextText = topResults.map(r => `[Fonte: ${r.item.source}]\n${r.item.text}`).join("\n\n");
+        // Pré-filtro: sem palavra de ação ou de equipamento, é dúvida — direto ao RAG,
+        // sem gastar uma chamada de classificação.
+        if (!precisaDeFerramentas(message)) {
+            console.log('💬 MODO RAG (sem classificação)');
+            return await responderComRag(res, { message, history, userId });
         }
 
+        const equipamentos = await prisma.equipment.findMany({ select: { id: true, name: true } });
+        const nomes = equipamentos.map((e) => e.name);
+        const hoje = hojeISO();
 
-        // Informação sobre o perfil do usuário para RF23
-        let userInfo = '';
-        let statusLogin = '';
-        if (userId) {
-            const user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
-            if (user) {
-                const autoApprove = user.role === 'PROFESSOR' || user.role === 'ADMIN';
-                userInfo = autoApprove
-                    ? `O usuário é ${user.role}. Reservas dele são APROVADAS AUTOMATICAMENTE.`
-                    : `O usuário é ALUNO. Reservas dele ficam PENDENTES aguardando aprovação de professor ou administrador.`;
-                statusLogin = `Você está falando com ${user.name} (${user.role}, ID: ${userId}). ${userInfo}`;
-            }
-        } else {
-            statusLogin = `Você está falando com um VISITANTE NÃO LOGADO. Se o usuário falar em agendar, reservar ou perguntar sobre a disponibilidade de equipamentos para reservar, RECUSE IMEDIATAMENTE informando que ele precisa fazer login na plataforma. NÃO CHAME nenhuma ferramenta (nem consultar_equipamentos, nem solicitar_reserva). Encerre o assunto ali mesmo.`;
+        let pedido;
+        let fonte = 'ia';
+        try {
+            pedido = sanitizar(await classificarComIA({ message, history, hoje, nomes }), nomes);
+        } catch (err) {
+            console.warn('⚠️ Classificação pela IA falhou, usando o analisador local:', err.message);
+            pedido = classificarLocal(message, nomes, hoje);
+            fonte = 'local';
         }
+        console.log(`🧭 Intenção (${fonte}):`, pedido);
 
-        const systemPromptBase = `Você é o assistente virtual do AcademAI.
-
-        INFORMAÇÃO DO USUÁRIO ATUAL: ${statusLogin}
-
-        REGRA DE ROTEAMENTO (MUITO IMPORTANTE):
-        1. PERGUNTAS GERAIS: Se o usuário perguntar sobre conceitos, história ou informações gerais do laboratório, responda APENAS com base no contexto documental. NÃO chame ferramentas de agendamento.
-        2. AÇÕES DO SISTEMA: SÓ use 'consultar_equipamentos' ou 'solicitar_reserva' quando houver intenção clara de reserva (ex: "quero agendar", "reservar", "quais máquinas disponíveis").
-
-        PROTOCOLO DE RESERVA (SIGA RIGOROSAMENTE):
-        1. 'solicitar_reserva' aceita o NOME do equipamento, DATA e HORA. Você NÃO precisa de ID nem de chamar 'consultar_equipamentos' antes.
-        2. Se o pedido vier completo (ex: "Quero agendar a Impressora 3D Finder 01 para 2026-07-17 às 19:30"), chame 'solicitar_reserva' DIRETAMENTE.
-        3. A data vai no formato AAAA-MM-DD e a hora em HH:MM.
-        4. Se faltar algum dado, peça o pedido completo numa única frase: "Quero agendar a [Máquina] para o dia [Data] às [Horário]".
-        5. Informe ao usuário se a reserva foi aprovada automaticamente ou ficou pendente.
-
-        REGRAS DE CITAÇÃO DE FONTE (RF19 — OBRIGATÓRIO):
-        - Se a sua resposta for baseada em algum trecho do contexto documental abaixo, cite obrigatoriamente a fonte ao final, no formato: "📄 Fonte: [nome do arquivo]"
-        - Se não houver documentos recuperados ou a pergunta não puder ser respondida com base neles, declare explicitamente: "Não encontrei essa informação nos documentos institucionais disponíveis."
-        - Nunca invente informações sobre o laboratório.
-
-        REGRAS DE FORMATAÇÃO:
-        - Seja direto e educado.
-        - Não mencione termos técnicos como "banco de dados", "SQLite", "ferramentas".
-        ${contextText ? `- Contexto dos documentos do lab:\n${contextText}` : '- Não há documentos institucionais indexados no momento.'}`;
-
-        const messagesArray = [
-            { role: "system", content: systemPromptBase },
-            ...history,
-            { role: "user", content: message }
-        ];
-
-        // --- 2. PRIMEIRA CHAMADA (A IA pensa e o roteador decide) ---
-
-        // Filtro ultrarrápido por palavra-chave, antes de gastar uma chamada com ferramentas.
-        const usarMCP = precisaDeFerramentas(message);
-        console.log(usarMCP ? "🔌 MODO MCP ATIVADO (Ferramentas ligadas)" : "💬 MODO CHAT/RAG (Ferramentas desligadas)");
-
-        const requestBody = {
-            model: "llama3.2",
-            messages: messagesArray,
-            stream: false,
-            options: {
-                temperature: 0.1 // Mantém a IA focada e evita alucinações
-            }
-        };
-
-        // INJEÇÃO DINÂMICA: só entrega as ferramentas se o roteador autorizar.
-        // Sem isso a IA tentava agendar até em pergunta conceitual.
-        if (usarMCP) {
-            requestBody.tools = [toolConsultarEquipamentos, toolSolicitarReserva];
-        }
-
-        const response1 = await fetch('http://127.0.0.1:11434/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-
-        const data1 = await response1.json();
-        const messageResponse = data1.message;
-
-        // 3. MCP (IA usou ferramenta)
-        if (messageResponse.tool_calls) {
-            const toolCall = messageResponse.tool_calls[0];
-            console.log("⚙️ Ferramenta solicitada:", toolCall.function.name);
-            let resultadoBanco = "";
-
-            // O ROTEADOR DE FERRAMENTAS
-            if (toolCall.function.name === "consultar_equipamentos") {
-                resultadoBanco = await executarConsultaEquipamentos();
-            } else if (toolCall.function.name === "solicitar_reserva") {
-                resultadoBanco = await executarSolicitacaoReserva(toolCall.function.arguments, userId);
-            }
-
-            console.log("📦 RETORNO:", resultadoBanco);
-
-            // --- 4. SEGUNDA CHAMADA (injeção do resultado) ---
-            const promptInjetado = `Você consultou o sistema e obteve:
-            ${resultadoBanco}
-
-            Responda ao usuário de forma natural. NUNCA mencione "banco de dados", "SQLite" ou "ferramentas".
-            ${userInfo ? `Lembre: ${userInfo}` : ''}`;
-
-            const finalResponse = await fetch('http://127.0.0.1:11434/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: "llama3.2",
-                    messages: [...messagesArray, { role: "user", content: promptInjetado }],
-                    stream: true,
-                    options: {
-                        temperature: 0.1 // Tira a "criatividade" ao relatar o resultado
-                    }
-                })
-            });
-
-            // Repassa a confirmação da ferramenta e ENCERRA a requisição aqui.
-            await repassarStreamOllama(res, finalResponse);
-            return;
-        }
-
-        // --- 5. RAG DIRETO (Continua dentro do TRY) ---
-        const responseDirect = await fetch('http://127.0.0.1:11434/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: "llama3.2",
-                messages: messagesArray,
-                stream: true
-            })
-        });
-
-        await repassarStreamOllama(res, responseDirect);
-
+        if (pedido.intent === 'duvida') return await responderComRag(res, { message, history, userId });
+        return await responderAcao(res, pedido, { userId, equipamentos, fonte });
     } catch (error) {
-        console.error("❌ Erro na Rota Chat:", error);
-        res.status(500).end("Erro ao processar consulta.");
+        console.error('❌ Erro na Rota Chat:', error);
+        if (!res.headersSent) res.status(500).end('Erro ao processar consulta.');
+        else if (!res.writableEnded) res.end();
     }
 });
 
