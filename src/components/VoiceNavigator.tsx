@@ -601,7 +601,10 @@ const VoiceNavigator: React.FC = () => {
         }
 
         // ── Comandos de IA (reservar, agendar, etc.) ─────────
-        const aiKeywords = ['reservar', 'agendar', 'marcar', 'cancelar reserva', 'quais equipamentos', 'quero reservar'];
+        const aiKeywords = [
+            'reservar', 'agendar', 'marcar', 'cancelar', 'desmarcar', 'quais equipamentos', 'quero reservar',
+            'minhas reservas', 'minha reserva',
+        ];
         if (aiKeywords.some(kw => lower.startsWith(kw))) {
             mostrarStatus(Bot, 'Encaminhando para IA...');
             speak('Encaminhando seu pedido para a Inteligência Artificial.');

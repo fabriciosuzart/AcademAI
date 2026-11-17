@@ -1,7 +1,9 @@
 // backend/mcp_tools.js
 import { PrismaClient } from '@prisma/client';
 import { ehManutencao } from './status.js';
-import { DURACAO_PADRAO, clausulaDeConflito, horarioValido, somarMinutos } from './horarios.js';
+import {
+    DURACAO_PADRAO, HORA_ABERTURA, HORA_FECHAMENTO, clausulaDeConflito, horarioValido, paraMinutos, somarMinutos,
+} from './horarios.js';
 import { buscarBloqueioQueImpede, motivoDoBloqueio } from './bloqueios.js';
 import { validarRegrasTemporais, contarReservasAtivas, sujeitoAoLimite, REGRAS_RESERVA } from './config-reservas.js';
 const prisma = new PrismaClient();
@@ -22,34 +24,44 @@ export async function executarConsultaEquipamentos() {
 
 // 2. Solicitar reserva (com auto-aprovação por perfil)
 //
-// Devolve { ok: true, reserva } ou { ok: false, codigo, ... }. Códigos: SEM_LOGIN,
-// FALTA_DADOS, NAO_ENCONTRADO, MANUTENCAO, DATA_BLOQUEADA, HORARIO_INVALIDO,
+// args: { equipmentId | equipmentName, date, time, endTime?, justification? }.
+// Devolve { ok: true, reserva } ou { ok: false, codigo, ... }. Com { simular: true },
+// roda todas as validações e devolve { ok: true, previa } SEM gravar: é a prévia que o
+// chat mostra para o usuário confirmar (UC12). Códigos de falha: SEM_LOGIN, FALTA_DADOS,
+// NAO_ENCONTRADO, MANUTENCAO, DATA_BLOQUEADA, HORARIO_INVALIDO, FORA_DO_HORARIO,
 // REGRA_TEMPORAL, CONFLITO, LIMITE, ERRO (textos em chat_intent.js → textoReserva).
 const falha = (codigo, extra = {}) => ({ ok: false, codigo, ...extra });
 
-export async function executarSolicitacaoReserva(args, userId) {
-    console.log("📦 Dados brutos recebidos da IA:", args);
+export async function executarSolicitacaoReserva(args, userId, { simular = false } = {}) {
+    console.log(`📦 Pedido de reserva${simular ? ' (prévia)' : ''}:`, args);
 
     const uId = parseInt(userId);
+    const idAlvo = parseInt(args.equipmentId);
     const nomeAlvo = args.equipmentName;
 
     if (!uId || isNaN(uId)) {
         return falha('SEM_LOGIN');
     }
 
-    if (!nomeAlvo || !args.date || !args.time) {
+    if ((!nomeAlvo && !idAlvo) || !args.date || !args.time) {
         return falha('FALTA_DADOS', { equipamento: nomeAlvo || null, data: args.date || null, inicio: args.time || null });
     }
 
     try {
-        // 1. Traduzir o NOME para o ID real, ignorando maiúsculas. O nome exato vem
-        // primeiro: "Finder 01" não pode cair em "Finder 010" só por ser parte dele.
-        const todosEquipamentos = await prisma.equipment.findMany();
-        const alvo = nomeAlvo.toLowerCase();
-        const equipamento = todosEquipamentos.find(e => e.name.toLowerCase() === alvo)
-            ?? todosEquipamentos.find(e => e.name.toLowerCase().includes(alvo));
+        // 1. Achar o equipamento: pelo ID (vindo da confirmação) ou pelo NOME,
+        // ignorando maiúsculas. O nome exato vem primeiro: "Finder 01" não pode
+        // cair em "Finder 010" só por ser parte dele.
+        let equipamento = null;
+        if (idAlvo) {
+            equipamento = await prisma.equipment.findUnique({ where: { id: idAlvo } });
+        } else {
+            const todosEquipamentos = await prisma.equipment.findMany();
+            const alvo = nomeAlvo.toLowerCase();
+            equipamento = todosEquipamentos.find(e => e.name.toLowerCase() === alvo)
+                ?? todosEquipamentos.find(e => e.name.toLowerCase().includes(alvo));
+        }
         if (!equipamento) {
-            return falha('NAO_ENCONTRADO', { equipamento: nomeAlvo });
+            return falha('NAO_ENCONTRADO', { equipamento: nomeAlvo || `#${idAlvo}` });
         }
         // Dados para o card de "escolha outro horário" nas falhas abaixo.
         const contexto = { equipamento: equipamento.name, equipmentId: equipamento.id, date: args.date, time: args.time };
@@ -82,6 +94,12 @@ export async function executarSolicitacaoReserva(args, userId) {
         const fim = horarioValido(args.endTime)
             ? args.endTime
             : somarMinutos(args.time, DURACAO_PADRAO);
+
+        // Horário de funcionamento (mesma regra do POST /api/schedule). Sem isto, o
+        // chat aceitava reserva às 22h.
+        if (paraMinutos(args.time) < paraMinutos(HORA_ABERTURA) || paraMinutos(fim) > paraMinutos(HORA_FECHAMENTO)) {
+            return falha('FORA_DO_HORARIO', { ...contexto, detalhe: `${HORA_ABERTURA} às ${HORA_FECHAMENTO}` });
+        }
 
         // RF08/RN04 - Antecedência mínima (barra o passado) e duração mín/máx.
         const regras = validarRegrasTemporais(args.date, args.time, fim);
@@ -117,12 +135,23 @@ export async function executarSolicitacaoReserva(args, userId) {
         const autoApprove = usuario.role === 'PROFESSOR' || usuario.role === 'ADMIN';
         const status = autoApprove ? 'APROVADA' : 'PENDENTE';
 
+        if (simular) {
+            return {
+                ok: true,
+                previa: { equipamento: equipamento.name, equipmentId: equipamento.id, date: args.date, time: args.time, endTime: fim, status },
+            };
+        }
+
         // 5. Criar reserva
         const novaReserva = await prisma.appointment.create({
             data: {
                 date: args.date,
                 time: args.time,
                 endTime: fim,
+                // Finalidade informada no card de confirmação (UC12), como no /api/schedule.
+                justification: typeof args.justification === 'string' && args.justification.trim()
+                    ? args.justification.trim().slice(0, 500)
+                    : null,
                 status: status,
                 userId: uId,
                 equipmentId: equipamento.id,
@@ -181,4 +210,34 @@ export async function executarSolicitacaoReserva(args, userId) {
         console.error("❌ ERRO NO PRISMA:", error);
         return falha('ERRO');
     }
+}
+// 3. Reservas futuras do usuário (PENDENTE ou APROVADA, de hoje em diante), para o
+// chat listar e oferecer o cancelamento. O cancelamento em si é feito pela rota REST
+// PUT /api/appointments/:id/cancel, com as regras dela (antecedência de 2h, dono).
+// Filtros opcionais: { equipamento: nome exato, data: 'AAAA-MM-DD' }.
+export async function executarConsultaReservas(userId, { equipamento = null, data = null, hoje }) {
+    const uId = parseInt(userId);
+    if (!uId || isNaN(uId)) return falha('SEM_LOGIN');
+    const reservas = await prisma.appointment.findMany({
+        where: {
+            userId: uId,
+            status: { in: ['PENDENTE', 'APROVADA'] },
+            date: data ?? { gte: hoje },
+            ...(equipamento ? { equipment: { name: equipamento } } : {}),
+        },
+        include: { equipment: { select: { name: true } } },
+        orderBy: [{ date: 'asc' }, { time: 'asc' }],
+    });
+    return {
+        ok: true,
+        itens: reservas.map((r) => ({
+            id: r.id,
+            equipamento: r.equipment.name,
+            equipmentId: r.equipmentId,
+            date: r.date,
+            time: r.time,
+            endTime: r.endTime ?? somarMinutos(r.time, DURACAO_PADRAO),
+            status: r.status,
+        })),
+    };
 }
