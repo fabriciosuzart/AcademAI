@@ -6,57 +6,27 @@ import { buscarBloqueioQueImpede, motivoDoBloqueio } from './bloqueios.js';
 import { validarRegrasTemporais, contarReservasAtivas, sujeitoAoLimite, REGRAS_RESERVA } from './config-reservas.js';
 const prisma = new PrismaClient();
 
-// 1. Ferramenta: Consultar Equipamentos
-export const toolConsultarEquipamentos = {
-    type: "function",
-    function: {
-        name: "consultar_equipamentos",
-        description: "Consulta o banco de dados para listar TODOS os equipamentos do laboratório e seus status.",
-        parameters: {
-            type: "object",
-            properties: {}
-        }
-    }
-};
+// Ações que o chat pode pedir ao backend. A IA só devolve a intenção e os dados do
+// pedido (chat_intent.js); quem valida e grava é o código abaixo, com as mesmas
+// regras das rotas REST. As funções devolvem DADOS, não frases: o texto mostrado ao
+// usuário sai de chat_intent.js, e não é mais "recontado" pelo modelo.
 
+// 1. Consultar equipamentos
 export async function executarConsultaEquipamentos() {
     console.log("🛠️ MCP ACIONADO: Consultando equipamentos...");
-    try {
-        const equipamentos = await prisma.equipment.findMany();
-        if (equipamentos.length === 0) {
-            return "Nenhum equipamento encontrado no momento.";
-        }
-        const lista = equipamentos.map(e => `ID: ${e.id} | Nome: ${e.name} | Status: ${e.status}`).join('\n');
-        return `Equipamentos disponíveis:\n${lista}`;
-    } catch (error) {
-        console.error("❌ Erro na ferramenta MCP:", error);
-        return "Erro interno ao consultar equipamentos.";
-    }
+    return prisma.equipment.findMany({
+        select: { id: true, name: true, modelo: true, status: true },
+        orderBy: { name: 'asc' },
+    });
 }
 
-// 2. Ferramenta: Solicitar Reserva (com auto-aprovação por perfil)
-export const toolSolicitarReserva = {
-    type: "function",
-    function: {
-        name: "solicitar_reserva",
-        description: "Envia um pedido de reserva de equipamento. SÓ CHAME SE TIVER O NOME DO EQUIPAMENTO, A DATA E A HORA. Professores e administradores são aprovados automaticamente; alunos ficam pendentes.",
-        parameters: {
-            type: "object",
-            properties: {
-                // Recebemos o NOME e não o ID: o modelo alucinava IDs que não existiam.
-                // A tradução nome -> ID acontece no Node, logo abaixo.
-                equipmentName: { type: "string", description: "O nome da máquina. Ex: Impressora 3D Finder 01" },
-                date: { type: "string", description: "A data estritamente no formato YYYY-MM-DD." },
-                time: { type: "string", description: "O horário de início estritamente no formato HH:MM." },
-                endTime: { type: "string", description: "O horário de término no formato HH:MM. Se o usuário não disser a duração, omita e a reserva será de 1h." }
-            },
-            // Voltamos a obrigar os 3 para evitar o bug do campo vazio
-            required: ["equipmentName", "date", "time"] 
-        }
-    }
-};
+// 2. Solicitar reserva (com auto-aprovação por perfil)
+//
+// Devolve { ok: true, reserva } ou { ok: false, codigo, ... }. Códigos: SEM_LOGIN,
+// FALTA_DADOS, NAO_ENCONTRADO, MANUTENCAO, DATA_BLOQUEADA, HORARIO_INVALIDO,
+// REGRA_TEMPORAL, CONFLITO, LIMITE, ERRO (textos em chat_intent.js → textoReserva).
+const falha = (codigo, extra = {}) => ({ ok: false, codigo, ...extra });
 
-// --- AÇÃO: SALVAR NO BANCO ---
 export async function executarSolicitacaoReserva(args, userId) {
     console.log("📦 Dados brutos recebidos da IA:", args);
 
@@ -64,51 +34,50 @@ export async function executarSolicitacaoReserva(args, userId) {
     const nomeAlvo = args.equipmentName;
 
     if (!uId || isNaN(uId)) {
-        return "O agendamento FALHOU. Usuário não está logado. Peça para o usuário fazer login no sistema.";
+        return falha('SEM_LOGIN');
     }
 
-    if (!nomeAlvo) {
-        return `Aviso à IA: A reserva NÃO foi concluída porque o nome do equipamento está vazio. Pergunte ao usuário qual equipamento ele deseja.`;
-    }
-
-    if (!args.date || !args.time) {
-        return `Aviso à IA: A reserva NÃO foi concluída. Faltam a data ou o horário. Pergunte educadamente ao usuário para qual dia e horário ele deseja reservar o equipamento '${nomeAlvo}'.`;
+    if (!nomeAlvo || !args.date || !args.time) {
+        return falha('FALTA_DADOS', { equipamento: nomeAlvo || null, data: args.date || null, inicio: args.time || null });
     }
 
     try {
-        // 1. Traduzir o NOME informado pela IA para o ID real, ignorando maiúsculas
+        // 1. Traduzir o NOME para o ID real, ignorando maiúsculas. O nome exato vem
+        // primeiro: "Finder 01" não pode cair em "Finder 010" só por ser parte dele.
         const todosEquipamentos = await prisma.equipment.findMany();
-        const equipamento = todosEquipamentos.find(e =>
-            e.name.toLowerCase().includes(nomeAlvo.toLowerCase())
-        );
+        const alvo = nomeAlvo.toLowerCase();
+        const equipamento = todosEquipamentos.find(e => e.name.toLowerCase() === alvo)
+            ?? todosEquipamentos.find(e => e.name.toLowerCase().includes(alvo));
         if (!equipamento) {
-            return `O equipamento chamado '${nomeAlvo}' não foi encontrado. Avise o usuário e sugira que ele peça a lista de equipamentos.`;
+            return falha('NAO_ENCONTRADO', { equipamento: nomeAlvo });
         }
+        // Dados para o card de "escolha outro horário" nas falhas abaixo.
+        const contexto = { equipamento: equipamento.name, equipmentId: equipamento.id, date: args.date, time: args.time };
 
         // 2. Verificar usuário
         const usuario = await prisma.user.findUnique({ where: { id: uId } });
         if (!usuario) {
-            return `Usuário não encontrado. Peça para deslogar e logar novamente.`;
+            return falha('SEM_LOGIN');
         }
 
         // 2a. Equipamento em manutencao (mesma regra do POST /api/schedule).
         // A IA era um caminho paralelo sem nenhuma destas travas: dava para
         // reservar maquina parada e dia bloqueado so pedindo ao assistente.
         if (ehManutencao(equipamento.status)) {
-            return `O equipamento ${equipamento.name} está em manutenção e não aceita reservas. Avise o usuário e sugira outro equipamento.`;
+            return falha('MANUTENCAO', contexto);
         }
 
         // 2b. Data bloqueada — global (equipmentId null) ou so deste equipamento
         const diaBloqueado = await buscarBloqueioQueImpede(prisma, args.date, equipamento.id);
         if (diaBloqueado) {
-            return `A data ${args.date} está bloqueada para reservas. Motivo: ${motivoDoBloqueio(diaBloqueado)}. Avise o usuário e peça que escolha outra data.`;
+            return falha('DATA_BLOQUEADA', { ...contexto, detalhe: motivoDoBloqueio(diaBloqueado) });
         }
 
         // 3. Verificar conflito de horário (RF16)
         // Sem duracao informada a reserva vale DURACAO_PADRAO: gravar endTime
         // nulo deixaria a reserva sem intervalo e a tela mostraria "16:00 as 16:00".
         if (!horarioValido(args.time)) {
-            return `Horário inválido: "${args.time}". Peça ao usuário o horário no formato HH:MM.`;
+            return falha('HORARIO_INVALIDO', contexto);
         }
         const fim = horarioValido(args.endTime)
             ? args.endTime
@@ -117,7 +86,7 @@ export async function executarSolicitacaoReserva(args, userId) {
         // RF08/RN04 - Antecedência mínima (barra o passado) e duração mín/máx.
         const regras = validarRegrasTemporais(args.date, args.time, fim);
         if (!regras.ok) {
-            return `A reserva NÃO foi concluída: ${regras.erro} Avise o usuário e peça outra data ou horário.`;
+            return falha('REGRA_TEMPORAL', { ...contexto, detalhe: regras.erro });
         }
 
         const conflicting = await prisma.appointment.findFirst({
@@ -132,7 +101,7 @@ export async function executarSolicitacaoReserva(args, userId) {
             }
         });
         if (conflicting) {
-            return `Conflito de horário! O equipamento ${equipamento.name} já possui uma reserva em ${args.date} nesse horário. Sugira ao usuário escolher outro horário.`;
+            return falha('CONFLITO', contexto);
         }
 
         // RF08 - Limite de reservas ativas simultâneas (só ALUNO; staff isento).
@@ -140,7 +109,7 @@ export async function executarSolicitacaoReserva(args, userId) {
             const hojeISO = new Date().toISOString().slice(0, 10);
             const ativas = await contarReservasAtivas(prisma, uId, hojeISO);
             if (ativas >= REGRAS_RESERVA.limiteReservasAtivas) {
-                return `A reserva NÃO foi concluída: o usuário já tem ${REGRAS_RESERVA.limiteReservasAtivas} reservas ativas, que é o limite. Peça que ele cancele uma antes de solicitar outra.`;
+                return falha('LIMITE', { ...contexto, detalhe: REGRAS_RESERVA.limiteReservasAtivas });
             }
         }
 
@@ -196,10 +165,20 @@ export async function executarSolicitacaoReserva(args, userId) {
             }
         }
 
-        const statusMsg = autoApprove ? 'APROVADA automaticamente' : 'PENDENTE (aguardando aprovação)';
-        return `Reserva criada com sucesso! Status: ${statusMsg}. Equipamento: ${equipamento.name}, Data: ${args.date}, Horário: das ${args.time} às ${fim}.`;
+        return {
+            ok: true,
+            reserva: {
+                id: novaReserva.id,
+                equipamento: equipamento.name,
+                equipmentId: equipamento.id,
+                date: args.date,
+                time: args.time,
+                endTime: fim,
+                status,
+            },
+        };
     } catch (error) {
         console.error("❌ ERRO NO PRISMA:", error);
-        return "Erro ao registrar a reserva. Tente novamente.";
+        return falha('ERRO');
     }
 }
