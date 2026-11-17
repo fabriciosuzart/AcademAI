@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import './Notificacoes.css';
+import type { Notificacao } from '../../types/api';
 
 const Notificacoes: React.FC = () => {
-    const [notifications, setNotifications] = useState<any[]>([]);
+    const [notifications, setNotifications] = useState<Notificacao[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
 
     useEffect(() => {

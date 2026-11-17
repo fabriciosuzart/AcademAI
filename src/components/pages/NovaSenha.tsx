@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Login.css';
 import api from '../../api/axios';
+import { mensagemDeErro } from '../../utils/erros';
 
 const NovaSenha: React.FC = () => {
     const [password, setPassword] = useState('');
@@ -20,8 +21,8 @@ const NovaSenha: React.FC = () => {
             await api.post('/change-password', { newPassword: password });
             alert("Senha atualizada com sucesso! Acesso liberado.");
             navigate('/');
-        } catch (error: any) {
-            alert("Erro: " + (error.response?.data?.error || "falha ao salvar senha."));
+        } catch (error) {
+            alert("Erro: " + mensagemDeErro(error, "falha ao salvar senha."));
         }
     };
 

@@ -11,7 +11,8 @@ import { Check } from "lucide-react";
  */
 interface EditUserModalProps {
   open: boolean;
-  editingUser: any | null;
+  // Só decide se o modal abre; os campos editáveis chegam pelas outras props.
+  editingUser: { id: string | number } | null;
   editName: string;
   setEditName: (v: string) => void;
   editEmail: string;

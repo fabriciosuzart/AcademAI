@@ -1,38 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import api from '../../api/axios';
 import './EquipamentoDetalhes.css';
 import { ArrowLeft, Circle, Wrench } from 'lucide-react';
 import { classeStatus, rotuloStatus } from '../../utils/status';
 import { unidadesDoMesmoModelo } from '../../utils/equipamentos';
+import { urlDoArquivo } from '../../api/config';
+import type { Equipamento } from '../../types/api';
+import { mensagemDeErro } from '../../utils/erros';
 
 const EquipamentoDetalhes: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { isLoggedIn } = useAuth();
 
-    const [equipment, setEquipment] = useState<any>(null);
+    const [equipment, setEquipment] = useState<Equipamento | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
     // Outras maquinas do mesmo modelo. Cada uma tem agenda propria, entao a
     // reserva precisa apontar para uma unidade concreta, nunca para o grupo.
-    const [unidades, setUnidades] = useState<any[]>([]);
+    const [unidades, setUnidades] = useState<Equipamento[]>([]);
     const [unidadeSelecionada, setUnidadeSelecionada] = useState<number | null>(null);
 
     useEffect(() => {
         const fetchDetails = async () => {
             try {
-                const res = await api.get(`/equipment/${id}`);
+                const res = await api.get<Equipamento>(`/equipment/${id}`);
                 setEquipment(res.data);
                 setUnidadeSelecionada(res.data.id);
 
                 // Irmas do mesmo modelo: cada uma tem agenda propria.
-                const todos = await api.get('/equipment');
+                const todos = await api.get<Equipamento[]>('/equipment');
                 setUnidades(unidadesDoMesmoModelo(todos.data, res.data));
-            } catch (err: any) {
-                setError(err.response?.data?.error || 'Equipamento não encontrado.');
+            } catch (err) {
+                setError(mensagemDeErro(err, 'Equipamento não encontrado.'));
             } finally {
                 setLoading(false);
             }
@@ -56,7 +59,7 @@ const EquipamentoDetalhes: React.FC = () => {
     if (loading) return <div className="details-container"><p style={{color:'white', textAlign:'center'}}>Carregando detalhes...</p></div>;
     if (error || !equipment) return <div className="details-container"><p className="error-text">{error}</p></div>;
 
-    const imageUrl = equipment.imagePath ? `http://localhost:3000${equipment.imagePath}` : 'https://via.placeholder.com/600x400?text=Sem+Imagem';
+    const imageUrl = equipment.imagePath ? urlDoArquivo(equipment.imagePath) : 'https://via.placeholder.com/600x400?text=Sem+Imagem';
     const statusLabel = rotuloStatus(equipment.status);
     const statusClass = classeStatus(equipment.status);
 

@@ -3,6 +3,8 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, KeyRound, Sparkles, ArrowLeft, AlertTriangle } from 'lucide-react';
 import './Login.css';
 import api from '../../api/axios';
+import { API_URL } from '../../api/config';
+import { mensagemDeErro } from '../../utils/erros';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -85,7 +87,7 @@ const Login: React.FC = () => {
         const similarity = known.split('').filter(c => domain.includes(c)).length / known.length;
         if (similarity > 0.6) { bestDomain = known; break; }
       }
-      let cleanUser = user.replace(/([a-z])\1+/g, '$1');
+      const cleanUser = user.replace(/([a-z])\1+/g, '$1');
       emailResult = cleanUser + '@' + bestDomain;
     }
 
@@ -120,7 +122,7 @@ const Login: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:3000/api/login', {
+      const response = await fetch(`${API_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -144,7 +146,7 @@ const Login: React.FC = () => {
           
           // 'agendamento' e um caso legado sem barra inicial e carrega o
           // equipmentId no state; os demais 'from' sao caminhos ("/perfil").
-          const locationState = location.state as any;
+          const locationState = location.state as { from?: string; equipmentId?: number | string } | null;
           if (locationState?.from === 'agendamento') {
              navigate('/agendamento', { state: locationState });
           } else if (locationState?.from) {
@@ -157,7 +159,7 @@ const Login: React.FC = () => {
         window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text: `Erro: ${data.error}` } }));
         alert('Erro: ' + data.error);
       }
-    } catch (error) {
+    } catch {
       window.dispatchEvent(new CustomEvent('voice-speak', { detail: { text: 'Erro de conexão com o servidor.' } }));
       alert('Erro de conexão com o servidor.');
     }
@@ -174,15 +176,15 @@ const Login: React.FC = () => {
       alert("Senha atualizada com sucesso! Entrando...");
       setShowChangePasswordModal(false);
       navigate('/');
-    } catch (error: any) {
-      alert("Erro: " + (error.response?.data?.error || "falha ao atualizar senha."));
+    } catch (error) {
+      alert("Erro: " + mensagemDeErro(error, "falha ao atualizar senha."));
     }
   };
 
   const handleRecover = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:3000/api/reset-password', {
+      const res = await fetch(`${API_URL}/api/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -190,7 +192,7 @@ const Login: React.FC = () => {
       const d = await res.json();
       if (res.ok) { alert(d.message); setIsRecovering(false); }
       else alert(d.error);
-    } catch (e) { alert("Erro de conexão"); }
+    } catch { alert("Erro de conexão"); }
   };
 
   return (

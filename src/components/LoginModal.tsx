@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import api from '../api/axios';
 import './LoginModal.css';
+import { mensagemDeErro } from '../utils/erros';
 
 const LoginModal: React.FC = () => {
   const { isLoginModalOpen, closeLoginModal, login, pendingAction } = useAuth();
@@ -34,8 +35,8 @@ const LoginModal: React.FC = () => {
       } else {
         setError(response.data.error || 'Erro ao realizar login.');
       }
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro de conexão com o servidor.');
+    } catch (err) {
+      setError(mensagemDeErro(err, 'Erro de conexão com o servidor.'));
     }
   };
 

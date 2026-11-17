@@ -1,14 +1,15 @@
 import axios from 'axios';
+import { API_URL } from './config';
 
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api',
+  baseURL: `${API_URL}/api`,
 });
 
 // Flag para evitar múltiplas tentativas de refresh simultâneas
 let isRefreshing = false;
-let failedQueue: Array<{ resolve: (token: string) => void; reject: (error: any) => void }> = [];
+let failedQueue: Array<{ resolve: (token: string) => void; reject: (error: unknown) => void }> = [];
 
-const processQueue = (error: any, token: string | null = null) => {
+const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue.forEach(prom => {
     if (error) {
       prom.reject(error);
@@ -76,7 +77,7 @@ api.interceptors.response.use(
       }
 
       try {
-        const response = await axios.post('http://localhost:3000/api/auth/refresh', {
+        const response = await axios.post(`${API_URL}/api/auth/refresh`, {
           refreshToken
         });
 

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import './VoiceNavigator.css';
 import { useWhisper } from '../useWhisper';
+import type { Notificacao } from '../types/api';
 
 // =====================================================
 // Levenshtein distance — fuzzy matching leve
@@ -184,7 +185,7 @@ function getHelpSections(pathname: string) {
 // Bipe curto de ativação via Web Audio API (sem bloquear o microfone)
 function playActivationBeep() {
     try {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const ctx = new (window.AudioContext || window.webkitAudioContext!)();
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
@@ -195,7 +196,7 @@ function playActivationBeep() {
         gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
         osc.start(ctx.currentTime);
         osc.stop(ctx.currentTime + 0.12);
-    } catch (_) { /* silencia erros em contextos sem áudio */ }
+    } catch { /* silencia erros em contextos sem áudio */ }
 }
 
 const VoiceNavigator: React.FC = () => {
@@ -227,7 +228,7 @@ const VoiceNavigator: React.FC = () => {
     const [showOnboarding, setShowOnboarding] = useState(false);
 
     const isListeningRef = useRef(false);
-    const recognitionRef = useRef<any>(null);
+    const recognitionRef = useRef<{ abort: () => void } | null>(null);
     const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Estado para confirmação de comandos com baixa confiança
@@ -240,15 +241,16 @@ const VoiceNavigator: React.FC = () => {
     const tentativasSemEntenderRef = useRef(0);
 
     // Re-arma a escuta, desistindo depois de algumas falhas seguidas.
-    const reescutar = (atraso: number) => {
+    // useCallback: o processCommand depende dela. Só usa refs e o setter do status.
+    const reescutar = useCallback((atraso: number) => {
         tentativasSemEntenderRef.current += 1;
         if (tentativasSemEntenderRef.current >= MAX_TENTATIVAS_SEM_ENTENDER) {
             tentativasSemEntenderRef.current = 0;
-            mostrarStatus(XCircle, 'Não consegui entender. Pressione M para tentar de novo.');
+            setStatus({ Icone: XCircle, texto: 'Não consegui entender. Pressione M para tentar de novo.' });
             return;
         }
         setTimeout(() => startRecordingRef.current(), atraso);
-    };
+    }, []);
 
     // Chamado quando algo foi reconhecido com sucesso.
     const reiniciarTentativas = () => { tentativasSemEntenderRef.current = 0; };
@@ -327,7 +329,7 @@ const VoiceNavigator: React.FC = () => {
         try {
             const res = await api.get(`/notifications/${userId}`);
             const notifications = res.data?.notifications || [];
-            const unread = notifications.filter((n: any) => !n.isRead);
+            const unread = notifications.filter((n: Notificacao) => !n.isRead);
 
             if (unread.length > 0) {
                 const latest = unread[unread.length - 1]; // Assume order by ID
@@ -339,7 +341,7 @@ const VoiceNavigator: React.FC = () => {
                 mostrarStatus(CheckCircle2, "Nenhuma notificação");
             }
             clearStatus(5000);
-        } catch (error) {
+        } catch {
             speak("Não consegui acessar suas notificações agora.");
         }
     }, [speak, clearStatus]);
@@ -636,7 +638,7 @@ const VoiceNavigator: React.FC = () => {
         speak('Não reconheci o comando. Pressione M e tente novamente.');
         mostrarStatus(XCircle, `"${text}"`);
         clearStatus(5000);
-    }, [navigate, speak, listenWithNativeSpeech, clearStatus, pendingConfirmation]);
+    }, [navigate, speak, listenWithNativeSpeech, clearStatus, pendingConfirmation, checkNotifications, reescutar]);
 
     // ── Gravação principal ─────────────────────────────────────
     const startRecording = useCallback(() => {

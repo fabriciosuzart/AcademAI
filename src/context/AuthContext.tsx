@@ -1,28 +1,14 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-interface AuthContextType {
-  isLoggedIn: boolean;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-  } | null;
-  login: (userData: any) => void;
-  logout: () => void;
-  requireAuth: (action: () => void) => void;
-  
-  // Controle do Modal
-  isLoginModalOpen: boolean;
-  closeLoginModal: () => void;
-  pendingAction: (() => void) | null;
-}
+import { API_URL } from '../api/config';
+import type { RespostaLogin } from '../types/api';
+import { AuthContext, type UsuarioSessao } from './authContexto';
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<UsuarioSessao | null>(null);
   
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
@@ -33,17 +19,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (token) {
       setIsLoggedIn(true);
       setUser({
-        id: localStorage.getItem('userId'),
-        name: localStorage.getItem('userName'),
-        email: localStorage.getItem('userEmail'),
-        role: localStorage.getItem('userRole'),
+        id: localStorage.getItem('userId') ?? '',
+        name: localStorage.getItem('userName') ?? '',
+        email: localStorage.getItem('userEmail') ?? '',
+        role: localStorage.getItem('userRole') ?? '',
       });
     }
   }, []);
 
-  const login = (data: any) => {
+  const login = (data: RespostaLogin) => {
     localStorage.setItem('token', data.token);
-    localStorage.setItem('userId', data.id);
+    localStorage.setItem('userId', String(data.id));
     localStorage.setItem('userName', data.name);
     localStorage.setItem('userEmail', data.email);
     localStorage.setItem('userRole', data.role);
@@ -54,7 +40,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     setIsLoggedIn(true);
     setUser({
-      id: data.id,
+      id: String(data.id),
       name: data.name,
       email: data.email,
       role: data.role,
@@ -66,12 +52,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const refreshToken = localStorage.getItem('refreshToken');
     if (refreshToken) {
       try {
-        await fetch('http://localhost:3000/api/auth/logout', {
+        await fetch(`${API_URL}/api/auth/logout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken })
         });
-      } catch (e) {
+      } catch {
         // Silencioso - mesmo que falhe, limpa localmente
       }
     }
@@ -108,12 +94,4 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth deve ser usado dentro de um AuthProvider');
-  }
-  return context;
 };

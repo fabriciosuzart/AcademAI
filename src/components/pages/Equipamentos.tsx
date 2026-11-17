@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import api from '../../api/axios';
 import './Equipamentos.css';
 import { Circle } from 'lucide-react';
 import { classeStatus, ehDisponivel, normalizarStatus, rotuloStatus, OPCOES_STATUS } from '../../utils/status';
-import { agruparPorModelo } from '../../utils/equipamentos';
+import { agruparPorModelo, type GrupoDeModelo } from '../../utils/equipamentos';
+import { urlDoArquivo } from '../../api/config';
+import type { Equipamento } from '../../types/api';
 
 
 const Equipamentos: React.FC = () => {
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
   
-  const [equipamentos, setEquipamentos] = useState<any[]>([]);
+  const [equipamentos, setEquipamentos] = useState<GrupoDeModelo<Equipamento>[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('all');
   const [sortOrder, setSortOrder] = useState('default');
@@ -20,7 +22,7 @@ const Equipamentos: React.FC = () => {
   useEffect(() => {
     const loadEquipments = async () => {
       try {
-        const res = await api.get('/equipment');
+        const res = await api.get<Equipamento[]>('/equipment');
         setEquipamentos(agruparPorModelo(res.data));
       } catch (error) {
         console.error("Erro ao carregar equipamentos:", error);
@@ -90,7 +92,7 @@ const Equipamentos: React.FC = () => {
                 
                 <div className="card-image">
                     <img 
-                        src={item.imagePath ? `http://localhost:3000${item.imagePath}` : 'https://via.placeholder.com/300x200?text=S/IMAGEM'} 
+                        src={item.imagePath ? urlDoArquivo(item.imagePath) : 'https://via.placeholder.com/300x200?text=S/IMAGEM'} 
                         alt={item.name} 
                         onError={(e) => e.currentTarget.src = 'https://via.placeholder.com/300x200?text=S/IMAGEM'} 
                     />

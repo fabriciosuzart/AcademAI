@@ -20,7 +20,10 @@ Repositório da interface web do TCC **AcademAI**, desenvolvido com React, TypeS
    * **Binários WASM:** `public/wasm/`
    * **Pesos do Whisper Base:** `public/models/Xenova/whisper-base/`
 
-4. **Inicie o servidor de desenvolvimento:**
+4. **Endereço do backend (opcional):**
+   O front usa `http://localhost:3000` por padrão. Se o backend estiver em outra máquina, copie `.env.example` para `.env.local` e ajuste `VITE_API_URL`.
+
+5. **Inicie o servidor de desenvolvimento:**
    ```bash
    npm run dev
    ```

@@ -5,6 +5,7 @@ import CardChat, { type CardChatDados, type EstadoConfirmacao } from '../chat/Ca
 import api from '../../api/axios';
 import { respostaDeConfirmacao } from '../../utils/confirmacao';
 import { useWhisper } from '../../useWhisper';
+import { API_URL } from '../../api/config';
 
 interface Message {
   id: string | number;
@@ -198,7 +199,7 @@ const Assistente: React.FC = () => {
       // Continuamos com fetch em vez do cliente axios porque esta rota responde
       // em streaming, e o axios no navegador só entrega o corpo já completo.
       // Os headers abaixo replicam o que o interceptor de src/api/axios.ts injeta.
-      const response = await fetch('http://localhost:3000/api/chat', {
+      const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

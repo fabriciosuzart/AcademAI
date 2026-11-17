@@ -9,7 +9,8 @@ import { OPCOES_STATUS } from "../../utils/status";
  */
 interface EditEquipmentModalProps {
   open: boolean;
-  editingEquipment: any | null;
+  // Só decide se o modal abre; os campos editáveis chegam pelas outras props.
+  editingEquipment: { id: string | number } | null;
   name: string;
   setName: (v: string) => void;
   specs: string;

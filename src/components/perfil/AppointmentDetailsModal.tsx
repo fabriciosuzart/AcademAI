@@ -1,5 +1,6 @@
 import React from "react";
 import { formatarIntervalo } from "../../utils/horarios";
+import type { ReservaHistorico } from '../../types/api';
 
 /**
  * Modal de "Detalhes do Agendamento".
@@ -9,7 +10,7 @@ import { formatarIntervalo } from "../../utils/horarios";
  * a reserva e o callback de fechar —, sem tocar no resto do estado do Perfil.
  */
 interface AppointmentDetailsModalProps {
-  appointment: any | null;
+  appointment: ReservaHistorico | null;
   onClose: () => void;
 }
 
@@ -31,7 +32,7 @@ const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = ({
         <div className="modal-body">
           <div className="detail-row">
             <span className="detail-label">Equipamento:</span>
-            <span className="detail-value">{appointment.equipment?.name || appointment.equipment || "Agendamento"}</span>
+            <span className="detail-value">{appointment.equipment || "Agendamento"}</span>
           </div>
           <div className="detail-row">
             <span className="detail-label">Data:</span>
@@ -39,7 +40,7 @@ const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = ({
           </div>
           <div className="detail-row">
             <span className="detail-label">Horário:</span>
-            <span className="detail-value">{formatarIntervalo(appointment.startTime || appointment.time, appointment.endTime)}</span>
+            <span className="detail-value">{formatarIntervalo(appointment.startTime, appointment.endTime)}</span>
           </div>
           <div className="detail-row">
             <span className="detail-label">Status:</span>
@@ -49,7 +50,7 @@ const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = ({
           {appointment.user && (
             <div className="detail-row">
               <span className="detail-label">Usuário:</span>
-              <span className="detail-value">{appointment.user?.name || appointment.user} ({appointment.userRole || appointment.user?.role})</span>
+              <span className="detail-value">{appointment.user} ({appointment.userRole})</span>
             </div>
           )}
 
