@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { API_URL } from './config';
 
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api',
+  baseURL: `${API_URL}/api`,
 });
 
 // Flag para evitar múltiplas tentativas de refresh simultâneas
@@ -76,7 +77,7 @@ api.interceptors.response.use(
       }
 
       try {
-        const response = await axios.post('http://localhost:3000/api/auth/refresh', {
+        const response = await axios.post(`${API_URL}/api/auth/refresh`, {
           refreshToken
         });
 

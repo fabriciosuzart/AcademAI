@@ -6,6 +6,7 @@ import './Equipamentos.css';
 import { Circle } from 'lucide-react';
 import { classeStatus, ehDisponivel, normalizarStatus, rotuloStatus, OPCOES_STATUS } from '../../utils/status';
 import { agruparPorModelo } from '../../utils/equipamentos';
+import { urlDoArquivo } from '../../api/config';
 
 
 const Equipamentos: React.FC = () => {
@@ -90,7 +91,7 @@ const Equipamentos: React.FC = () => {
                 
                 <div className="card-image">
                     <img 
-                        src={item.imagePath ? `http://localhost:3000${item.imagePath}` : 'https://via.placeholder.com/300x200?text=S/IMAGEM'} 
+                        src={item.imagePath ? urlDoArquivo(item.imagePath) : 'https://via.placeholder.com/300x200?text=S/IMAGEM'} 
                         alt={item.name} 
                         onError={(e) => e.currentTarget.src = 'https://via.placeholder.com/300x200?text=S/IMAGEM'} 
                     />

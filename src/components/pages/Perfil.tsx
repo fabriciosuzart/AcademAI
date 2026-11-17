@@ -9,6 +9,7 @@ import { formatarIntervalo } from "../../utils/horarios";
 import AppointmentDetailsModal from "../perfil/AppointmentDetailsModal";
 import EditUserModal from "../perfil/EditUserModal";
 import EditEquipmentModal from "../perfil/EditEquipmentModal";
+import { API_URL, urlDoArquivo } from '../../api/config';
 
 const trainingModules = [
   "Impressora 3D Finder",
@@ -652,7 +653,7 @@ const Perfil: React.FC = () => {
 
   const fetchEquipment = async () => {
     try {
-      const res = await fetch("http://localhost:3000/api/equipment");
+      const res = await fetch(`${API_URL}/api/equipment`);
       const data = await res.json();
       if (!Array.isArray(data)) return;
 
@@ -1624,7 +1625,7 @@ const Perfil: React.FC = () => {
                     <div className="equipment-image">
                       {item.imagePath ? (
                         <img
-                          src={`http://localhost:3000${item.imagePath}`}
+                          src={urlDoArquivo(item.imagePath)}
                           alt={item.name}
                           className="pf-s06"
                         />

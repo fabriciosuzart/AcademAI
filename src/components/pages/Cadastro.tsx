@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, Mail, GraduationCap, Tag, Lock, KeyRound, Sparkles } from 'lucide-react';
 import './Cadastro.css';
+import { API_URL } from '../../api/config';
 
 const Cadastro: React.FC = () => {
     const [formData, setFormData] = useState({
@@ -64,7 +65,7 @@ const Cadastro: React.FC = () => {
         }
 
         try {
-            const response = await fetch('http://localhost:3000/api/register', {
+            const response = await fetch(`${API_URL}/api/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

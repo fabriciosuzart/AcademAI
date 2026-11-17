@@ -16,6 +16,7 @@ import {
 import type { DataBloqueada } from '../../utils/bloqueios';
 import { bloqueioDoDia, motivoDoBloqueio } from '../../utils/bloqueios';
 import api from '../../api/axios';
+import { API_URL } from '../../api/config';
 
 /** Data local em YYYY-MM-DD. `toISOString` converte para UTC e, a oeste de
  *  Greenwich, devolveria o dia anterior. */
@@ -52,7 +53,7 @@ const Disponibilidade: React.FC = () => {
     useEffect(() => {
         const fetchEquipments = async () => {
             try {
-                const res = await fetch('http://localhost:3000/api/equipment');
+                const res = await fetch(`${API_URL}/api/equipment`);
                 const data = await res.json();
                 setEquipments(Array.isArray(data) ? data : []);
             } catch (error) {
@@ -87,7 +88,7 @@ const Disponibilidade: React.FC = () => {
         }
         const fetchBookings = async () => {
             try {
-                const res = await fetch(`http://localhost:3000/api/appointments/equipment/${selectedEquipment}`);
+                const res = await fetch(`${API_URL}/api/appointments/equipment/${selectedEquipment}`);
                 if (res.ok) {
                     const data = await res.json();
                     setBookedSlots(data);

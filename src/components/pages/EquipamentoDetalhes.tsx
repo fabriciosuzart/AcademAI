@@ -6,6 +6,7 @@ import './EquipamentoDetalhes.css';
 import { ArrowLeft, Circle, Wrench } from 'lucide-react';
 import { classeStatus, rotuloStatus } from '../../utils/status';
 import { unidadesDoMesmoModelo } from '../../utils/equipamentos';
+import { urlDoArquivo } from '../../api/config';
 
 const EquipamentoDetalhes: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -56,7 +57,7 @@ const EquipamentoDetalhes: React.FC = () => {
     if (loading) return <div className="details-container"><p style={{color:'white', textAlign:'center'}}>Carregando detalhes...</p></div>;
     if (error || !equipment) return <div className="details-container"><p className="error-text">{error}</p></div>;
 
-    const imageUrl = equipment.imagePath ? `http://localhost:3000${equipment.imagePath}` : 'https://via.placeholder.com/600x400?text=Sem+Imagem';
+    const imageUrl = equipment.imagePath ? urlDoArquivo(equipment.imagePath) : 'https://via.placeholder.com/600x400?text=Sem+Imagem';
     const statusLabel = rotuloStatus(equipment.status);
     const statusClass = classeStatus(equipment.status);
 
