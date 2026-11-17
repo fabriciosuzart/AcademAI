@@ -38,6 +38,14 @@ O Backend gerencia os agendamentos, usuários e a conexão com a Inteligência A
    ```
 *O servidor ficará rodando (provavelmente na porta 3000).*
 
+> **Sessão e CORS.** O login guarda o refresh token num cookie `HttpOnly` e o token de acesso só na memória do navegador. Por isso o backend aceita requisições apenas do endereço do front, que por padrão é `http://localhost:5173`. Se o front rodar em outro endereço, defina antes de subir o servidor:
+> - `FRONTEND_ORIGIN`: endereço do front (ex.: `http://192.168.0.10:5173`);
+> - `COOKIE_SECURE=true`: em produção com HTTPS (o cookie passa a exigir conexão segura).
+>
+> O cookie usa `SameSite=Lax`: front e back precisam estar no mesmo site (mesmo domínio ou mesmo IP, mudando só a porta). Em domínios diferentes o navegador não envia o cookie e a sessão não se mantém ao recarregar a página.
+>
+> Depois de 5 senhas erradas seguidas, a conta fica bloqueada para login por 15 minutos.
+
 ---
 
 ### Executando Testes de Qualidade (Backend)

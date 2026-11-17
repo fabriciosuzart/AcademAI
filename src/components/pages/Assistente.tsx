@@ -6,6 +6,7 @@ import api from '../../api/axios';
 import { respostaDeConfirmacao } from '../../utils/confirmacao';
 import { useWhisper } from '../../useWhisper';
 import { API_URL } from '../../api/config';
+import { getAccessToken } from '../../api/session';
 
 interface Message {
   id: string | number;
@@ -182,7 +183,7 @@ const Assistente: React.FC = () => {
       abortControllerRef.current = new AbortController();
 
       const idLogado = localStorage.getItem('userId');
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
 
       // O backend aceita 'history' e monta o contexto da conversa com ele, mas
       // nada estava enviando — cada pergunta chegava sem memória do que veio
