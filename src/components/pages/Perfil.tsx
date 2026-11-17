@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import axios from "axios";
 import api from "../../api/axios";
 import { Check, Circle, User, Pencil, Power, KeyRound, Trash2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -10,6 +11,10 @@ import AppointmentDetailsModal from "../perfil/AppointmentDetailsModal";
 import EditUserModal from "../perfil/EditUserModal";
 import EditEquipmentModal from "../perfil/EditEquipmentModal";
 import { API_URL, urlDoArquivo } from '../../api/config';
+import { mensagemDeErro } from '../../utils/erros';
+import type {
+  Bloqueio, LogAuditoria, ReservaComRelacoes, ReservaHistorico, ResumoRelatorio, VisaoGeral,
+} from '../../types/api';
 
 const trainingModules = [
   "Impressora 3D Finder",
@@ -29,7 +34,7 @@ const parseEquipmentDescription = (desc: string | null | undefined) => {
         requiresTraining: !!parsed.requiresTraining,
       };
     }
-  } catch (e) {
+  } catch {
     // Fallback para formato anterior
   }
   // Lógica de fallback
@@ -68,8 +73,17 @@ interface EquipmentItem {
   imagePath?: string | null;
   status: string;
   quantity?: number;
-  items?: any[];
+  items?: EquipmentItem[];
 }
+
+type AbaPerfil =
+  | "agendamentos"
+  | "overview"
+  | "usuarios"
+  | "equipamentos"
+  | "treinamento"
+  | "relatorios"
+  | "configuracoes";
 
 const Perfil: React.FC = () => {
   const location = useLocation();
@@ -79,7 +93,7 @@ const Perfil: React.FC = () => {
   const [userRole, setUserRole] = useState("ALUNO");
 
   // Estado para guardar o histórico de agendamentos
-  const [appointments, setAppointments] = useState<any[]>([]);
+  const [appointments, setAppointments] = useState<ReservaHistorico[]>([]);
   const [viewAllAppointments, setViewAllAppointments] = useState(false);
 
   // Estatísticas dinâmicas do semestre (RF17 / #14)
@@ -91,29 +105,21 @@ const Perfil: React.FC = () => {
   const [loadingStats, setLoadingStats] = useState(false);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [equipmentItems, setEquipmentItems] = useState<EquipmentItem[]>([]);
-  const [activeTab, setActiveTab] = useState<
-    | "agendamentos"
-    | "overview"
-    | "usuarios"
-    | "equipamentos"
-    | "treinamento"
-    | "relatorios"
-    | "configuracoes"
-  >("agendamentos");
+  const [activeTab, setActiveTab] = useState<AbaPerfil>("agendamentos");
   // Papel escolhido no seletor, ainda nao salvo, indexado pelo id do usuario.
   const [userRoleEdit, setUserRoleEdit] = useState<Record<string, string>>({});
 
   // Telas que vieram do painel /admin, aposentado: toda a administracao do
   // laboratorio passa a viver aqui, numa tela so.
-  const [overviewData, setOverviewData] = useState<any>(null);
+  const [overviewData, setOverviewData] = useState<VisaoGeral | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
-  const [pendingReservations, setPendingReservations] = useState<any[]>([]);
+  const [pendingReservations, setPendingReservations] = useState<ReservaComRelacoes[]>([]);
   // RF30 — logs e relatorios basicos do painel admin.
-  const [reportSummary, setReportSummary] = useState<any>(null);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [reportSummary, setReportSummary] = useState<ResumoRelatorio | null>(null);
+  const [auditLogs, setAuditLogs] = useState<LogAuditoria[]>([]);
   const [loadingRelatorios, setLoadingRelatorios] = useState(false);
   const [loadingRes, setLoadingRes] = useState(false);
-  const [calendarAppointments, setCalendarAppointments] = useState<any[]>([]);
+  const [calendarAppointments, setCalendarAppointments] = useState<ReservaHistorico[]>([]);
   const [loadingCalendar, setLoadingCalendar] = useState(false);
   const [calendarWeekOffset, setCalendarWeekOffset] = useState(0);
 
@@ -166,7 +172,7 @@ const Perfil: React.FC = () => {
   const [editTrainings, setEditTrainings] = useState<string[]>([]);
 
   // Estados para edição de equipamentos
-  const [editingEquipment, setEditingEquipment] = useState<any>(null);
+  const [editingEquipment, setEditingEquipment] = useState<EquipmentItem | null>(null);
   const [isEditEquipmentModalOpen, setIsEditEquipmentModalOpen] =
     useState(false);
   const [editEquipmentName, setEditEquipmentName] = useState("");
@@ -193,10 +199,10 @@ const Perfil: React.FC = () => {
   >(null);
 
   // Estado para visualização de detalhes de agendamento
-  const [selectedAppointment, setSelectedAppointment] = useState<any | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<ReservaHistorico | null>(null);
 
   // Estados para gerenciar bloqueios de datas
-  const [blockedDates, setBlockedDates] = useState<any[]>([]);
+  const [blockedDates, setBlockedDates] = useState<Bloqueio[]>([]);
   const [blockDateStr, setBlockDateStr] = useState("");
 
   const [blockReason, setBlockReason] = useState("");
@@ -232,9 +238,9 @@ const Perfil: React.FC = () => {
         closeEditModal();
         alert("Usuário atualizado com sucesso.");
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erro ao atualizar usuário:", error);
-      alert("Erro ao salvar usuário: " + (error.response?.data?.error || "Falha no servidor"));
+      alert("Erro ao salvar usuário: " + mensagemDeErro(error, "Falha no servidor"));
     }
   };
 
@@ -255,13 +261,13 @@ const Perfil: React.FC = () => {
         if (editingUser?.id === target.id) closeEditModal();
         fetchAdminUsers();
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erro ao excluir usuário", error);
-      alert("Erro ao excluir: " + (error.response?.data?.error || "Erro de conexão com o servidor."));
+      alert("Erro ao excluir: " + mensagemDeErro(error, "Erro de conexão com o servidor."));
     }
   };
 
-  const handleToggleActive = async (user: any) => {
+  const handleToggleActive = async (user: AdminUser) => {
     const action = user.isActive ? "desativar" : "ativar";
     if (!window.confirm(`Tem certeza que deseja ${action} a conta de ${user.name}?`)) return;
 
@@ -272,9 +278,9 @@ const Perfil: React.FC = () => {
       await api.put(`/users/${user.id}/toggle-active`);
       alert(`Conta ${action}da com sucesso!`);
       fetchAdminUsers();
-    } catch (error: any) {
-      if (error.response) {
-        alert("Erro: " + (error.response.data?.error || "falha ao alterar a conta."));
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        alert("Erro: " + mensagemDeErro(error, "falha ao alterar a conta."));
         return;
       }
       alert("Erro de conexão ao alterar status.");
@@ -283,13 +289,13 @@ const Perfil: React.FC = () => {
 
   // RF07 - reset offline de senha pelo admin. A senha temporaria e devolvida
   // so aqui (rota protegida) e mostrada ao admin, que a repassa ao usuario.
-  const handleResetPassword = async (user: any) => {
+  const handleResetPassword = async (user: AdminUser) => {
     if (!window.confirm(`Gerar uma senha temporária para ${user.name}? A senha atual deixará de funcionar.`)) return;
     try {
       const { data } = await api.post(`/users/${user.id}/reset-password`);
       alert(`${data.message}\n\nSenha temporária: ${data.tempPassword}`);
-    } catch (error: any) {
-      alert("Erro: " + (error.response?.data?.error || "falha ao resetar a senha."));
+    } catch (error) {
+      alert("Erro: " + mensagemDeErro(error, "falha ao resetar a senha."));
     }
   };
 
@@ -308,14 +314,17 @@ const Perfil: React.FC = () => {
       });
       await fetchAdminUsers();
       alert("Perfil atualizado com sucesso!");
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erro ao alterar perfil", error);
-      alert("Erro ao alterar perfil: " + (error.response?.data?.error || "Erro de conexão."));
+      alert("Erro ao alterar perfil: " + mensagemDeErro(error, "Erro de conexão."));
     }
   };
 
   // ── Navegacao por voz das abas administrativas ───────────────────
   // Estes listeners viviam no painel /admin; vieram junto com as telas.
+  // Os handlers leem as reservas pendentes e a semana do calendário, que mudam a
+  // cada render. O ref guarda a versão atual; os listeners são registrados uma vez.
+  const vozAdminRef = useRef<{ tab: (e: Event) => void; acao: (e: Event) => void } | null>(null);
   useEffect(() => {
     const abasDoAdmin = ["overview", "usuarios", "equipamentos", "treinamento"];
     const abasDoProfessor = ["overview"];
@@ -329,7 +338,7 @@ const Perfil: React.FC = () => {
         console.warn("Aba de voz não permitida para este perfil:", tab);
         return;
       }
-      setActiveTab(tab as any);
+      setActiveTab(tab as AbaPerfil);
       if (tab === "overview") {
         fetchPendingReservations();
         if (role === "ADMIN") {
@@ -352,13 +361,19 @@ const Perfil: React.FC = () => {
       }
     };
 
-    window.addEventListener("voice-admin-tab", handleVoiceTab);
-    window.addEventListener("voice-admin-action", handleVoiceAction);
+    vozAdminRef.current = { tab: handleVoiceTab, acao: handleVoiceAction };
+  });
+
+  useEffect(() => {
+    const tab = (e: Event) => vozAdminRef.current?.tab(e);
+    const acao = (e: Event) => vozAdminRef.current?.acao(e);
+    window.addEventListener("voice-admin-tab", tab);
+    window.addEventListener("voice-admin-action", acao);
     return () => {
-      window.removeEventListener("voice-admin-tab", handleVoiceTab);
-      window.removeEventListener("voice-admin-action", handleVoiceAction);
+      window.removeEventListener("voice-admin-tab", tab);
+      window.removeEventListener("voice-admin-action", acao);
     };
-  }, [pendingReservations, calendarWeekOffset]);
+  }, []);
 
   // ── Operacao do laboratorio (vinha do painel /admin) ─────────────
   const fetchOverview = async () => {
@@ -422,7 +437,7 @@ const Perfil: React.FC = () => {
       const all = Array.isArray(res.data) ? res.data : [];
       setCalendarAppointments(
         all.filter(
-          (a: any) =>
+          (a: ReservaHistorico) =>
             a.date >= start && a.date <= end &&
             ["APROVADA", "PENDENTE"].includes(a.status),
         ),
@@ -461,8 +476,8 @@ const Perfil: React.FC = () => {
       }
       const uid = localStorage.getItem("userId");
       if (uid) fetchAppointments(uid, viewAllAppointments);
-    } catch (error: any) {
-      alert(error.response?.data?.error || "Erro ao atualizar reserva.");
+    } catch (error) {
+      alert(mensagemDeErro(error, "Erro ao atualizar reserva."));
     } finally {
       setLoadingRes(false);
     }
@@ -514,8 +529,8 @@ const Perfil: React.FC = () => {
       setMsgTypeAI("success");
       setFile(null);
       await fetchDocumentos();
-    } catch (error: any) {
-      setMessageAI(error.response?.data?.error || "Erro de conexão.");
+    } catch (error) {
+      setMessageAI(mensagemDeErro(error, "Erro de conexão."));
       setMsgTypeAI("error");
     } finally {
       setLoadingAI(false);
@@ -529,8 +544,8 @@ const Perfil: React.FC = () => {
       setMessageAI(`"${nome}" removido (-${res.data.vetoresRemovidos} blocos).`);
       setMsgTypeAI("success");
       await fetchDocumentos();
-    } catch (error: any) {
-      setMessageAI(error.response?.data?.error || "Erro ao remover documento.");
+    } catch (error) {
+      setMessageAI(mensagemDeErro(error, "Erro ao remover documento."));
       setMsgTypeAI("error");
     }
   };
@@ -550,60 +565,69 @@ const Perfil: React.FC = () => {
         alert("Equipamento excluído com sucesso!");
         fetchEquipment();
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erro ao excluir equipamento", error);
-      alert("Erro ao excluir: " + (error.response?.data?.error || "Erro de conexão com o servidor."));
+      alert("Erro ao excluir: " + mensagemDeErro(error, "Erro de conexão com o servidor."));
     }
   };
 
   // Ao carregar a página
+  // Carga inicial do perfil, uma vez ao montar. As funções de busca são recriadas a
+  // cada render; o ref aponta para a versão atual, e o efeito de montagem só a chama.
+  const carregarPerfilRef = useRef<() => void>(() => {});
   useEffect(() => {
-    // Busca os dados salvos no localStorage (pelo Login.tsx)
-    const name = localStorage.getItem("userName") || "Usuário";
-    let email = localStorage.getItem("userEmail");
-    if (!email || email === "undefined" || email === "null")
-      email = "Não informado";
+    carregarPerfilRef.current = () => {
+      // Busca os dados salvos no localStorage (pelo Login.tsx)
+      const name = localStorage.getItem("userName") || "Usuário";
+      let email = localStorage.getItem("userEmail");
+      if (!email || email === "undefined" || email === "null")
+        email = "Não informado";
 
-    let ra = localStorage.getItem("userRA") || localStorage.getItem("userRa");
-    if (!ra || ra === "undefined" || ra === "null") ra = "Não informado";
+      let ra = localStorage.getItem("userRA") || localStorage.getItem("userRa");
+      if (!ra || ra === "undefined" || ra === "null") ra = "Não informado";
 
-    const role = localStorage.getItem("userRole") || "ALUNO";
-    const userId = localStorage.getItem("userId");
+      const role = localStorage.getItem("userRole") || "ALUNO";
+      const userId = localStorage.getItem("userId");
 
-    // Sem sessao nao ha perfil para mostrar. Isto vinha da protecao que o
-    // AdminTrain tinha; ao aposentar o /admin, o redirecionamento para ca
-    // ficou incondicional e um visitante anonimo via um perfil vazio
-    // ("Usuario", sem dados) em vez de ser mandado ao login.
-    if (!userId) {
-      navigate("/login", { state: { from: "/perfil" } });
-      return;
-    }
+      // Sem sessao nao ha perfil para mostrar. Isto vinha da protecao que o
+      // AdminTrain tinha; ao aposentar o /admin, o redirecionamento para ca
+      // ficou incondicional e um visitante anonimo via um perfil vazio
+      // ("Usuario", sem dados) em vez de ser mandado ao login.
+      if (!userId) {
+        navigate("/login", { state: { from: "/perfil" } });
+        return;
+      }
 
-    // Atualiza o estado
-    setUserData({ name, email, ra });
-    setUserRole(role);
+      // Atualiza o estado
+      setUserData({ name, email, ra });
+      setUserRole(role);
 
-    // Se tiver ID, busca os agendamentos no banco e as estatísticas dinâmicas
-    if (userId) {
-      fetchAppointments(userId, false);
-      fetchStats(userId);
-    }
+      // Se tiver ID, busca os agendamentos no banco e as estatísticas dinâmicas
+      if (userId) {
+        fetchAppointments(userId, false);
+        fetchStats(userId);
+      }
 
-    // Quem aprova reservas precisa da contagem logo na entrada, para o
-    // marcador da aba aparecer sem precisar abri-la.
-    if (role === "ADMIN" || role === "PROFESSOR") {
-      fetchPendingReservations();
+      // Quem aprova reservas precisa da contagem logo na entrada, para o
+      // marcador da aba aparecer sem precisar abri-la.
+      if (role === "ADMIN" || role === "PROFESSOR") {
+        fetchPendingReservations();
 
-      // Quem chega pela pilula da Home ou por um /admin antigo quer a tela de
-      // operacao, nao os proprios agendamentos.
-      if ((location.state as any)?.aba === "overview") {
-        setActiveTab("overview");
-        if (role === "ADMIN") {
-          fetchOverview();
-          fetchCalendar(0);
+        // Quem chega pela pilula da Home ou por um /admin antigo quer a tela de
+        // operacao, nao os proprios agendamentos.
+        if ((location.state as { aba?: string } | null)?.aba === "overview") {
+          setActiveTab("overview");
+          if (role === "ADMIN") {
+            fetchOverview();
+            fetchCalendar(0);
+          }
         }
       }
-    }
+    };
+  });
+
+  useEffect(() => {
+    carregarPerfilRef.current();
   }, []);
 
   // Recarrega agendamentos ao mudar o toggle
@@ -635,9 +659,9 @@ const Perfil: React.FC = () => {
         alert("Reserva cancelada com sucesso!");
         if (userId) fetchAppointments(userId, viewAllAppointments);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erro ao cancelar reserva:", error);
-      alert("Erro ao cancelar: " + (error.response?.data?.error || "Erro de conexão"));
+      alert("Erro ao cancelar: " + mensagemDeErro(error, "Erro de conexão"));
     }
   };
 
@@ -698,8 +722,8 @@ const Perfil: React.FC = () => {
       setBlockDateStr('');
       setBlockReason('');
       setBlockEquipmentId('');
-    } catch (error: any) {
-      alert("Erro ao bloquear data: " + (error.response?.data?.error || "Verifique se a data já está bloqueada."));
+    } catch (error) {
+      alert("Erro ao bloquear data: " + mensagemDeErro(error, "Verifique se a data já está bloqueada."));
     }
   };
 
@@ -708,7 +732,7 @@ const Perfil: React.FC = () => {
     try {
       await api.delete(`/blocked-dates/${id}`);
       fetchBlockedDates();
-    } catch(e) {
+    } catch {
       alert("Erro ao remover bloqueio.");
     }
   };
@@ -824,12 +848,12 @@ const Perfil: React.FC = () => {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch (error: any) {
-      alert("Erro: " + (error.response?.data?.error || "falha de conexão com o servidor."));
+    } catch (error) {
+      alert("Erro: " + mensagemDeErro(error, "falha de conexão com o servidor."));
     }
   };
 
-  const handleToggleStatus = async (item: any) => {
+  const handleToggleStatus = async (item: EquipmentItem) => {
     try {
       const newStatus = ehManutencao(item.status) ? STATUS.DISPONIVEL : STATUS.MANUTENCAO;
 
@@ -851,7 +875,7 @@ const Perfil: React.FC = () => {
             if (!prev) return prev;
             return {
               ...prev,
-              items: prev.items?.map((i: any) =>
+              items: prev.items?.map((i) =>
                 i.id === item.id ? { ...i, status: newStatus } : i,
               ),
             };
@@ -859,9 +883,9 @@ const Perfil: React.FC = () => {
         }
         fetchEquipment();
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erro ao atualizar status", error);
-      alert("Erro ao atualizar status: " + (error.response?.data?.error || "Erro de conexão."));
+      alert("Erro ao atualizar status: " + mensagemDeErro(error, "Erro de conexão."));
     }
   };
 
@@ -923,9 +947,9 @@ const Perfil: React.FC = () => {
         closeEditEquipmentModal();
         alert("Equipamento atualizado com sucesso.");
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erro ao atualizar equipamento:", error);
-      alert("Erro ao salvar equipamento: " + (error.response?.data?.error || "Falha no servidor"));
+      alert("Erro ao salvar equipamento: " + mensagemDeErro(error, "Falha no servidor"));
     }
   };
 
@@ -985,9 +1009,9 @@ const Perfil: React.FC = () => {
         closeAddEquipmentModal();
         alert("Equipamento adicionado com sucesso!");
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erro ao adicionar equipamento:", error);
-      alert("Erro ao adicionar equipamento: " + (error.response?.data?.error || "Falha no servidor"));
+      alert("Erro ao adicionar equipamento: " + mensagemDeErro(error, "Falha no servidor"));
     }
   };
 
@@ -1183,13 +1207,12 @@ const Perfil: React.FC = () => {
                     </strong>
                     <p>
                       {formatarIntervalo(
-                        upcomingAppointment.startTime || upcomingAppointment.time,
+                        upcomingAppointment.startTime,
                         upcomingAppointment.endTime,
                       )}{" "}
                       •{" "}
-                      {upcomingAppointment.location ||
-                        upcomingAppointment.room ||
-                        "Sala não informada"}
+                      {/* As rotas de reserva não trazem sala: o texto é sempre este. */}
+                      Sala não informada
                     </p>
                   </div>
                   <div className="upcoming-actions">
@@ -1239,7 +1262,7 @@ const Perfil: React.FC = () => {
                     key={status}
                     type="button"
                     className={`filter-chip ${appointmentFilter === status ? "active" : ""}`}
-                    onClick={() => setAppointmentFilter(status as any)}
+                    onClick={() => setAppointmentFilter(status as typeof appointmentFilter)}
                   >
                     {status === "todos"
                       ? "Todos"
@@ -1261,17 +1284,17 @@ const Perfil: React.FC = () => {
                   filteredAppointments.map((appt) => (
                     <li key={appt.id} className="schedule-item">
                       <div>
-                        <strong>{appt.equipment?.name || appt.equipment || "Agendamento"}</strong>
+                        <strong>{appt.equipment || "Agendamento"}</strong>
                         {viewAllAppointments && appt.user && (
                           <div className="pf-s04">
-                            <User size={16} aria-hidden="true" /> {appt.user || appt.user?.name} ({appt.userRole || appt.user?.role})
+                            <User size={16} aria-hidden="true" /> {appt.user} ({appt.userRole})
                           </div>
                         )}
                         <p>
                           {appt.date
                             ? appt.date.split("-").reverse().join("/")
                             : "Data não informada"}{" "}
-                          • {formatarIntervalo(appt.startTime || appt.time, appt.endTime)}
+                          • {formatarIntervalo(appt.startTime, appt.endTime)}
                         </p>
                       </div>
                       <div className="schedule-meta">
@@ -1428,11 +1451,11 @@ const Perfil: React.FC = () => {
                         // O sort antigo usava a.time, que nao existe nesta rota:
                         // com duas reservas no mesmo dia, estourava a renderizacao.
                         .sort(
-                          (a: any, b: any) =>
+                          (a, b) =>
                             (a.date || "").localeCompare(b.date || "") ||
                             (a.startTime || "").localeCompare(b.startTime || ""),
                         )
-                        .map((appt: any) => {
+                        .map((appt) => {
                           const dia = new Date(appt.date + "T12:00:00").toLocaleDateString(
                             "pt-BR",
                             { weekday: "long", day: "2-digit", month: "2-digit" },
@@ -1490,7 +1513,7 @@ const Perfil: React.FC = () => {
                     key={filter}
                     type="button"
                     className={`filter-chip ${searchFilter === filter ? "active" : ""}`}
-                    onClick={() => setSearchFilter(filter as any)}
+                    onClick={() => setSearchFilter(filter as typeof searchFilter)}
                   >
                     {filter === "todos"
                       ? "Todos"
@@ -1848,7 +1871,7 @@ const Perfil: React.FC = () => {
                     <div className="report-block">
                       <h3>Reservas por status</h3>
                       <ul className="report-list">
-                        {reportSummary.reservasPorStatus.map((s: any) => (
+                        {reportSummary.reservasPorStatus.map((s) => (
                           <li key={s.status}>
                             <span className={`perfil-status-badge ${s.status}`}>{s.status}</span>
                             <strong>{s.total}</strong>
@@ -1859,7 +1882,7 @@ const Perfil: React.FC = () => {
                     <div className="report-block">
                       <h3>Usuários por papel</h3>
                       <ul className="report-list">
-                        {reportSummary.usuariosPorPapel.map((r: any) => (
+                        {reportSummary.usuariosPorPapel.map((r) => (
                           <li key={r.papel}>
                             <span>{r.papel}</span>
                             <strong>{r.total}</strong>
@@ -1873,7 +1896,7 @@ const Perfil: React.FC = () => {
                         {reportSummary.topEquipamentos.length === 0 && (
                           <li><span>Nenhuma reserva ainda.</span></li>
                         )}
-                        {reportSummary.topEquipamentos.map((e: any) => (
+                        {reportSummary.topEquipamentos.map((e) => (
                           <li key={e.equipamento}>
                             <span>{e.equipamento}</span>
                             <strong>{e.total}</strong>
