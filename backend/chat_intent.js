@@ -14,7 +14,9 @@
 import { horarioValido, paraMinutos } from './horarios.js';
 import { normalizarStatus, STATUS } from './status.js';
 
-export const INTENTS = ['duvida', 'listar_equipamentos', 'reservar', 'ajuda', 'fora_do_tema'];
+export const INTENTS = [
+    'duvida', 'listar_equipamentos', 'reservar', 'minhas_reservas', 'cancelar_reserva', 'ajuda', 'fora_do_tema',
+];
 // Filtro da listagem: "quais estão disponíveis?" mostra só as livres; "quais máquinas tem?", todas.
 export const FILTROS = ['disponiveis', 'todos'];
 export const MAX_MENSAGEM = 1000;
@@ -33,7 +35,8 @@ export const semAcento = (s) =>
 const ACOES = [
     'agendar', 'reservar', 'marcar', 'alugar', 'alocar', 'usar',
     'emprestar', 'utilizar', 'disponivel', 'disponibilidade',
-    'horario', 'cancelar', 'quais maquinas', 'equipamentos tem',
+    'horario', 'cancelar', 'quais maquinas', 'equipamentos tem', 'minhas reservas', 'minha reserva',
+    'meus agendamentos', 'desmarcar',
 ];
 const EQUIPAMENTOS = [
     'equipamento', 'maquina', 'impressora', '3d', 'bambu',
@@ -114,6 +117,8 @@ ${nomes.length ? nomes.map((n) => `- ${n}`).join('\n') : '- (nenhum cadastrado)'
 Campo "intent":
 - "reservar": pede para agendar, reservar ou marcar um equipamento.
 - "listar_equipamentos": pergunta quais equipamentos/máquinas existem ou estão disponíveis.
+- "minhas_reservas": pergunta pelas próprias reservas ("quais são minhas reservas?", "o que eu reservei?").
+- "cancelar_reserva": pede para cancelar ou desmarcar uma reserva própria.
 - "duvida": pergunta sobre o laboratório, suas regras, equipamentos, treinamentos ou como usar o sistema
   (inclusive "como faço para reservar?", que é dúvida e não um pedido de reserva).
 - "ajuda": saudação ou pergunta sobre o que o assistente sabe fazer.
@@ -130,6 +135,10 @@ Regras para "reservar":
 Regras para "listar_equipamentos":
 - "filtro": "disponiveis" se perguntar pelas disponíveis, livres ou vagas ("quais máquinas estão disponíveis?",
   "tem impressora livre?"); "todos" se perguntar quais existem ou pedir a lista ("quais máquinas tem?").
+
+Regras para "cancelar_reserva":
+- "equipamento" e "data" seguem as regras de "reservar" e servem só para achar a reserva citada
+  ("cancelar minha reserva da cortadora amanhã"); "" se não disse. "inicio" e "fim" ficam "".
 
 Nos outros intents, "equipamento", "data", "inicio" e "fim" ficam "", e "filtro" fica "todos".`;
 }
@@ -170,6 +179,13 @@ export function sanitizar(bruto, nomes) {
     const vazio = { intent, equipamento: null, data: null, inicio: null, fim: null, filtro: null };
     if (intent === 'listar_equipamentos') {
         return { ...vazio, filtro: bruto?.filtro === 'disponiveis' ? 'disponiveis' : 'todos' };
+    }
+    if (intent === 'cancelar_reserva') {
+        return {
+            ...vazio,
+            equipamento: nomeCanonico(bruto?.equipamento, nomes),
+            data: dataValida(bruto?.data) ? bruto.data : null,
+        };
     }
     if (intent !== 'reservar') return vazio;
 
@@ -257,6 +273,14 @@ export function equipamentoCitado(t, nomes) {
 export function classificarLocal(texto, nomes, hoje) {
     const t = semAcento(texto).trim();
 
+    // Antes da regra de reserva, que também casaria com "minhas reservas" e "cancelar a reserva".
+    if (/\bminhas? reservas?\b|\bmeus agendamentos?\b|\bo que (eu )?reservei\b/.test(t) && !/\b(cancel|desmarc)\w*/.test(t)) {
+        return sanitizar({ intent: 'minhas_reservas' }, nomes);
+    }
+    if (/\b(cancel|desmarc)\w*/.test(t) && !/\bcomo\b/.test(t)) {
+        return sanitizar({ intent: 'cancelar_reserva', equipamento: equipamentoCitado(t, nomes) ?? '', data: extrairData(t, hoje) }, nomes);
+    }
+
     // Verbo de reserva sem palavra de pergunta: "como faço para reservar?" é dúvida, não pedido.
     const pergunta = /\b(como|qual|quais|quanto|quantas?|quando|o que|por que|porque)\b/.test(t);
     if (/\b(agend|reserv|marc)\w*/.test(t) && !pergunta) {
@@ -280,13 +304,17 @@ const EXEMPLO_RESERVA = (equipamento) =>
 export const TEXTOS = {
     ajuda:
         'Posso responder dúvidas sobre o laboratório com base nos documentos oficiais (regras, equipamentos, ' +
-        'como agendar), mostrar os equipamentos e o status de cada um e reservar um equipamento para você. ' +
+        'como agendar), mostrar os equipamentos e o status de cada um, reservar um equipamento para você ' +
+        'e mostrar ou cancelar as suas reservas. ' +
         `Experimente: "quais equipamentos existem?" ou ${EXEMPLO_RESERVA()}.`,
     fora_do_tema:
         'Só consigo ajudar com o laboratório: dúvidas sobre regras e equipamentos, lista de equipamentos e reservas. ' +
         'Experimente: "como faço para agendar?" ou "quais equipamentos existem?".',
     login_necessario:
         'Para reservar você precisa entrar na sua conta. Depois de entrar, é só pedir de novo aqui.',
+    login_reservas:
+        'Para ver ou cancelar suas reservas você precisa entrar na sua conta.',
+    reserva_descartada: 'Tudo bem, não reservei.',
     sem_equipamentos: 'Ainda não há equipamentos cadastrados no laboratório.',
 };
 
@@ -361,11 +389,38 @@ export function textoReserva(resultado) {
         case 'MANUTENCAO': return `${equipamento} está em manutenção e não aceita reservas agora. Escolha outro equipamento.`;
         case 'DATA_BLOQUEADA': return `O dia ${dataPorExtenso(date)} está bloqueado para reservas (${detalhe}). Escolha outra data.`;
         case 'HORARIO_INVALIDO': return 'Não entendi o horário. Diga, por exemplo, "às 14:30".';
+        case 'FORA_DO_HORARIO': return `O laboratório funciona das ${detalhe}. Escolha um horário nesse intervalo:`;
         case 'REGRA_TEMPORAL': return `Não deu para reservar: ${detalhe}`;
         case 'CONFLITO': return `Já existe uma reserva de ${equipamento} em ${dataPorExtenso(date)} nesse horário. Escolha outro horário:`;
         case 'LIMITE': return `Você já tem ${detalhe} reservas ativas, que é o limite. Cancele uma no seu Perfil antes de pedir outra.`;
         default: return 'Não consegui registrar a reserva agora. Tente de novo em instantes.';
     }
+}
+
+/** Prévia da reserva para o usuário confirmar (UC12): o que vai ser gravado e se precisa de aprovação. */
+export function textoPrevia({ equipamento, date, time, endTime, status }) {
+    const aprovacao = status === 'APROVADA'
+        ? 'Ela será aprovada automaticamente.'
+        : 'Ela ficará pendente até um professor ou administrador aprovar.';
+    return `Confira a reserva: ${equipamento}, ${dataPorExtenso(date)}, das ${time} às ${endTime}. ${aprovacao} ` +
+        'Confirma? (pode responder "sim")';
+}
+
+/** Lista das reservas futuras do usuário, para consultar ou escolher qual cancelar. */
+export function textoReservas(itens, { acao = 'listar', filtrado = false } = {}) {
+    if (!itens.length) {
+        return filtrado
+            ? 'Não encontrei reserva futura sua com esses dados. Peça "minhas reservas" para ver todas.'
+            : 'Você não tem reservas futuras.';
+    }
+    const n = itens.length;
+    const total = `${n} ${n === 1 ? 'reserva futura' : 'reservas futuras'}`;
+    if (acao === 'cancelar') {
+        return n === 1
+            ? 'Encontrei esta reserva. Para cancelar, use o botão abaixo:'
+            : `Você tem ${total}. Qual quer cancelar?`;
+    }
+    return `Você tem ${total}:`;
 }
 
 /**
@@ -382,6 +437,11 @@ export function resumoParaHistorico(card) {
         const s = card.sugestao;
         return `[reserva não concluída: equipamento=${s.equipamento ?? '?'}, data=${s.data ?? '?'}, inicio=${s.inicio ?? '?'}]`;
     }
+    if (card.tipo === 'confirmar') {
+        const r = card.previa;
+        return `[reserva aguardando confirmação: ${r.equipamento}, ${r.date} ${r.time}-${r.endTime}]`;
+    }
+    if (card.tipo === 'reservas') return `[lista com ${card.itens.length} reservas futuras do usuário]`;
     if (card.tipo === 'equipamentos') {
         return `[lista com ${card.itens.length} equipamentos${card.filtro === 'disponiveis' ? ' disponíveis' : ''}]`;
     }

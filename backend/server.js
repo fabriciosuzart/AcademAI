@@ -17,10 +17,11 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
-import { executarConsultaEquipamentos, executarSolicitacaoReserva } from './mcp_tools.js';
+import { executarConsultaEquipamentos, executarConsultaReservas, executarSolicitacaoReserva } from './mcp_tools.js';
 import {
     precisaDeFerramentas, promptClassificador, schemaClassificador, sanitizar, classificarLocal,
     validarEntrada, hojeISO, TEXTOS, textoFaltamDados, textoLista, listarParaCard, textoReserva, resumoParaHistorico,
+    textoPrevia, textoReservas,
 } from './chat_intent.js';
 import {
     FORMATOS_ACEITOS, FORMATOS_DOCLING, MIN_CARACTERES_UTEIS, TOP_K,
@@ -1592,7 +1593,9 @@ const MODELO_CHAT = 'llama3.2';
 const TIMEOUT_CLASSIFICACAO_MS = 15000;
 const NAO_ENCONTREI = 'Não encontrei essa informação nos documentos institucionais disponíveis.';
 // Falhas de reserva que se resolvem escolhendo outro dia/horário na tela de agendamento.
-const FALHAS_COM_AGENDAMENTO = ['CONFLITO', 'DATA_BLOQUEADA', 'REGRA_TEMPORAL', 'HORARIO_INVALIDO', 'MANUTENCAO'];
+const FALHAS_COM_AGENDAMENTO = [
+    'CONFLITO', 'DATA_BLOQUEADA', 'REGRA_TEMPORAL', 'HORARIO_INVALIDO', 'FORA_DO_HORARIO', 'MANUTENCAO',
+];
 
 /** Pede ao modelo só a classificação do pedido, no formato do schema. */
 async function classificarComIA({ message, history, hoje, nomes }) {
@@ -1617,7 +1620,7 @@ async function classificarComIA({ message, history, hoje, nomes }) {
     return JSON.parse(data.message?.content ?? '');
 }
 
-/** Responde uma ação (listar, reservar, ajuda, fora do tema) com frase fixa e card. */
+/** Responde uma ação (listar, reservar, minhas reservas, cancelar, ajuda, fora do tema) com frase fixa e card. */
 async function responderAcao(res, pedido, { userId, equipamentos, fonte }) {
     const { intent, equipamento, data, inicio, fim, filtro } = pedido;
     const enviar = (texto, card = null) =>
@@ -1635,6 +1638,16 @@ async function responderAcao(res, pedido, { userId, equipamentos, fonte }) {
         );
     }
 
+    if (intent === 'minhas_reservas' || intent === 'cancelar_reserva') {
+        if (!userId) return enviar(TEXTOS.login_reservas, { tipo: 'login' });
+        await concluirReservasVencidas(); // RF09, como o GET /api/appointments/:userId
+        const acao = intent === 'cancelar_reserva' ? 'cancelar' : 'listar';
+        const filtros = acao === 'cancelar' ? { equipamento, data } : {};
+        const { itens } = await executarConsultaReservas(userId, { ...filtros, hoje: hojeISO() });
+        const filtrado = Boolean(filtros.equipamento || filtros.data);
+        return enviar(textoReservas(itens, { acao, filtrado }), itens.length ? { tipo: 'reservas', itens, acao } : null);
+    }
+
     // reservar
     if (!userId) return enviar(TEXTOS.login_necessario, { tipo: 'login' });
 
@@ -1644,22 +1657,49 @@ async function responderAcao(res, pedido, { userId, equipamentos, fonte }) {
         return enviar(textoFaltamDados(sugestao), { tipo: 'agendar', sugestao });
     }
 
+    // UC12: o chat não grava direto. Valida tudo e mostra a prévia para o usuário
+    // confirmar; quem grava é POST /api/chat/confirmar-reserva.
     const resultado = await executarSolicitacaoReserva(
         { equipmentName: equipamento, date: data, time: inicio, endTime: fim ?? undefined },
         userId,
+        { simular: true },
     );
-    if (resultado.ok) return enviar(textoReserva(resultado), { tipo: 'reserva', reserva: resultado.reserva });
-
-    let card = null;
-    if (resultado.codigo === 'SEM_LOGIN') card = { tipo: 'login' };
-    if (FALHAS_COM_AGENDAMENTO.includes(resultado.codigo)) {
-        // Em manutenção, o que muda é o equipamento: o card abre o agendamento sem ele.
-        card = resultado.codigo === 'MANUTENCAO'
-            ? { tipo: 'agendar', sugestao: { equipamento: null, equipmentId: null, data, inicio } }
-            : { tipo: 'agendar', sugestao };
-    }
-    return enviar(textoReserva(resultado), card);
+    if (resultado.ok) return enviar(textoPrevia(resultado.previa), { tipo: 'confirmar', previa: resultado.previa });
+    return enviar(textoReserva(resultado), cardDaFalha(resultado, sugestao));
 }
+
+/** Card de uma reserva que não passou nas regras: login, ou abrir o agendamento para ajustar. */
+function cardDaFalha(resultado, sugestao) {
+    if (resultado.codigo === 'SEM_LOGIN') return { tipo: 'login' };
+    if (!FALHAS_COM_AGENDAMENTO.includes(resultado.codigo)) return null;
+    // Em manutenção, o que muda é o equipamento: o card abre o agendamento sem ele.
+    return resultado.codigo === 'MANUTENCAO'
+        ? { tipo: 'agendar', sugestao: { ...sugestao, equipamento: null, equipmentId: null } }
+        : { tipo: 'agendar', sugestao };
+}
+
+// Confirmação da prévia (card "Confirmar" do chat, ou "sim" digitado/falado).
+// Revalida tudo: entre a prévia e o clique alguém pode ter reservado o mesmo horário.
+app.post('/api/chat/confirmar-reserva', optionalAuthMiddleware, async (req, res) => {
+    const { equipmentId, date, time, endTime, justification } = req.body ?? {};
+    const userId = req.userId || null; // identidade só do token, como no /api/chat
+    try {
+        const resultado = await executarSolicitacaoReserva({ equipmentId, date, time, endTime, justification }, userId);
+        const enviar = (texto, card = null) =>
+            res.json({ tipo: 'reservar', texto, card, resumo: resumoParaHistorico(card), fonte: 'ia' });
+        if (resultado.ok) return enviar(textoReserva(resultado), { tipo: 'reserva', reserva: resultado.reserva });
+        const sugestao = {
+            equipamento: resultado.equipamento ?? null,
+            equipmentId: resultado.equipmentId ?? (parseInt(equipmentId) || null),
+            data: date ?? null,
+            inicio: time ?? null,
+        };
+        return enviar(textoReserva(resultado), cardDaFalha(resultado, sugestao));
+    } catch (error) {
+        console.error('❌ Erro ao confirmar reserva pelo chat:', error);
+        res.status(500).json({ error: 'Erro ao confirmar a reserva.' });
+    }
+});
 
 /** Dúvida sobre o laboratório: RAG com texto livre em stream e as fontes anexadas pelo servidor. */
 async function responderComRag(res, { message, history, userId }) {
