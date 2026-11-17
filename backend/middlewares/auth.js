@@ -13,7 +13,7 @@ export const authMiddleware = (req, res, next) => {
             const decoded = jwt.verify(token, JWT_SECRET);
             req.userId = decoded.id;
             return next();
-        } catch (err) {
+        } catch {
             // Token inválido ou expirado
             return res.status(401).json({ error: 'Token inválido ou expirado. Faça login novamente.' });
         }
@@ -34,7 +34,7 @@ export const optionalAuthMiddleware = (req, res, next) => {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
             req.userId = decoded.id;
-        } catch (err) {
+        } catch {
             // Token inválido/expirado num contexto opcional: trata como visitante,
             // sem derrubar a requisição.
         }

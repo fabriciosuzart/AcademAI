@@ -73,7 +73,7 @@ try {
     } else {
         console.log('⚠️ SMTP não configurado. E-mails serão apenas logados no console.');
     }
-} catch (e) {
+} catch {
     console.log('⚠️ nodemailer não instalado. Execute: npm install nodemailer');
 }
 
@@ -198,7 +198,7 @@ async function repassarStreamOllama(res, ollamaResponse, rodape = null) {
                 completo += json.message.content;
                 res.write(json.message.content);
             }
-        } catch (e) {
+        } catch {
             console.warn('⚠️ Linha NDJSON ilegível descartada:', texto.slice(0, 120));
         }
     };
@@ -476,7 +476,7 @@ app.post('/api/auth/logout', async (req, res) => {
             await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
         }
         res.json({ message: "Logout realizado com sucesso." });
-    } catch (error) {
+    } catch {
         res.status(500).json({ error: "Erro no logout." });
     }
 });
@@ -606,7 +606,7 @@ app.get('/api/users', authMiddleware, roleMiddleware(['ADMIN']), async (req, res
             select: { id: true, name: true, email: true, ra: true, role: true, trainings: true, isActive: true }
         });
         res.json(users);
-    } catch (error) {
+    } catch {
         res.status(500).json({ error: "Erro ao buscar usuários." });
     }
 });
@@ -643,7 +643,7 @@ app.put('/api/users/:id', authMiddleware, roleMiddleware(['ADMIN']), async (req,
 
         const updatedUser = await prisma.user.update({ where: { id: userId }, data: updateData });
         res.json({ message: "Usuário atualizado com sucesso!", user: updatedUser });
-    } catch (error) {
+    } catch {
         res.status(500).json({ error: "Erro ao atualizar usuário." });
     }
 });
@@ -661,7 +661,7 @@ app.delete('/api/users/:id', authMiddleware, roleMiddleware(['ADMIN']), async (r
         await prisma.appointment.deleteMany({ where: { userId } });
         await prisma.user.delete({ where: { id: userId } });
         res.json({ message: "Usuário excluído com sucesso!" });
-    } catch (error) {
+    } catch {
         res.status(500).json({ error: "Erro ao excluir usuário." });
     }
 });
@@ -686,7 +686,7 @@ app.put('/api/users/:id/toggle-active', authMiddleware, roleMiddleware(['ADMIN']
             data: { isActive: !user.isActive }
         });
         res.json({ message: `Conta ${updated.isActive ? 'ativada' : 'desativada'} com sucesso!`, user: updated });
-    } catch (error) {
+    } catch {
         res.status(500).json({ error: "Erro ao alterar status da conta." });
     }
 });
@@ -749,7 +749,7 @@ app.get('/api/equipment', async (req, res) => {
     try {
         const equipment = await prisma.equipment.findMany();
         res.json(equipment);
-    } catch (error) {
+    } catch {
         res.status(500).json({ error: "Erro ao buscar equipamentos." });
     }
 });
@@ -759,7 +759,7 @@ app.get('/api/equipment/:id', async (req, res) => {
         const equipment = await prisma.equipment.findUnique({ where: { id: parseInt(req.params.id) } });
         if (!equipment) return res.status(404).json({ error: "Equipamento não encontrado." });
         res.json(equipment);
-    } catch (error) {
+    } catch {
         res.status(500).json({ error: "Erro interno." });
     }
 });
@@ -1342,7 +1342,7 @@ app.get('/api/notifications/:userId', authMiddleware, async (req, res) => {
             where: { userId, isRead: false }
         });
         res.json({ notifications, unreadCount });
-    } catch (error) {
+    } catch {
         res.status(500).json({ error: "Erro ao buscar notificações." });
     }
 });
@@ -1360,7 +1360,7 @@ app.put('/api/notifications/:id/read', authMiddleware, async (req, res) => {
             data: { isRead: true }
         });
         res.json({ message: "Notificação marcada como lida." });
-    } catch (error) {
+    } catch {
         res.status(500).json({ error: "Erro ao marcar notificação." });
     }
 });
@@ -1377,7 +1377,7 @@ app.put('/api/notifications/read-all/:userId', authMiddleware, async (req, res) 
             data: { isRead: true }
         });
         res.json({ message: "Todas as notificações marcadas como lidas." });
-    } catch (error) {
+    } catch {
         res.status(500).json({ error: "Erro ao marcar notificações." });
     }
 });
@@ -1775,7 +1775,7 @@ app.get('/api/blocked-dates', async (req, res) => {
     try {
         const blocks = await prisma.blockedDate.findMany({ include: { equipment: true } });
         res.json(blocks);
-    } catch (e) {
+    } catch {
         res.status(500).json({ error: "Erro ao buscar datas bloqueadas." });
     }
 });
@@ -1808,7 +1808,7 @@ app.delete('/api/blocked-dates/:id', authMiddleware, roleMiddleware(['ADMIN']), 
     try {
         await prisma.blockedDate.delete({ where: { id: parseInt(req.params.id) } });
         res.json({ message: "Bloqueio removido com sucesso." });
-    } catch (e) {
+    } catch {
         res.status(500).json({ error: "Erro ao remover bloqueio." });
     }
 });
