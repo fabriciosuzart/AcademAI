@@ -811,8 +811,9 @@ const VoiceNavigator: React.FC = () => {
                             <AlertTriangle size={16} aria-hidden="true" /> Aviso de Privacidade — Síntese de Voz
                         </p>
                         <p className="tts-warning-banner__text">
-                            O reconhecimento e a síntese de voz usam a <strong>Web Speech API</strong> do
-                            navegador (Chrome), que pode enviar o áudio e o texto a servidores externos.
+                            O reconhecimento de voz é feito no próprio navegador (Whisper local): o áudio não
+                            sai do seu computador. Já a leitura das respostas em voz alta usa a{' '}
+                            <strong>Web Speech API</strong> do navegador, que pode enviar o texto a servidores externos.
                         </p>
                         <button
                             className="tts-warning-banner__btn"

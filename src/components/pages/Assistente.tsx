@@ -4,6 +4,7 @@ import './Assistente.css';
 import CardChat, { type CardChatDados, type EstadoConfirmacao } from '../chat/CardChat';
 import api from '../../api/axios';
 import { respostaDeConfirmacao } from '../../utils/confirmacao';
+import { useWhisper } from '../../useWhisper';
 
 interface Message {
   id: string | number;
@@ -40,13 +41,6 @@ function camposDaResposta(data: RespostaAcao): Omit<Message, 'id' | 'sender'> {
   };
 }
 
-declare global {
-  interface Window {
-    // Só é consultada com `'webkitSpeechRecognition' in window`; quem cria o objeto faz o cast.
-    webkitSpeechRecognition?: unknown;
-  }
-}
-
 const Assistente: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     { id: 1, sender: 'ai', text: 'Olá! 👋 Sou o assistente do Laboratório Inteligente. Como posso ajudar?' }
@@ -54,7 +48,6 @@ const Assistente: React.FC = () => {
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isListening, setIsListening] = useState(false);
   const [isSpeechEnabled, setIsSpeechEnabled] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -64,13 +57,21 @@ const Assistente: React.FC = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
+  // A versão mais recente do handleSend, para quem é chamado fora do render (comando de
+  // voz global e microfone). Chamar o handleSend capturado na montagem mandava a
+  // mensagem com o histórico vazio e o estado antigo da conversa.
+  const handleSendRef = useRef<(texto?: string) => Promise<void>>(async () => {});
+  useEffect(() => {
+    handleSendRef.current = handleSend;
+  });
+
   // Processa comandos de voz globais
   useEffect(() => {
     const checkPendingCommand = () => {
       const pendingCmd = sessionStorage.getItem('pending_voice_command');
       if (pendingCmd) {
         sessionStorage.removeItem('pending_voice_command');
-        handleSend(pendingCmd);
+        handleSendRef.current(pendingCmd);
       }
     };
 
@@ -258,35 +259,13 @@ const Assistente: React.FC = () => {
   };
 
   // --- SPEECH TO TEXT ---
-  const startListening = () => {
-    if (!('webkitSpeechRecognition' in window)) {
-      alert("Use o Google Chrome para reconhecimento de voz.");
-      return;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const recognition = new (window as any).webkitSpeechRecognition();
-    recognition.lang = 'pt-BR';
-    recognition.continuous = false;
-    recognition.interimResults = true;
-
-    recognition.onstart = () => setIsListening(true);
-
-    // Garante que o estado visual do microfone desligue
-    recognition.onend = () => setIsListening(false);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setInput(transcript);
-
-      if (event.results[0].isFinal) {
-        recognition.stop(); // <--- FORÇA O MICROFONE A PARAR
-        setIsListening(false);
-        handleSend(transcript);
-      }
-    };
-    recognition.start();
-  };
+  // Whisper local (useWhisper), o mesmo do VoiceNavigator: o áudio não sai do navegador.
+  // Antes era o webkitSpeechRecognition do Chrome, que envia o áudio a servidores externos.
+  const { startRecording, stopRecording, isRecording, isProcessing: isTranscribing } = useWhisper((texto) => {
+    if (!texto) return;
+    setInput(texto);
+    handleSendRef.current(texto);
+  });
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -357,20 +336,20 @@ const Assistente: React.FC = () => {
 
               <button
                 type="button"
-                className={`icon-button mic-button ${isListening ? 'listening' : ''}`}
-                onClick={startListening}
-                disabled={isLoading}
-                title={isListening ? "Parar gravação" : "Falar no microfone"}
-                aria-label={isListening ? "Parar de ouvir o microfone" : "Iniciar reconhecimento de voz pelo microfone"}
+                className={`icon-button mic-button ${isRecording ? 'listening' : ''}`}
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isLoading || isTranscribing}
+                title={isRecording ? "Parar gravação" : "Falar no microfone"}
+                aria-label={isRecording ? "Parar de gravar e transcrever" : "Gravar uma mensagem de voz (transcrita no próprio navegador)"}
               >
-                {isListening ? <Square size={20} aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
+                {isRecording ? <Square size={20} aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
               </button>
 
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Digite sua dúvida ou use o microfone..."
+                placeholder={isTranscribing ? 'Transcrevendo o áudio...' : 'Digite sua dúvida ou use o microfone...'}
                 rows={1}
                 disabled={isLoading}
                 aria-label="Caixa de texto para digitar sua mensagem para o assistente"
