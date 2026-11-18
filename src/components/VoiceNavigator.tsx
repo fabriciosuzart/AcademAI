@@ -9,6 +9,7 @@ import {
 import './VoiceNavigator.css';
 import { useWhisper } from '../useWhisper';
 import type { Notificacao } from '../types/api';
+import { escolherVoz } from '../utils/voz';
 
 // =====================================================
 // Levenshtein distance — fuzzy matching leve
@@ -293,15 +294,9 @@ const VoiceNavigator: React.FC = () => {
         utterance.rate = 1.3;  // mais rápido: menos tempo de espera antes de poder falar
         utterance.pitch = 1.0;
 
-        // Aplica a voz preferida (Jarvis Mode)
-        const preferredURI = localStorage.getItem('preferredVoiceURI');
-        if (preferredURI) {
-            const voices = window.speechSynthesis.getVoices();
-            const selectedVoice = voices.find(v => v.voiceURI === preferredURI);
-            if (selectedVoice) {
-                utterance.voice = selectedVoice;
-            }
-        }
+        // Voz preferida do Perfil (Jarvis Mode) ou, sem ela, uma voz local em português.
+        const voz = escolherVoz();
+        if (voz) utterance.voice = voz;
 
         if (onEnd) {
             utterance.onend = onEnd;
@@ -845,8 +840,9 @@ const VoiceNavigator: React.FC = () => {
                         </p>
                         <p className="tts-warning-banner__text">
                             O reconhecimento de voz é feito no próprio navegador (Whisper local): o áudio não
-                            sai do seu computador. Já a leitura das respostas em voz alta usa a{' '}
-                            <strong>Web Speech API</strong> do navegador, que pode enviar o texto a servidores externos.
+                            sai do seu computador. A leitura em voz alta usa a{' '}
+                            <strong>Web Speech API</strong> do navegador com uma voz instalada no computador; só as vozes
+                            marcadas como "online" (escolhidas no Perfil) enviam o texto a servidores externos.
                         </p>
                         <button
                             className="tts-warning-banner__btn"
