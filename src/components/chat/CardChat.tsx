@@ -51,6 +51,9 @@ export type CardChatDados =
 /** Ações que o card de confirmação devolve ao Assistente, que guarda o estado da conversa. */
 export interface AcoesConfirmacao {
   estado?: EstadoConfirmacao;
+  /** Finalidade digitada (RF08, obrigatória). Fica na mensagem, para o "sim" por texto/voz usá-la. */
+  finalidade?: string;
+  onFinalidade?: (valor: string) => void;
   onConfirmar?: (finalidade: string) => void;
   onDescartar?: () => void;
 }
@@ -185,10 +188,10 @@ const CardAgendar: React.FC<{ sugestao: SugestaoAgendamento }> = ({ sugestao }) 
 };
 
 const CardConfirmar: React.FC<{ previa: PreviaReserva } & AcoesConfirmacao> = ({
-  previa, estado = 'pendente', onConfirmar, onDescartar,
+  previa, estado = 'pendente', finalidade = '', onFinalidade, onConfirmar, onDescartar,
 }) => {
   const abrirAgendamento = useAbrirAgendamento();
-  const [finalidade, setFinalidade] = useState('');
+  const semFinalidade = !finalidade.trim();
   const aprovada = previa.status === 'APROVADA';
   const aberto = estado === 'pendente' || estado === 'enviando';
   return (
@@ -206,18 +209,21 @@ const CardConfirmar: React.FC<{ previa: PreviaReserva } & AcoesConfirmacao> = ({
       {aberto ? (
         <>
           <label className="chat-card-field">
-            <span>Finalidade (opcional)</span>
+            <span>Finalidade (obrigatória)</span>
             <input
               type="text"
               maxLength={500}
+              required
+              aria-required="true"
               value={finalidade}
-              onChange={(e) => setFinalidade(e.target.value)}
+              onChange={(e) => onFinalidade?.(e.target.value)}
               placeholder="Ex.: protótipo do projeto integrador"
               disabled={estado === 'enviando'}
             />
           </label>
           <div className="chat-card-actions">
-            <button type="button" className="chat-card-btn" disabled={estado === 'enviando'}
+            <button type="button" className="chat-card-btn" disabled={estado === 'enviando' || semFinalidade}
+              title={semFinalidade ? 'Informe a finalidade para confirmar' : undefined}
               onClick={() => onConfirmar?.(finalidade)}>
               <CheckCircle2 size={16} aria-hidden="true" /> {estado === 'enviando' ? 'Confirmando…' : 'Confirmar'}
             </button>

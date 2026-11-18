@@ -21,7 +21,14 @@ interface Message {
   fonte?: 'ia' | 'local';
   // Card "Confirmar reserva" (UC12): pendente até o usuário confirmar ou desistir.
   confirmacao?: EstadoConfirmacao;
+  // RF08: finalidade digitada no card de confirmação (obrigatória para gravar).
+  finalidade?: string;
+  // Esta mensagem pergunta a finalidade da prévia com este id: a próxima resposta é a finalidade.
+  perguntaFinalidadePara?: string | number;
 }
+
+const PERGUNTA_FINALIDADE =
+  'Qual a finalidade do uso? (ex.: "protótipo do projeto integrador") Também dá para escrever no campo do card.';
 
 /** Corpo JSON das respostas de ação do backend (/api/chat e /api/chat/confirmar-reserva). */
 interface RespostaAcao {
@@ -30,6 +37,7 @@ interface RespostaAcao {
   card?: CardChatDados | null;
   resumo?: string;
   fonte?: 'ia' | 'local';
+  codigo?: string | null;
 }
 
 /** Campos da mensagem do assistente a partir de uma resposta JSON do backend. */
@@ -125,6 +133,9 @@ const Assistente: React.FC = () => {
   const mudarConfirmacao = (msgId: Message['id'], confirmacao: EstadoConfirmacao) =>
     setMessages(prev => prev.map(msg => (msg.id === msgId ? { ...msg, confirmacao } : msg)));
 
+  const mudarFinalidade = (msgId: Message['id'], finalidade: string) =>
+    setMessages(prev => prev.map(msg => (msg.id === msgId ? { ...msg, finalidade } : msg)));
+
   const responder = (campos: Omit<Message, 'id' | 'sender'>) => {
     setMessages(prev => [...prev, { id: `ai-${Date.now()}`, sender: 'ai', ...campos }]);
     if (isSpeechEnabled) speak(campos.text);
@@ -132,15 +143,26 @@ const Assistente: React.FC = () => {
 
   // --- CONFIRMAÇÃO DA RESERVA (UC12) ---
   // A prévia já foi validada; o backend valida de novo ao gravar.
-  const confirmarReserva = async (msgId: Message['id'], finalidade = '') => {
+  const confirmarReserva = async (msgId: Message['id'], finalidadeInformada?: string) => {
     const alvo = messages.find(m => m.id === msgId);
     if (alvo?.card?.tipo !== 'confirmar' || alvo.confirmacao !== 'pendente') return;
+    // RF08: sem finalidade não grava; pergunta (por texto ou voz) e espera a resposta.
+    const finalidade = (finalidadeInformada ?? alvo.finalidade ?? '').trim();
+    if (!finalidade) {
+      responder({ text: PERGUNTA_FINALIDADE, perguntaFinalidadePara: msgId });
+      return;
+    }
     const { equipmentId, date, time, endTime } = alvo.card.previa;
     mudarConfirmacao(msgId, 'enviando');
     try {
       const { data } = await api.post<RespostaAcao>('/chat/confirmar-reserva', {
-        equipmentId, date, time, endTime, justification: finalidade.trim() || undefined,
+        equipmentId, date, time, endTime, justification: finalidade,
       });
+      if (data.codigo === 'FALTA_FINALIDADE') {
+        mudarConfirmacao(msgId, 'pendente');
+        responder({ text: PERGUNTA_FINALIDADE, perguntaFinalidadePara: msgId });
+        return;
+      }
       mudarConfirmacao(msgId, 'feita');
       responder(camposDaResposta(data));
     } catch (error) {
@@ -161,9 +183,29 @@ const Assistente: React.FC = () => {
 
     if (!textToSend || !textToSend.trim()) return;
 
+    const ultimaDoAssistente = [...messages].reverse().find(m => m.sender === 'ai' && m.text);
+
+    // Resposta à pergunta da finalidade (RF08): a mensagem é a finalidade, e a
+    // reserva é confirmada com ela. "não" desiste; um "sim" solto pergunta de novo.
+    const previaDaPergunta = ultimaDoAssistente?.perguntaFinalidadePara !== undefined
+      ? messages.find(m => m.id === ultimaDoAssistente.perguntaFinalidadePara)
+      : undefined;
+    if (previaDaPergunta?.confirmacao === 'pendente') {
+      setMessages(prev => [...prev, { id: `user-${Date.now()}`, sender: 'user', text: textToSend }]);
+      setInput('');
+      const resposta = respostaDeConfirmacao(textToSend);
+      if (resposta === 'nao') descartarReserva(previaDaPergunta.id);
+      else if (resposta === 'sim') responder({ text: PERGUNTA_FINALIDADE, perguntaFinalidadePara: previaDaPergunta.id });
+      else {
+        mudarFinalidade(previaDaPergunta.id, textToSend.trim());
+        await confirmarReserva(previaDaPergunta.id, textToSend.trim());
+      }
+      return;
+    }
+
     // Com uma prévia de reserva aberta, "sim" confirma e "não" descarta, sem IA:
     // funciona igual digitando ou falando.
-    const pendente = [...messages].reverse().find(m => m.sender === 'ai' && m.text);
+    const pendente = ultimaDoAssistente;
     const aguardando = pendente?.confirmacao === 'pendente';
     const resposta = aguardando ? respostaDeConfirmacao(textToSend) : null;
     if (pendente && resposta) {
@@ -307,6 +349,8 @@ const Assistente: React.FC = () => {
                   <CardChat
                     card={msg.card}
                     estado={msg.confirmacao}
+                    finalidade={msg.finalidade ?? ''}
+                    onFinalidade={(valor) => mudarFinalidade(msg.id, valor)}
                     onConfirmar={(finalidade) => confirmarReserva(msg.id, finalidade)}
                     onDescartar={() => descartarReserva(msg.id)}
                   />
