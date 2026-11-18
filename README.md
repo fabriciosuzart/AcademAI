@@ -16,10 +16,11 @@ Repositório da interface web do TCC **AcademAI**, desenvolvido com React, TypeS
    npm install
    ```
 
-3. **Configuração dos Modelos Offline (Whisper & ONNX):**
-   Para garantir o funcionamento sem internet (RNF de operação offline), certifique-se de que os arquivos do modelo e do ONNX Runtime encontram-se nas pastas estáticas corretas:
-   * **Binários WASM:** `public/wasm/`
-   * **Pesos do Whisper Base:** `public/models/Xenova/whisper-base/`
+3. **Baixe os modelos locais (uma vez, com internet):**
+   ```bash
+   npm run baixar-modelos
+   ```
+   Baixa o Whisper base (voz) para `public/models/` e o modelo de embeddings do RAG para `backend/models/`, conferindo cada arquivo. Os modelos não ficam no git. Depois disso o sistema roda sem internet; os binários do ONNX Runtime já estão em `public/wasm/`.
 
 4. **Endereço do backend (opcional):**
    O front usa `http://localhost:3000` por padrão. Se o backend estiver em outra máquina, copie `.env.example` para `.env.local` e ajuste `VITE_API_URL`.

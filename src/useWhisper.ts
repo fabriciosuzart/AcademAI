@@ -26,8 +26,20 @@ function obterWorker(): Worker {
 /** Tempo máximo de uma gravação: encerra sozinha depois de 5 segundos. */
 const DURACAO_MAXIMA_MS = 5000;
 
+/** Mensagem para o usuário a partir do erro do worker. */
+function mensagemDeErroDoModelo(detalhe: unknown): string {
+    const texto = String(detalhe ?? '');
+    // Arquivo ausente: o servidor devolve 404 ou a página do app (HTML) no lugar do JSON.
+    if (/could not locate|unexpected token|not valid json|404|local_files_only|failed to fetch/i.test(texto)) {
+        return 'O modelo de voz não está instalado. Peça ao administrador para rodar "npm run baixar-modelos".';
+    }
+    return 'Não foi possível transcrever o áudio. Tente de novo.';
+}
+
 export function useWhisper(onResult: (text: string) => void) {
     const [isRecording, setIsRecording] = useState(false);
+    // Último erro do reconhecimento (ex.: modelo não instalado); some ao gravar de novo.
+    const [erro, setErro] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false); // Útil para mostrar status "Transcrevendo..."
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
@@ -54,6 +66,7 @@ export function useWhisper(onResult: (text: string) => void) {
         } else if (msg.status === 'error') {
             setIsProcessing(false);
             console.error('Whisper erro:', msg.data);
+            setErro(mensagemDeErroDoModelo(msg.data));
             onResultRef.current('');
         }
     }, []);
@@ -76,6 +89,7 @@ export function useWhisper(onResult: (text: string) => void) {
     }, []);
 
     const startRecording = useCallback(async () => {
+        setErro(null);
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorderRef.current = new MediaRecorder(stream);
@@ -113,5 +127,5 @@ export function useWhisper(onResult: (text: string) => void) {
         }
     }, [stopRecording, tratarMensagem]);
 
-    return { startRecording, stopRecording, isRecording, isProcessing };
+    return { startRecording, stopRecording, isRecording, isProcessing, erro };
 }

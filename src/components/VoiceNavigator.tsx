@@ -207,7 +207,7 @@ const VoiceNavigator: React.FC = () => {
     const activeCallbackRef = useRef<((text: string, confidence?: number) => void) | null>(null);
 
     // NOVO: Hook do Whisper local
-    const { startRecording: startWhisper, stopRecording: stopWhisper } = useWhisper((text) => {
+    const { startRecording: startWhisper, stopRecording: stopWhisper, erro: erroWhisper } = useWhisper((text) => {
         setIsListening(false);
         isListeningRef.current = false;
         if (activeCallbackRef.current) {
@@ -304,6 +304,14 @@ const VoiceNavigator: React.FC = () => {
         }
         window.speechSynthesis.speak(utterance);
     }, []);
+
+    // Reconhecimento falhou (ex.: modelo de voz não instalado): mostra e fala o motivo,
+    // em vez de só não responder.
+    useEffect(() => {
+        if (!erroWhisper) return;
+        setStatus({ Icone: XCircle, texto: erroWhisper });
+        speak(erroWhisper);
+    }, [erroWhisper, speak]);
 
     // ── Onboarding: exibe tooltip na primeira visita ────────────
     useEffect(() => {

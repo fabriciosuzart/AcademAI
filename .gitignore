@@ -33,3 +33,7 @@ vector_cache.json
 
 # Segredo do JWT gerado por maquina (config-jwt.js) — nunca versionar
 backend/.jwt-secret
+
+# Modelos de IA locais (baixados por `npm run baixar-modelos`; não vão para o git)
+public/models/
+backend/models/
