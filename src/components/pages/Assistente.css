@@ -123,6 +123,13 @@
   color: var(--text-dim);
 }
 
+/* Aviso do reconhecimento de voz (ex.: modelo não instalado). */
+.erro-voz {
+  margin: 8px 16px 0;
+  font-size: 0.85rem;
+  color: var(--danger-soft);
+}
+
 /* Área de Input */
 .chat-input-area {
   padding: 20px;

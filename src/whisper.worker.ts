@@ -26,6 +26,8 @@ class PipelineFactory {
     static getInstance(progress_callback?: ProgressCallback) {
         if (this.instance === null) {
             this.instance = pipeline(this.task, this.model, {
+                // Versão quantizada: os arquivos *_quantized.onnx de public/models.
+                dtype: 'q8',
                 progress_callback,
             });
         }

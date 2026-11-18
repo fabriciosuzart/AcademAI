@@ -25,7 +25,8 @@ import {
 import {
     FORMATOS_ACEITOS, FORMATOS_DOCLING, MIN_CARACTERES_UTEIS, TOP_K,
     sourceDoArquivo, nomeDoSource, carregarDocumentos, caracteresUteis,
-    criarEmbedder, embedding, vetorizar as vetorizarBlocos, buscar, converterComDocling, VERSAO_INDICE
+    criarEmbedder, embedding, vetorizar as vetorizarBlocos, buscar, converterComDocling, VERSAO_INDICE,
+    modeloEmbeddingsInstalado
 } from './rag.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -294,14 +295,25 @@ function loadDocuments(apenas = null) {
 
 // Carrega o modelo de embeddings uma única vez por processo.
 // Antes cada upload chamava initAI(), que recriava o pipeline do zero.
+// Motivo de o RAG estar indisponível (ex.: modelo não instalado), ou null.
+// O chat avisa o usuário em vez de responder sem os documentos em silêncio.
+let ragIndisponivel = null;
+
 async function garantirEmbedder() {
     if (embedder) return true;
+    if (!modeloEmbeddingsInstalado()) {
+        ragIndisponivel = 'o modelo de embeddings não está instalado';
+        console.error('❌ Modelo de embeddings não encontrado em backend/models. Rode "npm run baixar-modelos" na raiz do projeto.');
+        return false;
+    }
     console.log("\n🧠 Inicializando Motor de IA...");
     try {
         embedder = await criarEmbedder();
+        ragIndisponivel = null;
         console.log("✅ Modelo de Embeddings carregado na memória.");
         return true;
     } catch (e) {
+        ragIndisponivel = 'o modelo de embeddings não pôde ser carregado';
         console.error("❌ Erro fatal ao carregar o modelo de embeddings:", e);
         return false;
     }
@@ -1794,6 +1806,16 @@ app.post('/api/chat/confirmar-reserva', optionalAuthMiddleware, async (req, res)
 
 /** Dúvida sobre o laboratório: RAG com texto livre em stream e as fontes anexadas pelo servidor. */
 async function responderComRag(res, { message, history, userId }) {
+    // Sem o modelo de embeddings não há como consultar os documentos: avisa em vez
+    // de deixar o LLM responder sem eles (o que pareceria uma resposta normal).
+    if (ragIndisponivel) {
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        return res.end(
+            `A consulta aos documentos do laboratório está indisponível agora: ${ragIndisponivel} no servidor. ` +
+            'Avise o administrador (o modelo é instalado com "npm run baixar-modelos").',
+        );
+    }
+
     // RF19: top-4 fragmentos, com a fonte de cada um no contexto.
     let contextText = '';
     let fontes = [];

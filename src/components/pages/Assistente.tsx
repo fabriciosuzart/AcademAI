@@ -269,7 +269,7 @@ const Assistente: React.FC = () => {
   // --- SPEECH TO TEXT ---
   // Whisper local (useWhisper), o mesmo do VoiceNavigator: o áudio não sai do navegador.
   // Antes era o webkitSpeechRecognition do Chrome, que envia o áudio a servidores externos.
-  const { startRecording, stopRecording, isRecording, isProcessing: isTranscribing } = useWhisper((texto) => {
+  const { startRecording, stopRecording, isRecording, isProcessing: isTranscribing, erro: erroVoz } = useWhisper((texto) => {
     if (!texto) return;
     setInput(texto);
     handleSendRef.current(texto);
@@ -386,6 +386,7 @@ const Assistente: React.FC = () => {
               )}
 
             </div>
+            {erroVoz && <p className="erro-voz" role="alert">{erroVoz}</p>}
           </div>
         </div>
       </div>

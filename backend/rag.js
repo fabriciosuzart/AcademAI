@@ -15,6 +15,19 @@ import { execFile } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Modelos só da pasta local (RF24/RNF11): nada é baixado em tempo de execução.
+// A pasta é preenchida uma vez com `npm run baixar-modelos`, na raiz do projeto.
+export const PASTA_MODELOS = path.join(__dirname, 'models');
+env.localModelPath = PASTA_MODELOS;
+env.allowLocalModels = true;
+env.allowRemoteModels = false;
+
+/** true se o modelo de embeddings está instalado em backend/models. */
+export function modeloEmbeddingsInstalado() {
+    const base = path.join(PASTA_MODELOS, MODELO_EMBEDDINGS);
+    return fs.existsSync(path.join(base, 'config.json')) && fs.existsSync(path.join(base, 'onnx', 'model_quantized.onnx'));
+}
+
 // Tamanho fixo do fragmento, em caracteres, sem sobreposição.
 // A justificativa está no TCC (Seção 2.2); a comparação entre tamanhos sai de
 // `npm run simular-chunk` (scripts/simular-chunk.js).

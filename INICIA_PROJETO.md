@@ -5,6 +5,7 @@
 - **Node.js 22 LTS ou 24.** Confira com `node -v` — precisa mostrar `v22.x` ou `v24.x` (as medições do TCC usaram o `v24.19.0`). O projeto não instala em versões antigas: o Prisma exige Node 18.18+ e o Vite 7 exige 20.19+. Em Node 16 o `npm install` falha com "Prisma only supports Node.js >= 18.18".
 - **Máquina:** mínimo de **8 GB de RAM**, CPU de 4 núcleos, sem GPU dedicada (testado em Apple M1 8 GB). As medições do TCC foram feitas em Ryzen 5 4600G, 32 GB, Windows 11. Com GPU de 6 GB de VRAM o assistente responde mais rápido.
 - **Ollama**, para o assistente de IA responder. Instale em https://ollama.com/download e baixe o modelo com `ollama pull llama3.2`. Sem ele o chat devolve "Erro ao processar consulta.".
+- **Modelos locais (uma vez, com internet):** na raiz do projeto, depois do `npm install`, rode `npm run baixar-modelos`. Ele baixa o Whisper (voz, para `public/models/`) e o modelo de embeddings do RAG (para `backend/models/`), conferindo cada arquivo. Depois disso front e backend não acessam a internet para os modelos. Sem eles, o microfone e a consulta aos documentos avisam que o modelo não está instalado.
 
 Para iniciar o projeto e testar tudo localmente, você precisará abrir **dois terminais** (um para o servidor/backend e outro para a interface/frontend).
 
@@ -117,10 +118,11 @@ Formatos aceitos: **PDF, DOCX, MD e TXT**.
 - Todo upload, aceito ou recusado, aparece em **Painel → Logs** como
   `INGESTAO_OK` ou `INGESTAO_FALHA`, com páginas, tabelas, fragmentos, tempo e motivo.
 
-Na primeira vez que o backend sobe, ele baixa o modelo de embeddings
-(`Xenova/all-MiniLM-L6-v2`, cerca de 90 MB) e vetoriza os documentos. Isso leva
-alguns minutos e **exige internet**. Depois disso o resultado fica em
-`backend/vector_cache.json` e as próximas inicializações são imediatas.
+Na primeira vez que o backend sobe, ele carrega o modelo de embeddings
+(`Xenova/all-MiniLM-L6-v2`, de `backend/models/`, instalado pelo
+`npm run baixar-modelos`) e vetoriza os documentos. Isso leva alguns minutos,
+sem internet. Depois disso o resultado fica em `backend/vector_cache.json` e as
+próximas inicializações são imediatas.
 
 ---
 
@@ -158,7 +160,7 @@ relatórios ficam em `docs/medicoes/` (JSON e Markdown).
 
 | Comando | O que mede | Precisa de |
 |---|---|---|
-| `npm run medir` | Ingestão: formatos, páginas, tempo do Docling, fragmentos, tempo de indexação, tamanho dos embeddings, memória | modelo de embeddings (baixa sozinho) |
+| `npm run medir` | Ingestão: formatos, páginas, tempo do Docling, fragmentos, tempo de indexação, tamanho dos embeddings, memória | modelo de embeddings (`npm run baixar-modelos`) |
 | `npm run simular-chunk` | Compara tamanhos de fragmento (500 a 3.000 caracteres) com as perguntas de `scripts/perguntas-chunk.json` | modelo de embeddings |
 | `npm run carga-chat` | Tempo de resposta do chat com 1, 2, 4 e 8 perguntas simultâneas | `node server.js` e Ollama rodando |
 
