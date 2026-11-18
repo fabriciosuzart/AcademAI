@@ -12,7 +12,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import {
-    CHUNK_SIZE, FORMATOS_ACEITOS, FORMATOS_DOCLING, MODELO_EMBEDDINGS, TOP_K,
+    CHUNK_SIZE, FORMATOS_ACEITOS, FORMATOS_DOCLING, MODELO_EMBEDDINGS, TOP_K, VERSAO_INDICE,
     limparTexto, fragmentar, lerTexto, sourceDoArquivo,
     criarEmbedder, embedding, vetorizar, buscar, converterComDocling,
 } from '../rag.js';
@@ -94,7 +94,8 @@ async function main() {
     const indexacaoMs = ms(inicio);
     monitor.marcar();
 
-    const cacheBytes = Buffer.byteLength(JSON.stringify(vetores));
+    // Mesmo formato que o servidor grava no vector_cache.json.
+    const cacheBytes = Buffer.byteLength(JSON.stringify({ versao: VERSAO_INDICE, vetores }));
     const dimensoes = vetores[0]?.vector?.length || 0;
 
     // 3) Consulta: vetorização da pergunta e busca por similaridade (top-4).

@@ -25,7 +25,7 @@ import {
 import {
     FORMATOS_ACEITOS, FORMATOS_DOCLING, MIN_CARACTERES_UTEIS, TOP_K,
     sourceDoArquivo, nomeDoSource, carregarDocumentos, caracteresUteis,
-    criarEmbedder, embedding, vetorizar as vetorizarBlocos, buscar, converterComDocling
+    criarEmbedder, embedding, vetorizar as vetorizarBlocos, buscar, converterComDocling, VERSAO_INDICE
 } from './rag.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -302,7 +302,7 @@ async function garantirEmbedder() {
         console.log("✅ Modelo de Embeddings carregado na memória.");
         return true;
     } catch (e) {
-        console.error("❌ Erro fatal ao carregar modelo Xenova:", e);
+        console.error("❌ Erro fatal ao carregar o modelo de embeddings:", e);
         return false;
     }
 }
@@ -311,16 +311,27 @@ function vetorizar(blocos) {
     return vetorizarBlocos(embedder, blocos);
 }
 
+// O cache guarda os vetores e com que modelo/biblioteca foram gerados
+// (VERSAO_INDICE). O formato antigo era só a lista de vetores.
 function salvarCache() {
     try {
-        fs.writeFileSync(VECTOR_CACHE_PATH, JSON.stringify(vectorStore));
+        fs.writeFileSync(VECTOR_CACHE_PATH, JSON.stringify({ versao: VERSAO_INDICE, vetores: vectorStore }));
         console.log("💾 Cache salvo no disco.");
     } catch (e) {
         console.error("Erro ao salvar cache:", e);
     }
 }
 
-// O cache só vale se for mais novo que todos os documentos indexados.
+/** Vetores do cache, ou null se o arquivo é de outro modelo/biblioteca (ou do formato antigo). */
+function lerVetoresDoCache() {
+    const bruto = JSON.parse(fs.readFileSync(VECTOR_CACHE_PATH, 'utf-8'));
+    if (!bruto || Array.isArray(bruto) || bruto.versao !== VERSAO_INDICE || !Array.isArray(bruto.vetores)) {
+        return null;
+    }
+    return bruto.vetores;
+}
+
+// O cache só vale se for do mesmo modelo/biblioteca e mais novo que todos os documentos indexados.
 function cacheEstaAtualizado() {
     if (!fs.existsSync(VECTOR_CACHE_PATH)) return false;
     if (!fs.existsSync(DOCUMENTS_PATH)) return false;
@@ -339,8 +350,11 @@ function cacheEstaAtualizado() {
     // sumiu seguiriam vivos — a IA citaria um documento inexistente. Por isso
     // o conjunto de arquivos tambem precisa bater com o que o cache indexou.
     try {
-        const bruto = JSON.parse(fs.readFileSync(VECTOR_CACHE_PATH, 'utf-8'));
-        if (!Array.isArray(bruto)) return false;
+        const bruto = lerVetoresDoCache();
+        if (!bruto) {
+            console.log('♻️ Cache de vetores de outro modelo/biblioteca: reindexando.');
+            return false;
+        }
         const noCache = new Set(bruto.map(v => nomeDoSource(v.source)));
         const emDisco = new Set(arquivos);
         if (noCache.size !== emDisco.size) return false;
@@ -362,8 +376,8 @@ async function initAI() {
     // gravado a cada vetorização mas nunca lido de volta.
     if (cacheEstaAtualizado()) {
         try {
-            const bruto = JSON.parse(fs.readFileSync(VECTOR_CACHE_PATH, 'utf-8'));
-            if (Array.isArray(bruto) && bruto.length > 0) {
+            const bruto = lerVetoresDoCache();
+            if (bruto && bruto.length > 0) {
                 vectorStore = bruto;
                 knowledgeBase = bruto.map(v => ({ text: v.text, source: v.source }));
                 console.log(`♻️ Cache reaproveitado: ${vectorStore.length} vetores, sem revetorizar.`);
