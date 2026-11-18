@@ -24,12 +24,9 @@
     "jsonwebtoken": "^9.0.2",
     "mammoth": "^1.11.0",
     "multer": "^2.1.1",
-    "node-fetch": "^3.3.2",
     "nodemailer": "^8.0.10",
-    "ollama": "^0.6.3",
     "pdf-parse": "^2.4.5",
-    "sqlite3": "^5.1.7",
-    "wavefile": "^11.0.0"
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

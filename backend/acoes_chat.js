@@ -1,4 +1,7 @@
-// backend/mcp_tools.js
+// backend/acoes_chat.js — ações que o chat executa no banco (consultar equipamentos,
+// reservar, listar reservas). A IA só classifica o pedido (chat_intent.js); quem
+// valida e grava é este arquivo. Antes se chamava mcp_tools.js, do tempo em que a
+// IA chamava ferramentas diretamente.
 import { PrismaClient } from '@prisma/client';
 import { ehManutencao } from './status.js';
 import {
@@ -15,7 +18,7 @@ const prisma = new PrismaClient();
 
 // 1. Consultar equipamentos
 export async function executarConsultaEquipamentos() {
-    console.log("🛠️ MCP ACIONADO: Consultando equipamentos...");
+    console.log("🛠️ Chat: consultando equipamentos...");
     return prisma.equipment.findMany({
         select: { id: true, name: true, modelo: true, status: true },
         orderBy: { name: 'asc' },

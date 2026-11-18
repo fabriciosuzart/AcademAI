@@ -5,7 +5,7 @@
  * CalendarPicker, na solicitacao de reserva, e Disponibilidade, na consulta —
  * precisam concordar sobre o que esta trancado. Quando cada uma tinha a sua
  * copia, so a primeira bloqueava, e a segunda ainda oferecia "Reservar" num
- * feriado. O backend aplica a mesma regra em server.js e mcp_tools.js.
+ * feriado. O backend aplica a mesma regra em server.js e acoes_chat.js.
  */
 
 export interface DataBloqueada {

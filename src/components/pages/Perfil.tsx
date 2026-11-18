@@ -16,6 +16,7 @@ import { mensagemDeErro } from '../../utils/erros';
 import type {
   Bloqueio, LogAuditoria, ReservaComRelacoes, ReservaHistorico, ResumoRelatorio, VisaoGeral,
 } from '../../types/api';
+import { escolherVoz, rotuloDaVoz } from '../../utils/voz';
 
 const trainingModules = [
   "Impressora 3D Finder",
@@ -2021,6 +2022,7 @@ const Perfil: React.FC = () => {
                 <h3>Configurações de Voz (Jarvis Mode)</h3>
                 <p className="pf-s08">
                   Escolha qual voz o assistente utilizará para ler notificações e telas. As opções disponíveis dependem do seu navegador e sistema operacional.
+                  No padrão, o sistema usa uma voz do próprio computador; as marcadas como "online" enviam o texto lido para um servidor externo.
                 </p>
                 
                 <div className="pf-s09">
@@ -2031,10 +2033,10 @@ const Perfil: React.FC = () => {
                     onChange={handleVoiceChange}
                     className="pf-s11"
                   >
-                    <option value="">-- Padrão do Sistema --</option>
+                    <option value="">-- Padrão (voz local) --</option>
                     {voices.map(v => (
                       <option key={v.voiceURI} value={v.voiceURI}>
-                        {v.name} ({v.lang})
+                        {rotuloDaVoz(v)}
                       </option>
                     ))}
                   </select>
@@ -2044,7 +2046,8 @@ const Perfil: React.FC = () => {
                     className="primary-btn small" 
                     onClick={() => {
                        const u = new SpeechSynthesisUtterance("Testando a nova voz do assistente Academ AI.");
-                       const selected = voices.find(v => v.voiceURI === selectedVoiceURI);
+                       u.lang = 'pt-BR';
+                       const selected = voices.find(v => v.voiceURI === selectedVoiceURI) ?? escolherVoz();
                        if (selected) u.voice = selected;
                        window.speechSynthesis.speak(u);
                     }}

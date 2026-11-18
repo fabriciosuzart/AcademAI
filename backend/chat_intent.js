@@ -372,7 +372,7 @@ export function textoLista(equipamentos, filtro = 'todos') {
     return `Encontrei ${n} ${n === 1 ? 'equipamento' : 'equipamentos'}: ${juntar(partes)}.`;
 }
 
-/** Texto do resultado de executarSolicitacaoReserva (mcp_tools.js), por código. */
+/** Texto do resultado de executarSolicitacaoReserva (acoes_chat.js), por código. */
 export function textoReserva(resultado) {
     if (resultado.ok) {
         const { equipamento, date, time, endTime, status } = resultado.reserva;

@@ -6,7 +6,7 @@ import './Equipamentos.css';
 import { Circle } from 'lucide-react';
 import { classeStatus, ehDisponivel, normalizarStatus, rotuloStatus, OPCOES_STATUS } from '../../utils/status';
 import { agruparPorModelo, type GrupoDeModelo } from '../../utils/equipamentos';
-import { urlDoArquivo } from '../../api/config';
+import { IMAGEM_PADRAO, urlDaImagem } from '../../api/config';
 import type { Equipamento } from '../../types/api';
 
 
@@ -92,9 +92,13 @@ const Equipamentos: React.FC = () => {
                 
                 <div className="card-image">
                     <img 
-                        src={item.imagePath ? urlDoArquivo(item.imagePath) : 'https://via.placeholder.com/300x200?text=S/IMAGEM'} 
-                        alt={item.name} 
-                        onError={(e) => e.currentTarget.src = 'https://via.placeholder.com/300x200?text=S/IMAGEM'} 
+                        src={urlDaImagem(item.imagePath)}
+                        alt={item.name}
+                        onError={(e) => {
+                            // Foto cadastrada mas ausente no servidor: mostra a imagem padrão (uma vez só).
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = IMAGEM_PADRAO;
+                        }}
                     />
                     
                     <span className={`status-badge ${classeStatus(item.status)}`}>

@@ -7,6 +7,7 @@ import { MENSAGEM_RECUSA, respostaDeConfirmacao } from '../../utils/confirmacao'
 import { useWhisper } from '../../useWhisper';
 import { API_URL } from '../../api/config';
 import { getAccessToken } from '../../api/session';
+import { escolherVoz } from '../../utils/voz';
 
 interface Message {
   id: string | number;
@@ -89,6 +90,9 @@ const Assistente: React.FC = () => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'pt-BR';
     utterance.rate = 1.2;
+    // Mesma escolha do VoiceNavigator: a voz do Perfil ou uma voz local (antes ignorava a do Perfil).
+    const voz = escolherVoz();
+    if (voz) utterance.voice = voz;
     window.speechSynthesis.speak(utterance);
   };
 
@@ -187,7 +191,6 @@ const Assistente: React.FC = () => {
     try {
       abortControllerRef.current = new AbortController();
 
-      const idLogado = localStorage.getItem('userId');
       const token = getAccessToken();
 
       // O backend aceita 'history' e monta o contexto da conversa com ele, mas
@@ -204,17 +207,15 @@ const Assistente: React.FC = () => {
 
       // Continuamos com fetch em vez do cliente axios porque esta rota responde
       // em streaming, e o axios no navegador só entrega o corpo já completo.
-      // Os headers abaixo replicam o que o interceptor de src/api/axios.ts injeta.
+      // A identidade vai só no token (o backend ignora userId no corpo).
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(idLogado ? { 'X-User-Id': idLogado } : {})
         },
         body: JSON.stringify({
           message: textToSend,
-          userId: idLogado ? parseInt(idLogado) : null,
           history
         }),
         signal: abortControllerRef.current.signal,

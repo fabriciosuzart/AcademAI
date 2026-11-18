@@ -39,6 +39,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     localStorage.removeItem('token');
+    // Quem nunca entrou (ou saiu) não tem sessão para restaurar: sem isso, todo
+    // visitante gerava um /auth/refresh com erro a cada página aberta.
+    if (!localStorage.getItem('userId')) {
+      setIsAuthLoading(false);
+      return;
+    }
     let active = true;
     renovarSessao()
       .then((data) => {

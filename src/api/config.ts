@@ -8,3 +8,9 @@ export const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000')
 
 /** URL absoluta de um arquivo servido pelo backend (ex.: "/uploads/foto.jpg"). */
 export const urlDoArquivo = (caminho: string) => `${API_URL}${caminho}`;
+
+/** Imagem mostrada quando o equipamento não tem foto (arquivo local, em public/). */
+export const IMAGEM_PADRAO = '/sem-imagem.svg';
+
+/** URL da foto do equipamento, ou a imagem padrão local se não houver. */
+export const urlDaImagem = (caminho?: string | null) => (caminho ? urlDoArquivo(caminho) : IMAGEM_PADRAO);

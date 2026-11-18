@@ -1,14 +1,15 @@
 # AcademAI - Assistente Acadêmico (Frontend)
 
-Repositório da interface web do TCC **AcademAI**, desenvolvido com React, TypeScript, Vite e Tailwind, integrando reconhecimento de voz 100% offline via **Whisper (Transformers.js)** para atender aos requisitos de privacidade e execução estritamente *offline* do projeto acadêmico.
+Repositório da interface web do TCC **AcademAI**, desenvolvido com React, TypeScript e Vite, integrando reconhecimento de voz 100% offline via **Whisper (Transformers.js)** para atender aos requisitos de privacidade e execução estritamente *offline* do projeto acadêmico.
 
 ## 🚀 Como Executar o Projeto Localmente
 
-1. **Clone a branch de desenvolvimento local:**
+1. **Clone o repositório:**
    ```bash
-   git clone -b feat-whisper-local https://github.com/fabriciosuzart/academai.git
+   git clone https://github.com/fabriciosuzart/academai.git
    cd academai
    ```
+   O backend (API, banco, Ollama e RAG) tem o passo a passo em [`INICIA_PROJETO.md`](INICIA_PROJETO.md).
 
 2. **Instale as dependências:**
    ```bash

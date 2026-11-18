@@ -42,14 +42,10 @@ api.interceptors.request.use(
       await renovacao.catch(() => undefined);
     }
 
+    // A identidade vai só no token: o backend nunca leu o antigo cabeçalho X-User-Id.
     const token = getAccessToken();
-    const userId = localStorage.getItem('userId');
-
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
-    }
-    if (userId) {
-      config.headers['X-User-Id'] = userId;
     }
 
     return config;
