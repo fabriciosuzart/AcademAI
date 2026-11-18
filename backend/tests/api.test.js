@@ -1,7 +1,7 @@
 import request from 'supertest';
 
 // Como não podemos mexer no server.js para exportar o 'app' 
-// sem risco de quebrar o MCP/banco, vamos testar o servidor local
+// sem risco de quebrar o banco, vamos testar o servidor local
 // que já está rodando na porta 3000.
 const BASE_URL = 'http://localhost:3000';
 

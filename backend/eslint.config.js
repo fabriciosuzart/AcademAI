@@ -15,6 +15,7 @@ export default [
                 Buffer: "readonly",
                 __dirname: "readonly",
                 fetch: "readonly",
+                TextDecoder: "readonly",
                 performance: "readonly",
                 AbortSignal: "readonly",
                 setInterval: "readonly",

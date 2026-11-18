@@ -4,8 +4,8 @@
 //
 // Nao ha painel de configuracao ainda, entao os valores vivem aqui, num so
 // lugar, prontos para virar colunas/tela de admin no futuro. As duas pontas que
-// criam reserva — a rota REST (POST /api/schedule) e a ferramenta da IA
-// (mcp_tools) — usam estas mesmas funcoes, para nao divergirem.
+// criam reserva — a rota REST (POST /api/schedule) e o chat
+// (acoes_chat.js) — usam estas mesmas funcoes, para nao divergirem.
 
 import { paraMinutos } from './horarios.js';
 

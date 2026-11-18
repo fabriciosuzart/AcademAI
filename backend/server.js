@@ -1,4 +1,4 @@
-/* backend/server.js - FUSÃO: MCP + RAG + WHISPER */
+/* backend/server.js - API do AcademAI: autenticação, reservas, RAG e chat (Ollama local) */
 import express from 'express';
 import crypto from 'crypto';
 import cors from 'cors';
@@ -12,12 +12,11 @@ import { buscarBloqueioQueImpede, criarBloqueioSeNovo, motivoDoBloqueio, normali
 import { validarRegrasTemporais, contarReservasAtivas, sujeitoAoLimite, REGRAS_RESERVA } from './config-reservas.js';
 import { JWT_SECRET } from './config-jwt.js';
 import { validarEmailInstitucional, validarSenha } from './validacao-cadastro.js';
-import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
-import { executarConsultaEquipamentos, executarConsultaReservas, executarSolicitacaoReserva } from './mcp_tools.js';
+import { executarConsultaEquipamentos, executarConsultaReservas, executarSolicitacaoReserva } from './acoes_chat.js';
 import {
     precisaDeFerramentas, promptClassificador, schemaClassificador, sanitizar, classificarLocal,
     validarEntrada, hojeISO, TEXTOS, textoFaltamDados, textoLista, listarParaCard, textoReserva, resumoParaHistorico,
@@ -242,9 +241,12 @@ async function repassarStreamOllama(res, ollamaResponse, rodape = null) {
         }
     };
 
+    // fetch nativo do Node: o corpo chega em pedaços binários (Uint8Array).
+    // O TextDecoder em modo stream também não quebra um acento dividido entre dois pedaços.
+    const decoder = new TextDecoder();
     try {
         for await (const chunk of ollamaResponse.body) {
-            buffer += chunk.toString();
+            buffer += decoder.decode(chunk, { stream: true });
 
             let quebra;
             while ((quebra = buffer.indexOf('\n')) !== -1) {
@@ -499,7 +501,8 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/auth/refresh', async (req, res) => {
     try {
         const refreshToken = refreshTokenFromCookie(req);
-        if (!refreshToken) return res.status(400).json({ error: "Refresh token é obrigatório." });
+        // Sem cookie não há sessão: 401, como token inválido (não é erro do pedido).
+        if (!refreshToken) return res.status(401).json({ error: "Sessão não encontrada. Faça login." });
 
         const stored = await prisma.refreshToken.findUnique({ where: { token: refreshToken } });
         if (!stored) return res.status(401).json({ error: "Refresh token inválido." });
