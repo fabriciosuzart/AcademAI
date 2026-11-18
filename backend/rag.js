@@ -5,16 +5,13 @@
  * mesmo código. Nada aqui guarda estado: quem chama decide onde manter os
  * vetores.
  */
-import { pipeline } from '@xenova/transformers';
+import { pipeline, env } from '@huggingface/transformers';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
 import { execFile } from 'child_process';
 
-const require = createRequire(import.meta.url);
-const pdf = require('pdf-parse');
-const mammoth = require('mammoth');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,6 +24,13 @@ export const CHUNK_SIZE = 2000;
 export const TOP_K = 4;
 
 export const MODELO_EMBEDDINGS = 'Xenova/all-MiniLM-L6-v2';
+// Versão quantizada em 8 bits (model_quantized.onnx), a mesma que a biblioteca
+// antiga (@xenova/transformers) usava por padrão.
+export const DTYPE_EMBEDDINGS = 'q8';
+
+// Identifica com que modelo e biblioteca os vetores do cache foram gerados.
+// Vetores de combinações diferentes não são comparáveis: se mudar, reindexa.
+export const VERSAO_INDICE = `${MODELO_EMBEDDINGS}|${DTYPE_EMBEDDINGS}|transformers@${env.version}`;
 
 // Formatos aceitos no upload. PDF e DOCX passam pelo Docling; MD e TXT já
 // são texto e vão direto para a indexação.
@@ -61,19 +65,28 @@ export function caracteresUteis(texto) {
     return String(texto || '').replace(/\s/g, '').length;
 }
 
-/** Lê o texto bruto de um arquivo já presente em documents/. */
+/**
+ * Lê o texto de um arquivo presente em documents/.
+ * MD e TXT são lidos direto. PDF e DOCX (colocados à mão na pasta) passam pelo
+ * Docling, como no upload, convertidos para um Markdown temporário: o texto
+ * sai do mesmo jeito venha o arquivo por onde vier. Sem o Docling, o arquivo
+ * é pulado com aviso (lança erro, que carregarDocumentos registra).
+ */
 export async function lerTexto(caminho) {
     const ext = path.extname(caminho).toLowerCase();
-    if (ext === '.pdf') {
-        const data = await pdf(fs.readFileSync(caminho));
-        return data.text;
-    }
-    if (ext === '.docx') {
-        const result = await mammoth.extractRawText({ path: caminho });
-        return result.value;
-    }
-    if (ext === '.md' || ext === '.txt') {
+    if (FORMATOS_TEXTO.includes(ext)) {
         return fs.readFileSync(caminho, 'utf-8');
+    }
+    if (FORMATOS_DOCLING.includes(ext)) {
+        const pastaTemp = fs.mkdtempSync(path.join(os.tmpdir(), 'academai-docling-'));
+        try {
+            const saida = path.join(pastaTemp, 'convertido.md');
+            const r = await converterComDocling(caminho, saida);
+            if (r.status !== 'SUCESSO') throw new Error(`Docling: ${r.motivo}`);
+            return fs.readFileSync(saida, 'utf-8');
+        } finally {
+            fs.rmSync(pastaTemp, { recursive: true, force: true });
+        }
     }
     return '';
 }
@@ -112,7 +125,7 @@ export async function carregarDocumentos(pasta, { apenas = null, tamanho = CHUNK
 
 /** Carrega o modelo de embeddings (all-MiniLM-L6-v2, 384 dimensões). */
 export async function criarEmbedder() {
-    return pipeline('feature-extraction', MODELO_EMBEDDINGS);
+    return pipeline('feature-extraction', MODELO_EMBEDDINGS, { dtype: DTYPE_EMBEDDINGS });
 }
 
 /** Gera o embedding normalizado de um texto. */

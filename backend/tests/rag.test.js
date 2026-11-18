@@ -3,7 +3,8 @@ import os from 'os';
 import path from 'path';
 import {
     CHUNK_SIZE, limparTexto, fragmentar, caracteresUteis, buscar, cosineSimilarity,
-    sourceDoArquivo, nomeDoSource, converterComDocling,
+    sourceDoArquivo, nomeDoSource, converterComDocling, lerTexto, carregarDocumentos, vetorizar,
+    VERSAO_INDICE, MODELO_EMBEDDINGS,
 } from '../rag.js';
 
 describe('Fragmentação do acervo (rag.js)', () => {
@@ -55,5 +56,40 @@ describe('Conversão pelo Docling (rag.js → converter.py)', () => {
         expect(r.motivo).toBeTruthy();
         expect(fs.existsSync(saida)).toBe(false);
         fs.rmSync(dir, { recursive: true, force: true });
+    });
+});
+
+describe('Leitura do acervo e índice (rag.js)', () => {
+    let dir;
+    beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'academai-acervo-')); });
+    afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+    it('lê MD e TXT direto', async () => {
+        fs.writeFileSync(path.join(dir, 'a.md'), '# Regras');
+        fs.writeFileSync(path.join(dir, 'b.txt'), 'texto');
+        expect(await lerTexto(path.join(dir, 'a.md'))).toBe('# Regras');
+        expect(await lerTexto(path.join(dir, 'b.txt'))).toBe('texto');
+    });
+
+    it('PDF colocado à mão passa pelo Docling; sem ele, é pulado sem derrubar a carga', async () => {
+        fs.writeFileSync(path.join(dir, 'a.md'), 'conteúdo válido do acervo');
+        fs.writeFileSync(path.join(dir, 'manual.pdf'), '%PDF-1.4 falso');
+        await expect(lerTexto(path.join(dir, 'manual.pdf'))).rejects.toThrow(/Docling/);
+        const blocos = await carregarDocumentos(dir, { silencioso: true });
+        expect(blocos.map((b) => nomeDoSource(b.source))).toEqual(['a.md']);
+    });
+
+    it('vetoriza com o embedder recebido e pula bloco que falha', async () => {
+        const embedder = async (texto) => {
+            if (texto === 'ruim') throw new Error('falhou');
+            return { data: Float32Array.from([texto.length, 1]) };
+        };
+        const v = await vetorizar(embedder, [{ source: 's', text: 'abc' }, { source: 's', text: 'ruim' }], { progresso: false });
+        expect(v).toHaveLength(1);
+        expect(Array.from(v[0].vector)).toEqual([3, 1]);
+    });
+
+    it('identifica modelo, quantização e versão da biblioteca no índice', () => {
+        expect(VERSAO_INDICE).toMatch(new RegExp(`^${MODELO_EMBEDDINGS}\\|q8\\|transformers@4\\.`));
     });
 });
