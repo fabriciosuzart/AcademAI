@@ -9,8 +9,9 @@ import { authMiddleware, optionalAuthMiddleware, roleMiddleware } from './middle
 import { STATUS, ehManutencao } from './status.js';
 import { HORA_ABERTURA, HORA_FECHAMENTO, clausulaDeConflito, horarioValido, paraMinutos } from './horarios.js';
 import { buscarBloqueioQueImpede, criarBloqueioSeNovo, motivoDoBloqueio, normalizarEquipmentId } from './bloqueios.js';
-import { validarRegrasTemporais, contarReservasAtivas, sujeitoAoLimite, REGRAS_RESERVA } from './config-reservas.js';
+import { validarRegrasTemporais, contarReservasAtivas, sujeitoAoLimite, podeCancelar, REGRAS_RESERVA } from './config-reservas.js';
 import { JWT_SECRET } from './config-jwt.js';
+import { contaBloqueada, aposSenhaErrada } from './auth-regras.js';
 import { validarEmailInstitucional, validarSenha } from './validacao-cadastro.js';
 import fs from 'fs';
 import path from 'path';
@@ -37,8 +38,6 @@ const VECTOR_CACHE_PATH = path.join(__dirname, 'vector_cache.json');
 const app = express();
 const PORT = 3000;
 const JWT_EXPIRATION = '15m'; // RNF04 — access token 15 min (política definitiva)
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
 
 async function invalidarSessoesDoUsuario(userId) {
     await prisma.$transaction([
@@ -476,23 +475,14 @@ app.post('/api/login', async (req, res) => {
         const credenciaisInvalidas = "E-mail ou senha inválidos.";
         if (!user) return res.status(401).json({ error: credenciaisInvalidas });
         if (!user.isActive) return res.status(403).json({ error: "Conta desativada. Contate o administrador." });
-        if (user.lockedUntil && user.lockedUntil > new Date()) {
+        // Regras do bloqueio em auth-regras.js (testadas sem servidor).
+        if (contaBloqueada(user)) {
             return res.status(429).json({ error: "Muitas tentativas inválidas. Tente novamente mais tarde." });
         }
-        if (user.lockedUntil) {
-            await prisma.user.update({
-                where: { id: user.id },
-                data: { failedLoginAttempts: 0, lockedUntil: null }
-            });
-        }
         if (!(await bcrypt.compare(password, user.password))) {
-            const failedLoginAttempts = user.failedLoginAttempts + 1;
-            const lockedUntil = failedLoginAttempts >= MAX_LOGIN_ATTEMPTS
-                ? new Date(Date.now() + LOGIN_LOCK_DURATION_MS)
-                : null;
             await prisma.user.update({
                 where: { id: user.id },
-                data: { failedLoginAttempts, lockedUntil }
+                data: aposSenhaErrada(user),
             });
             return res.status(401).json({ error: credenciaisInvalidas });
         }
@@ -1007,6 +997,10 @@ app.post('/api/schedule', authMiddleware, async (req, res) => {
         if (!equipmentId || !date || !time) {
             return res.status(400).json({ error: "Equipamento, data e horário são obrigatórios." });
         }
+        // RF08: a finalidade é obrigatória (o formulário já exigia; a API não).
+        if (typeof justification !== 'string' || !justification.trim()) {
+            return res.status(400).json({ error: "Informe a finalidade do uso." });
+        }
 
         const eqId = parseInt(equipmentId);
         const uId = parseInt(userId);
@@ -1074,7 +1068,7 @@ app.post('/api/schedule', authMiddleware, async (req, res) => {
             data: {
                 date, time,
                 endTime,
-                justification: justification || null,
+                justification: justification.trim().slice(0, 500),
                 status: reservaStatus,
                 userId: uId,
                 equipmentId: eqId,
@@ -1389,17 +1383,11 @@ app.put('/api/appointments/:id/cancel', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: "Apenas reservas pendentes ou aprovadas podem ser canceladas." });
         }
 
-        // RF15/RN04 — verificar antecedência mínima (padrão 2h; admin isento)
+        // RF15/RN04 — antecedência mínima de REGRAS_RESERVA (admin isento)
         const requester = await prisma.user.findUnique({ where: { id: userId } });
-        if (requester && requester.role !== 'ADMIN') {
-            const MIN_ADVANCE_HOURS = 2; // configurável pelo administrador no futuro
-            const appointmentDateTime = new Date(`${appointment.date}T${appointment.time}:00`);
-            const hoursUntil = (appointmentDateTime.getTime() - Date.now()) / (1000 * 60 * 60);
-            if (hoursUntil >= 0 && hoursUntil < MIN_ADVANCE_HOURS) {
-                return res.status(400).json({
-                    error: `Cancelamento não permitido. A reserva começa em menos de ${MIN_ADVANCE_HOURS}h. Contate o administrador para cancelar.`
-                });
-            }
+        const cancelamento = podeCancelar(appointment, requester?.role);
+        if (!cancelamento.ok) {
+            return res.status(400).json({ error: cancelamento.erro });
         }
 
         const updated = await prisma.appointment.update({
@@ -1789,7 +1777,7 @@ app.post('/api/chat/confirmar-reserva', optionalAuthMiddleware, async (req, res)
     try {
         const resultado = await executarSolicitacaoReserva({ equipmentId, date, time, endTime, justification }, userId);
         const enviar = (texto, card = null) =>
-            res.json({ tipo: 'reservar', texto, card, resumo: resumoParaHistorico(card), fonte: 'ia' });
+            res.json({ tipo: 'reservar', texto, card, resumo: resumoParaHistorico(card), fonte: 'ia', codigo: resultado.codigo ?? null });
         if (resultado.ok) return enviar(textoReserva(resultado), { tipo: 'reserva', reserva: resultado.reserva });
         const sugestao = {
             equipamento: resultado.equipamento ?? null,

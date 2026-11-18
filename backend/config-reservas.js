@@ -21,6 +21,9 @@ export const REGRAS_RESERVA = {
     // ALUNO pode ter ao mesmo tempo. Professores e admins gerenciam o
     // laboratorio e ficam isentos.
     limiteReservasAtivas: 3,
+    // RF15: o usuário só cancela a própria reserva até esta antecedência do
+    // início. Administradores ficam isentos.
+    antecedenciaCancelamentoHoras: 2,
 };
 
 /** Data/hora de inicio da reserva como Date local (mesmo padrao do /cancel). */
@@ -60,6 +63,24 @@ export function validarRegrasTemporais(date, time, endTime, agora = new Date()) 
         return { ok: false, erro: `A reserva pode durar no máximo ${h}h.` };
     }
 
+    return { ok: true };
+}
+
+/**
+ * RF15 — se o usuario ainda pode cancelar a reserva. Devolve { ok } ou
+ * { ok:false, erro }. Admin e isento; reserva que ja comecou segue a regra
+ * antiga da rota (so barra o intervalo entre agora e o inicio).
+ */
+export function podeCancelar({ date, time }, papel, agora = new Date()) {
+    if (papel === 'ADMIN') return { ok: true };
+    const horas = REGRAS_RESERVA.antecedenciaCancelamentoHoras;
+    const faltam = (inicioDaReserva(date, time).getTime() - agora.getTime()) / 3600000;
+    if (faltam >= 0 && faltam < horas) {
+        return {
+            ok: false,
+            erro: `Cancelamento não permitido. A reserva começa em menos de ${horas}h. Contate o administrador para cancelar.`,
+        };
+    }
     return { ok: true };
 }
 

@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:api": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathPatterns=tests/api.test.js",
     "lint": "eslint .",
     "format": "prettier --write .",
     "medir": "node scripts/medir-ingestao.js",
@@ -39,5 +40,11 @@
   },
   "engines": {
     "node": "^20.19.0 || ^22.13.0 || >=24.0.0"
+  },
+  "jest": {
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/tests/api.test.js"
+    ]
   }
 }
