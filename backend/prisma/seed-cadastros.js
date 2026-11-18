@@ -82,7 +82,7 @@ const horariosBloqueados = [];
 export async function semearCadastros() {
     console.log('🌱 Semeando cadastros do laboratorio...');
     copiarImagensDoSeed();
-    const senhaHash = await bcrypt.hash(SENHA_PADRAO, 8);
+    const senhaHash = await bcrypt.hash(SENHA_PADRAO, 12); // RNF03: custo mínimo 12, como no servidor
 
     // upsert por chave unica: rodar duas vezes nao duplica nada.
     for (const u of usuarios) {

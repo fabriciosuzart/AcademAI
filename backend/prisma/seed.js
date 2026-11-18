@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 async function main() {
     console.log("🌱 Iniciando o Seed do Banco de Dados...");
 
-    const passwordHash = await bcrypt.hash("senha123", 8);
+    const passwordHash = await bcrypt.hash("senha123", 12); // RNF03: custo mínimo 12, como no servidor
 
     const usersToCreate = [
         {

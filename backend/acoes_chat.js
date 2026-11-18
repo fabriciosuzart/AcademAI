@@ -31,7 +31,7 @@ export async function executarConsultaEquipamentos() {
 // Devolve { ok: true, reserva } ou { ok: false, codigo, ... }. Com { simular: true },
 // roda todas as validações e devolve { ok: true, previa } SEM gravar: é a prévia que o
 // chat mostra para o usuário confirmar (UC12). Códigos de falha: SEM_LOGIN, FALTA_DADOS,
-// NAO_ENCONTRADO, MANUTENCAO, DATA_BLOQUEADA, HORARIO_INVALIDO, FORA_DO_HORARIO,
+// NAO_ENCONTRADO, MANUTENCAO, DATA_BLOQUEADA, HORARIO_INVALIDO, FORA_DO_HORARIO, FALTA_FINALIDADE,
 // REGRA_TEMPORAL, CONFLITO, LIMITE, ERRO (textos em chat_intent.js → textoReserva).
 const falha = (codigo, extra = {}) => ({ ok: false, codigo, ...extra });
 
@@ -145,6 +145,11 @@ export async function executarSolicitacaoReserva(args, userId, { simular = false
             };
         }
 
+        // RF08: a finalidade é obrigatória para gravar (a prévia não pede; a confirmação, sim).
+        if (typeof args.justification !== 'string' || !args.justification.trim()) {
+            return falha('FALTA_FINALIDADE', contexto);
+        }
+
         // 5. Criar reserva
         const novaReserva = await prisma.appointment.create({
             data: {
@@ -152,9 +157,7 @@ export async function executarSolicitacaoReserva(args, userId, { simular = false
                 time: args.time,
                 endTime: fim,
                 // Finalidade informada no card de confirmação (UC12), como no /api/schedule.
-                justification: typeof args.justification === 'string' && args.justification.trim()
-                    ? args.justification.trim().slice(0, 500)
-                    : null,
+                justification: args.justification.trim().slice(0, 500),
                 status: status,
                 userId: uId,
                 equipmentId: equipamento.id,

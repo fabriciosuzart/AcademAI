@@ -389,6 +389,7 @@ export function textoReserva(resultado) {
         case 'MANUTENCAO': return `${equipamento} está em manutenção e não aceita reservas agora. Escolha outro equipamento.`;
         case 'DATA_BLOQUEADA': return `O dia ${dataPorExtenso(date)} está bloqueado para reservas (${detalhe}). Escolha outra data.`;
         case 'HORARIO_INVALIDO': return 'Não entendi o horário. Diga, por exemplo, "às 14:30".';
+        case 'FALTA_FINALIDADE': return 'Para reservar, informe a finalidade do uso (ex.: "protótipo do projeto integrador").';
         case 'FORA_DO_HORARIO': return `O laboratório funciona das ${detalhe}. Escolha um horário nesse intervalo:`;
         case 'REGRA_TEMPORAL': return `Não deu para reservar: ${detalhe}`;
         case 'CONFLITO': return `Já existe uma reserva de ${equipamento} em ${dataPorExtenso(date)} nesse horário. Escolha outro horário:`;

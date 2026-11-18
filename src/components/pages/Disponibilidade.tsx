@@ -37,6 +37,9 @@ interface BookedSlot {
     status: string;
 }
 
+// RF06: intervalo da atualização automática do calendário de disponibilidade.
+const INTERVALO_ATUALIZACAO_MS = 30_000;
+
 const Disponibilidade: React.FC = () => {
     const navigate = useNavigate();
     const { isLoggedIn } = useAuth();
@@ -98,6 +101,21 @@ const Disponibilidade: React.FC = () => {
             }
         };
         fetchBookings();
+
+        // RF06: o calendário se atualiza sozinho, para mostrar reservas feitas por
+        // outras pessoas enquanto a tela está aberta. Aba escondida não consulta;
+        // ao voltar para ela, atualiza na hora.
+        const timer = window.setInterval(() => {
+            if (document.visibilityState === 'visible') fetchBookings();
+        }, INTERVALO_ATUALIZACAO_MS);
+        const aoVoltar = () => {
+            if (document.visibilityState === 'visible') fetchBookings();
+        };
+        document.addEventListener('visibilitychange', aoVoltar);
+        return () => {
+            window.clearInterval(timer);
+            document.removeEventListener('visibilitychange', aoVoltar);
+        };
     }, [selectedEquipment]);
 
     const filteredEquipments = equipments.filter(eq => {
