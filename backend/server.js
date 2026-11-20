@@ -593,25 +593,32 @@ app.post('/api/reset-password', async (req, res) => {
         const user = typeof email === 'string' ? await prisma.user.findUnique({ where: { email } }) : null;
         if (user && user.isActive) {
             const tempPassword = gerarSenhaTemporaria();
-            const hashedTemp = await bcrypt.hash(tempPassword, 12); // RNF03
-            await prisma.user.update({
-                where: { id: user.id },
-                data: { password: hashedTemp, isTempPassword: 1, tempPasswordExpiresAt: validadeSenhaTemporaria() }
-            });
-            await invalidarSessoesDoUsuario(user.id);
-            await registrarAuditoria({
-                action: 'SENHA_RESET',
-                targetUserId: user.id,
-                detail: `Recuperação de senha solicitada para ${email}`,
-                ip: ipDaRequisicao(req),
-            });
-            // Entrega SO por e-mail. Sem SMTP, a senha fica apenas no log do
-            // servidor; a recuperacao offline e feita pelo admin (rota abaixo).
-            await enviarEmail(
+            // O e-mail sai ANTES de trocar a senha. Antes a senha era trocada
+            // primeiro: sem SMTP (ou com falha no envio) a temporária nunca
+            // chegava e a senha antiga já não valia — o usuário ficava sem
+            // acesso até um administrador gerar outra. Agora, se o e-mail não
+            // sai, a senha atual continua valendo.
+            const enviado = await enviarEmail(
                 user.email,
                 'AcademAI - Recuperação de Senha',
                 `Sua senha temporária é: <strong>${escaparHtml(tempPassword)}</strong><br>Ela vale por 60 minutos. Ao fazer login, você será solicitado a criar uma nova senha.`
             );
+            if (enviado) {
+                const hashedTemp = await bcrypt.hash(tempPassword, 12); // RNF03
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: { password: hashedTemp, isTempPassword: 1, tempPasswordExpiresAt: validadeSenhaTemporaria() }
+                });
+                await invalidarSessoesDoUsuario(user.id);
+            }
+            await registrarAuditoria({
+                action: 'SENHA_RESET',
+                targetUserId: user.id,
+                detail: enviado
+                    ? `Recuperação de senha solicitada para ${email}: senha temporária enviada por e-mail`
+                    : `Recuperação de senha solicitada para ${email}: e-mail não enviado (sem SMTP ou falha no envio); senha atual mantida`,
+                ip: ipDaRequisicao(req),
+            });
         }
         res.json({ message: mensagemGenerica });
     } catch (error) {

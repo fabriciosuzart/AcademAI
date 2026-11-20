@@ -203,7 +203,6 @@ const Perfil: React.FC = () => {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [phone, setPhone] = useState("");
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [pauseModalGroup, setPauseModalGroup] = useState<EquipmentItem | null>(
@@ -672,7 +671,7 @@ const Perfil: React.FC = () => {
   };
 
   const handleDeleteEquipment = async (id: number, name: string) => {
-    if (!window.confirm(`Tem certeza que deseja excluir o equipamento "${name}"?\nEsta ação apagará também os agendamentos associados a ele e é irreversível.`)) return;
+    if (!window.confirm(`Tem certeza que deseja excluir o equipamento "${name}"?\nA exclusão é irreversível e só é permitida para equipamentos sem reservas no histórico; para tirá-lo de uso, altere o status para Manutenção.`)) return;
 
     try {
       const res = await api.delete(`/equipment/${id}`);
@@ -2135,23 +2134,11 @@ const Perfil: React.FC = () => {
                     <input type="email" value={userData.email} readOnly />
                     <label>R.A. (somente leitura)</label>
                     <input type="text" value={userData.ra} readOnly />
-                    <label>Telefone</label>
-                    <input
-                      type="text"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="(11) 9 0000-0000"
-                    />
                   </div>
                 </div>
-                <div className="settings-actions">
-                  <button type="button" className="ghost-btn">
-                    Trocar foto
-                  </button>
-                  <button type="button" className="secondary-btn">
-                    Salvar alterações
-                  </button>
-                </div>
+                <p className="settings-nota">
+                  Para corrigir nome, e-mail ou R.A., procure um administrador.
+                </p>
               </div>
 
               <div className="settings-card">

@@ -2041,3 +2041,10 @@
   font-size: 0.85rem;
   color: var(--text-secondary, #555);
 }
+
+/* Aviso abaixo dos dados pessoais (somente leitura). */
+.settings-nota {
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #475569);
+}
