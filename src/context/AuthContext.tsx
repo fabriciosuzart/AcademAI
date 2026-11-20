@@ -20,19 +20,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = useCallback((data: RespostaSessao) => {
     setAccessToken(data.token);
+    // RNF26 (minimização): no localStorage ficam só id, nome e perfil, usados para
+    // desenhar a interface (o backend confere o perfil a cada requisição). E-mail e
+    // R.A. ficam apenas na memória, no contexto, e voltam do servidor a cada sessão.
     localStorage.setItem('userId', String(data.id));
     localStorage.setItem('userName', data.name);
-    localStorage.setItem('userEmail', data.email);
     localStorage.setItem('userRole', data.role);
-    // Restos da versão antiga, que guardava os tokens no localStorage.
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
+    // Restos de versões antigas, que guardavam tokens e dados pessoais no localStorage.
+    ['token', 'refreshToken', 'userEmail', 'userRA', 'userRa'].forEach((k) => localStorage.removeItem(k));
 
     setIsLoggedIn(true);
     setUser({
       id: String(data.id),
       name: data.name,
       email: data.email,
+      ra: data.ra ?? null,
       role: data.role,
     });
   }, []);

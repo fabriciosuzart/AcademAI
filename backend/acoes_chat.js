@@ -9,6 +9,8 @@ import {
 } from './horarios.js';
 import { buscarBloqueioQueImpede, motivoDoBloqueio } from './bloqueios.js';
 import { validarRegrasTemporais, contarReservasAtivas, sujeitoAoLimite, REGRAS_RESERVA } from './config-reservas.js';
+import { gravarReserva, horariosAlternativos, statusInicial } from './reservas.js';
+import { hojeISO } from './chat_intent.js';
 const prisma = new PrismaClient();
 
 // Ações que o chat pode pedir ao backend. A IA só devolve a intenção e os dados do
@@ -115,28 +117,29 @@ export async function executarSolicitacaoReserva(args, userId, { simular = false
                 equipmentId: equipamento.id,
                 date: args.date,
                 // "APROVADA" no feminino: e o valor que as rotas REST gravam.
-                // Com "APROVADO" aqui, reservas aprovadas pelo painel nao contavam
-                // como conflito e o mesmo horario podia ser reservado duas vezes.
                 status: { in: ['PENDENTE', 'APROVADA'] },
                 OR: clausulaDeConflito(args.time, fim)
             }
         });
+        // RN07: horários livres calculados pelo backend, não pelo modelo.
+        const falhaConflito = async () => falha('CONFLITO', {
+            ...contexto,
+            alternativas: await horariosAlternativos(prisma, { equipmentId: equipamento.id, date: args.date, time: args.time, endTime: fim }),
+        });
         if (conflicting) {
-            return falha('CONFLITO', contexto);
+            return falhaConflito();
         }
 
         // RF08 - Limite de reservas ativas simultâneas (só ALUNO; staff isento).
         if (sujeitoAoLimite(usuario.role)) {
-            const hojeISO = new Date().toISOString().slice(0, 10);
-            const ativas = await contarReservasAtivas(prisma, uId, hojeISO);
+            const ativas = await contarReservasAtivas(prisma, uId, hojeISO());
             if (ativas >= REGRAS_RESERVA.limiteReservasAtivas) {
                 return falha('LIMITE', { ...contexto, detalhe: REGRAS_RESERVA.limiteReservasAtivas });
             }
         }
 
         // 4. Determinar aprovação automática (RF11)
-        const autoApprove = usuario.role === 'PROFESSOR' || usuario.role === 'ADMIN';
-        const status = autoApprove ? 'APROVADA' : 'PENDENTE';
+        const status = statusInicial(usuario.role);
 
         if (simular) {
             return {
@@ -150,55 +153,19 @@ export async function executarSolicitacaoReserva(args, userId, { simular = false
             return falha('FALTA_FINALIDADE', contexto);
         }
 
-        // 5. Criar reserva
-        const novaReserva = await prisma.appointment.create({
-            data: {
-                date: args.date,
-                time: args.time,
-                endTime: fim,
-                // Finalidade informada no card de confirmação (UC12), como no /api/schedule.
-                justification: args.justification.trim().slice(0, 500),
-                status: status,
-                userId: uId,
-                equipmentId: equipamento.id,
-                approvedById: autoApprove ? uId : null
-            }
+        // 5. Gravar: conflito, limite e gravação de novo, agora de forma atômica
+        // (reservas.js). Entre a prévia e a confirmação alguém pode ter reservado.
+        // As notificações (tela + e-mail) e a auditoria também saem de lá.
+        const gravada = await gravarReserva(prisma, {
+            usuario, equipamento, date: args.date, time: args.time, endTime: fim,
+            justification: args.justification, origem: 'chat',
         });
-
-        // 6. Criar notificações
-        if (autoApprove) {
-            await prisma.notification.create({
-                data: {
-                    userId: uId,
-                    type: 'RESERVA_APROVADA',
-                    message: `Reserva do ${equipamento.name} para ${args.date}, das ${args.time} às ${fim} aprovada automaticamente.`,
-                    relatedId: novaReserva.id
-                }
-            });
-        } else {
-            await prisma.notification.create({
-                data: {
-                    userId: uId,
-                    type: 'NOVA_PENDENTE',
-                    message: `Reserva do ${equipamento.name} para ${args.date}, das ${args.time} às ${fim} enviada. Aguardando aprovação.`,
-                    relatedId: novaReserva.id
-                }
-            });
-            // Notificar professores e admins
-            const approvers = await prisma.user.findMany({
-                where: { role: { in: ['PROFESSOR', 'ADMIN'] }, isActive: true }
-            });
-            for (const approver of approvers) {
-                await prisma.notification.create({
-                    data: {
-                        userId: approver.id,
-                        type: 'NOVA_PENDENTE',
-                        message: `${usuario.name} solicitou reserva do ${equipamento.name} para ${args.date}, das ${args.time} às ${fim}.`,
-                        relatedId: novaReserva.id
-                    }
-                });
-            }
+        if (!gravada.ok) {
+            return gravada.codigo === 'CONFLITO'
+                ? falhaConflito()
+                : falha('LIMITE', { ...contexto, detalhe: gravada.detalhe });
         }
+        const novaReserva = gravada.reserva;
 
         return {
             ok: true,

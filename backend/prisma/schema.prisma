@@ -20,6 +20,10 @@ model User {
   failedLoginAttempts Int       @default(0)
   lockedUntil      DateTime?
   sessionVersion  Int            @default(0)
+  // RF07: validade da senha temporária (60 min); nula quando não há senha temporária.
+  tempPasswordExpiresAt DateTime?
+  // RN02: modelos de equipamento que o professor pode aprovar ("" = todos).
+  escopoAprovacao String        @default("")
   trainings      String         @default("")
   appointments   Appointment[]
   notifications  Notification[]
@@ -68,6 +72,9 @@ model Appointment {
 
   equipmentId Int
   equipment   Equipment @relation(fields: [equipmentId], references: [id])
+
+  // RF16/RN03: índice explícito da consulta de conflito (equipamento, dia, status).
+  @@index([equipmentId, date, status])
 }
 
 // 4. Tabela de Notificações

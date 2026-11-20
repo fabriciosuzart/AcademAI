@@ -19,3 +19,8 @@ node_modules
 
 # Whisper local models (Descomente se os arquivos .onnx forem muito pesados para o Git)
 # /public/models/Xenova/whisper-base/onnx/*.onnx
+
+# Regras de reserva alteradas pelo administrador (RF08) e metadados do acervo (RN11/RN12)
+regras-reservas.json
+acervo.json
+

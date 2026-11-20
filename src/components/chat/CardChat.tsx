@@ -33,6 +33,13 @@ export interface EquipamentoChat {
   status: string;
 }
 
+/** Horário livre calculado pelo backend em caso de conflito (RN07). */
+export interface HorarioLivre {
+  date: string;
+  time: string;
+  endTime: string;
+}
+
 export interface SugestaoAgendamento {
   equipamento: string | null;
   equipmentId: number | null;
@@ -43,7 +50,7 @@ export interface SugestaoAgendamento {
 export type CardChatDados =
   | { tipo: 'reserva'; reserva: ReservaChat }
   | { tipo: 'equipamentos'; itens: EquipamentoChat[]; total?: number; filtro?: 'disponiveis' | 'todos'; logado: boolean }
-  | { tipo: 'agendar'; sugestao: SugestaoAgendamento }
+  | { tipo: 'agendar'; sugestao: SugestaoAgendamento; alternativas?: HorarioLivre[] }
   | { tipo: 'confirmar'; previa: PreviaReserva }
   | { tipo: 'reservas'; itens: ReservaChat[]; acao: 'listar' | 'cancelar' }
   | { tipo: 'login' };
@@ -168,7 +175,7 @@ const CardEquipamentos: React.FC<{
   );
 };
 
-const CardAgendar: React.FC<{ sugestao: SugestaoAgendamento }> = ({ sugestao }) => {
+const CardAgendar: React.FC<{ sugestao: SugestaoAgendamento; alternativas?: HorarioLivre[] }> = ({ sugestao, alternativas = [] }) => {
   const abrirAgendamento = useAbrirAgendamento();
   const entendido = [
     sugestao.equipamento,
@@ -178,6 +185,21 @@ const CardAgendar: React.FC<{ sugestao: SugestaoAgendamento }> = ({ sugestao }) 
   return (
     <div className="chat-card">
       {entendido.length > 0 && <p className="chat-card-note">Entendi: {entendido.join(' · ')}</p>}
+      {alternativas.length > 0 && (
+        <div className="chat-card-actions" role="group" aria-label="Horários livres sugeridos">
+          {alternativas.map((h) => (
+            <button
+              key={`${h.date}-${h.time}`}
+              type="button"
+              className="chat-card-btn ghost"
+              onClick={() => abrirAgendamento({ ...sugestao, data: h.date, inicio: h.time })}
+              aria-label={`Agendar em ${dataBR(h.date)}, das ${h.time} às ${h.endTime}`}
+            >
+              <CalendarDays size={16} aria-hidden="true" /> {dataBR(h.date)} · {h.time}–{h.endTime}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="chat-card-actions">
         <button type="button" className="chat-card-btn" onClick={() => abrirAgendamento(sugestao)}>
           <CalendarDays size={16} aria-hidden="true" /> Abrir agendamento
@@ -324,7 +346,7 @@ const CardChat: React.FC<{ card: CardChatDados } & AcoesConfirmacao> = ({ card, 
     case 'reserva': return <CardReserva reserva={card.reserva} />;
     case 'equipamentos':
       return <CardEquipamentos itens={card.itens} total={card.total} filtro={card.filtro} logado={card.logado} />;
-    case 'agendar': return <CardAgendar sugestao={card.sugestao} />;
+    case 'agendar': return <CardAgendar sugestao={card.sugestao} alternativas={card.alternativas} />;
     case 'login': return <CardLogin />;
     default: return null;
   }

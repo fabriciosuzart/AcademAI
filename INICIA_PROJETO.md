@@ -153,6 +153,38 @@ Diariamente, 23:00 → Iniciar um programa: `cmd`, argumentos
 para `backend/prisma/`, `vector_cache.json` para `backend/` e a pasta
 `documents/` para `backend/documents/`, e suba o servidor de novo.
 
+## Retenção de dados (LGPD)
+
+O `npm run retencao` (dentro de `backend/`) aplica o prazo de retenção de 1 ano
+(RF17/RNF27): apaga a trilha de auditoria e as notificações mais antigas, os
+refresh tokens vencidos e anonimiza a finalidade e o motivo de rejeição das
+reservas encerradas. Sem `--aplicar`, só mostra o que seria feito.
+
+```bash
+npm run retencao                    # simulação
+npm run retencao -- --aplicar       # aplica (prazo padrão: 365 dias)
+npm run retencao -- --dias 730 --aplicar
+```
+
+Vale agendar junto com o backup (mesmo procedimento acima).
+
+## Configurações feitas pelo painel
+
+- **Regras de reserva** (Perfil → Configurações, só administrador): antecedência
+  mínima, duração mínima e máxima, limite de reservas ativas por estudante e
+  antecedência para cancelar. Ficam em `backend/regras-reservas.json`.
+- **Escopo do professor** (Perfil → Usuários → editar um professor): equipamentos
+  cujas reservas ele pode aprovar. Sem nenhum marcado, ele aprova todos.
+- **Acesso aos documentos** (Perfil → Treinamento IA): cada documento pode ser lido
+  por todos, só por professores e administradores ou só por administradores. Enviar
+  um arquivo com o mesmo nome cria uma nova versão e tira a anterior do índice. Os
+  metadados ficam em `backend/acervo.json`.
+- **Usuários com histórico** não são excluídos: use **Anonimizar**, que apaga nome,
+  e-mail e R.A., desativa a conta e cancela as reservas futuras, mantendo o histórico.
+  Qualquer usuário baixa os próprios dados em Perfil → Configurações → Meus dados.
+
+`regras-reservas.json` e `acervo.json` entram no backup.
+
 ## Medições para o TCC
 
 Rode dentro de `backend/`, na máquina em que as medições serão relatadas. Os

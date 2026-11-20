@@ -7,11 +7,16 @@ const Notificacoes: React.FC = () => {
     const [notifications, setNotifications] = useState<Notificacao[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
 
+    // RF12/RF13: a lista se atualiza sozinha a cada 30 s enquanto a aba está
+    // visível, para a aprovação ou a nova pendência aparecer sem recarregar.
     useEffect(() => {
         const userId = localStorage.getItem('userId');
-        if (userId) {
-            fetchNotifications(userId);
-        }
+        if (!userId) return;
+        fetchNotifications(userId);
+        const timer = window.setInterval(() => {
+            if (document.visibilityState === 'visible') fetchNotifications(userId);
+        }, 30_000);
+        return () => window.clearInterval(timer);
     }, []);
 
     const fetchNotifications = async (userId: string) => {

@@ -4,6 +4,7 @@ import './Login.css';
 import api from '../../api/axios';
 import { mensagemDeErro } from '../../utils/erros';
 import { useAuth } from '../../context/useAuth';
+import { erroDeSenha } from '../../utils/senha';
 
 const NovaSenha: React.FC = () => {
     const [password, setPassword] = useState('');
@@ -15,7 +16,8 @@ const NovaSenha: React.FC = () => {
         e.preventDefault();
         
         if (password !== confirm) return alert("As senhas não coincidem.");
-        if (password.length < 6) return alert("A senha deve ter no mínimo 6 caracteres.");
+        const erroSenha = erroDeSenha(password); // RF07: mesma política do cadastro (RF01)
+        if (erroSenha) return alert(erroSenha);
 
         try {
             // Troca forcada de senha temporaria: o backend dispensa a senha atual

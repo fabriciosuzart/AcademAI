@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import api from "../../api/axios";
 import { useAuth } from "../../context/useAuth";
-import { Check, Circle, User, Pencil, Power, KeyRound, Trash2 } from "lucide-react";
+import { Check, Circle, User, Pencil, Power, KeyRound, Trash2, Download, UserX } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "./Perfil.css";
 import { STATUS, OPCOES_STATUS, classeStatus, ehManutencao, rotuloStatus } from "../../utils/status";
@@ -17,6 +17,8 @@ import type {
   Bloqueio, LogAuditoria, ReservaComRelacoes, ReservaHistorico, ResumoRelatorio, VisaoGeral,
 } from '../../types/api';
 import { escolherVoz, rotuloDaVoz } from '../../utils/voz';
+import { erroDeSenha } from '../../utils/senha';
+import { buscarRegras, REGRAS_PADRAO, type RegrasReserva } from '../../utils/regras';
 
 const trainingModules = [
   "Impressora 3D Finder",
@@ -59,14 +61,48 @@ interface AdminUser {
   role?: string;
   trainings?: string;
   isActive?: boolean;
+  /** RN02: modelos que o professor pode aprovar ("" = todos). */
+  escopoAprovacao?: string;
 }
+
+type NivelAcesso = "todos" | "professores" | "administradores";
 
 interface DocumentoIA {
   nome: string;
+  /** Nome enviado pelo administrador (RN11). */
+  original?: string;
+  versao?: number;
+  /** Quem pode ler o documento no RAG (RN12). */
+  acesso?: NivelAcesso;
   tamanho: number;
   modificadoEm: string;
   blocos: number;
 }
+
+const ROTULOS_ACESSO: Record<NivelAcesso, string> = {
+  todos: "Todos os usuários",
+  professores: "Professores e administradores",
+  administradores: "Somente administradores",
+};
+
+/** Campos do formulário de regras de reserva (RF08/RF15), com rótulo e unidade. */
+const CAMPOS_REGRAS: { chave: keyof RegrasReserva; rotulo: string; unidade: string }[] = [
+  { chave: "antecedenciaMinimaMinutos", rotulo: "Antecedência mínima para reservar", unidade: "min" },
+  { chave: "duracaoMinimaMinutos", rotulo: "Duração mínima", unidade: "min" },
+  { chave: "duracaoMaximaMinutos", rotulo: "Duração máxima", unidade: "min" },
+  { chave: "limiteReservasAtivas", rotulo: "Reservas ativas por estudante", unidade: "reservas" },
+  { chave: "antecedenciaCancelamentoHoras", rotulo: "Antecedência mínima para cancelar", unidade: "h" },
+];
+
+/** Baixa um JSON como arquivo, sem sair da página. */
+const baixarJson = (dados: unknown, nomeArquivo: string) => {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(dados, null, 2)], { type: "application/json" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nomeArquivo;
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
 interface EquipmentItem {
   id: string | number;
@@ -90,7 +126,7 @@ type AbaPerfil =
 const Perfil: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user: usuarioSessao } = useAuth();
   // Estado para guardar os dados do usuário
   const [userData, setUserData] = useState({ name: "", email: "", ra: "" });
   const [userRole, setUserRole] = useState("ALUNO");
@@ -129,6 +165,10 @@ const Perfil: React.FC = () => {
   // Treinamento da IA (RAG). Veio do painel admin, onde a tela era cega: subia
   // o arquivo e nunca mais se sabia o que a assistente tinha lido.
   const [file, setFile] = useState<File | null>(null);
+  const [acessoUpload, setAcessoUpload] = useState<NivelAcesso>("todos");
+  // RF08 — regras de reserva editadas pelo administrador
+  const [regrasForm, setRegrasForm] = useState<RegrasReserva>(REGRAS_PADRAO);
+  const [salvandoRegras, setSalvandoRegras] = useState(false);
   const [loadingAI, setLoadingAI] = useState(false);
   const [messageAI, setMessageAI] = useState("");
   const [msgTypeAI, setMsgTypeAI] = useState<"success" | "error" | "info">("info");
@@ -173,6 +213,7 @@ const Perfil: React.FC = () => {
   const [editEmail, setEditEmail] = useState("");
   const [editRa, setEditRa] = useState("");
   const [editTrainings, setEditTrainings] = useState<string[]>([]);
+  const [editEscopo, setEditEscopo] = useState<string[]>([]);
 
   // Estados para edição de equipamentos
   const [editingEquipment, setEditingEquipment] = useState<EquipmentItem | null>(null);
@@ -217,6 +258,9 @@ const Perfil: React.FC = () => {
     setEditEmail(user.email);
     setEditRa(user.ra || "");
     setEditTrainings(user.trainings ? user.trainings.split(",") : []);
+    setEditEscopo(
+      (user.escopoAprovacao || "").split(",").map((m) => m.trim()).filter(Boolean),
+    );
     setIsEditModalOpen(true);
   };
 
@@ -235,6 +279,8 @@ const Perfil: React.FC = () => {
         email: editEmail,
         ra: editRa,
         trainings: editTrainings.join(","),
+        // RN02: só faz sentido para professor; vazio = todos os equipamentos.
+        ...(editingUser.role === "PROFESSOR" ? { escopoAprovacao: editEscopo } : {}),
       });
       if (res.status === 200) {
         await fetchAdminUsers();
@@ -250,12 +296,7 @@ const Perfil: React.FC = () => {
   const handleDeleteUser = async (userToDelete?: AdminUser) => {
     const target = userToDelete || editingUser;
     if (!target) return;
-    if (
-      !window.confirm(
-        `Tem certeza que deseja excluir o usuário ${target.name}? Esta ação apagará também os agendamentos dele e é irreversível.`,
-      )
-    )
-      return;
+    if (!window.confirm(`Tem certeza que deseja excluir o usuário ${target.name}? Esta ação é irreversível.`)) return;
 
     try {
       const res = await api.delete(`/users/${target.id}`);
@@ -265,8 +306,65 @@ const Perfil: React.FC = () => {
         fetchAdminUsers();
       }
     } catch (error) {
+      // RF17: quem tem histórico de reservas não é excluído — o caminho é anonimizar.
+      if (axios.isAxiosError(error) && error.response?.status === 409 && error.response.data?.podeAnonimizar) {
+        if (window.confirm(`${mensagemDeErro(error, "")}\n\nAnonimizar ${target.name} agora?`)) {
+          await handleAnonimizar(target, false);
+        }
+        return;
+      }
       console.error("Erro ao excluir usuário", error);
       alert("Erro ao excluir: " + mensagemDeErro(error, "Erro de conexão com o servidor."));
+    }
+  };
+
+  // RNF28 — eliminação dos dados pessoais a pedido do titular, mantendo o
+  // histórico de reservas sem identificação.
+  const handleAnonimizar = async (target: AdminUser, perguntar = true) => {
+    if (
+      perguntar &&
+      !window.confirm(
+        `Anonimizar ${target.name}? Nome, e-mail e R.A. serão apagados, a conta será desativada e as reservas futuras, canceladas. Esta ação é irreversível.`,
+      )
+    )
+      return;
+    try {
+      const { data } = await api.post(`/users/${target.id}/anonimizar`);
+      alert(data.message);
+      if (editingUser?.id === target.id) closeEditModal();
+      fetchAdminUsers();
+    } catch (error) {
+      alert("Erro ao anonimizar: " + mensagemDeErro(error, "Erro de conexão com o servidor."));
+    }
+  };
+
+  // RNF28 — acesso do titular: baixa os dados pessoais, reservas e notificações.
+  const handleExportarDados = async (alvoId: string | number, nome: string) => {
+    try {
+      const { data } = await api.get(`/users/${alvoId}/dados`);
+      baixarJson(data, `academai-dados-${String(nome).toLowerCase().replace(/\s+/g, "-")}.json`);
+    } catch (error) {
+      alert("Erro ao exportar dados: " + mensagemDeErro(error, "Erro de conexão com o servidor."));
+    }
+  };
+
+  // RF08 — regras de reserva
+  const carregarRegras = async () => {
+    setRegrasForm(await buscarRegras(true));
+  };
+
+  const handleSalvarRegras = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSalvandoRegras(true);
+    try {
+      const { data } = await api.put("/config/reservas", regrasForm);
+      setRegrasForm(data.regras);
+      await buscarRegras(true);
+      alert(data.message);
+    } catch (error) {
+      alert("Erro ao salvar as regras: " + mensagemDeErro(error, "Erro de conexão com o servidor."));
+    } finally {
+      setSalvandoRegras(false);
     }
   };
 
@@ -515,6 +613,7 @@ const Perfil: React.FC = () => {
     setMsgTypeAI("info");
 
     const formData = new FormData();
+    formData.append("acesso", acessoUpload); // RN12 — antes do arquivo, para o multer já ter o campo
     formData.append("file", file);
 
     try {
@@ -523,10 +622,10 @@ const Perfil: React.FC = () => {
       });
       // O backend ja devolvia estes numeros; a tela antiga os descartava e
       // escrevia so "IA Treinada com sucesso!".
-      const { blocosIndexados, totalVetores: total } = res.data || {};
+      const { blocosIndexados, totalVetores: total, versao } = res.data || {};
       setMessageAI(
         blocosIndexados !== undefined
-          ? `Documento indexado: ${blocosIndexados} bloco(s) novo(s), ${total} no total.`
+          ? `Documento indexado${versao > 1 ? ` como versão ${versao} (a anterior saiu do índice)` : ""}: ${blocosIndexados} bloco(s) novo(s), ${total} no total.`
           : "Documento indexado com sucesso!",
       );
       setMsgTypeAI("success");
@@ -540,11 +639,24 @@ const Perfil: React.FC = () => {
     }
   };
 
-  const handleDeleteDocumento = async (nome: string) => {
-    if (!window.confirm(`Remover "${nome}" da base de conhecimento?\nA assistente deixará de responder com base nele.`)) return;
+  // RN12 — muda quem pode ler o documento.
+  const handleAcessoDocumento = async (nome: string, acesso: NivelAcesso) => {
+    try {
+      const res = await api.put(`/train/documents/${encodeURIComponent(nome)}/acesso`, { acesso });
+      setMessageAI(res.data.message);
+      setMsgTypeAI("success");
+      await fetchDocumentos();
+    } catch (error) {
+      setMessageAI(mensagemDeErro(error, "Erro ao alterar o acesso do documento."));
+      setMsgTypeAI("error");
+    }
+  };
+
+  const handleDeleteDocumento = async (nome: string, rotulo = nome) => {
+    if (!window.confirm(`Remover "${rotulo}" da base de conhecimento?\nA assistente deixará de responder com base nele.`)) return;
     try {
       const res = await api.delete(`/train/documents/${encodeURIComponent(nome)}`);
-      setMessageAI(`"${nome}" removido (-${res.data.vetoresRemovidos} blocos).`);
+      setMessageAI(`"${rotulo}" removido (-${res.data.vetoresRemovidos} blocos).`);
       setMsgTypeAI("success");
       await fetchDocumentos();
     } catch (error) {
@@ -581,13 +693,11 @@ const Perfil: React.FC = () => {
   useEffect(() => {
     carregarPerfilRef.current = () => {
       // Busca os dados salvos no localStorage (pelo Login.tsx)
-      const name = localStorage.getItem("userName") || "Usuário";
-      let email = localStorage.getItem("userEmail");
-      if (!email || email === "undefined" || email === "null")
-        email = "Não informado";
-
-      let ra = localStorage.getItem("userRA") || localStorage.getItem("userRa");
-      if (!ra || ra === "undefined" || ra === "null") ra = "Não informado";
+      // E-mail e R.A. vêm da sessão em memória (RNF26); o efeito abaixo os
+      // preenche quando a sessão termina de ser restaurada.
+      const name = usuarioSessao?.name || localStorage.getItem("userName") || "Usuário";
+      const email = usuarioSessao?.email || "Não informado";
+      const ra = usuarioSessao?.ra || "Não informado";
 
       const role = localStorage.getItem("userRole") || "ALUNO";
       const userId = localStorage.getItem("userId");
@@ -632,6 +742,16 @@ const Perfil: React.FC = () => {
   useEffect(() => {
     carregarPerfilRef.current();
   }, []);
+
+  // Dados pessoais da sessão (restaurada pelo cookie depois do primeiro render).
+  useEffect(() => {
+    if (!usuarioSessao) return;
+    setUserData({
+      name: usuarioSessao.name,
+      email: usuarioSessao.email || "Não informado",
+      ra: usuarioSessao.ra || "Não informado",
+    });
+  }, [usuarioSessao]);
 
   // Recarrega agendamentos ao mudar o toggle
   useEffect(() => {
@@ -715,11 +835,15 @@ const Perfil: React.FC = () => {
     e.preventDefault();
     if(!blockDateStr) return;
     try {
-      await api.post('/blocked-dates', {
-        date: blockDateStr,
-        reason: blockReason,
-        equipmentId: blockEquipmentId || null
-      });
+      // O seletor lista modelos; o bloqueio vale para todas as unidades do modelo
+      // (antes só a primeira unidade era bloqueada).
+      const grupo = equipmentItems.find((eq) => String(eq.id) === String(blockEquipmentId));
+      const unidades = blockEquipmentId
+        ? (grupo?.items?.length ? grupo.items.map((u) => u.id) : [blockEquipmentId])
+        : [null];
+      for (const equipmentId of unidades) {
+        await api.post('/blocked-dates', { date: blockDateStr, reason: blockReason, equipmentId });
+      }
       alert("Data bloqueada com sucesso!");
       fetchBlockedDates();
       setBlockDateStr('');
@@ -750,6 +874,7 @@ const Perfil: React.FC = () => {
       fetchAdminUsers();
       fetchEquipment();
       fetchBlockedDates();
+      carregarRegras();
     }
   }, [isAdmin]);
 
@@ -839,8 +964,10 @@ const Perfil: React.FC = () => {
 
   const handlePasswordUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (currentPassword.length < 8 || newPassword.length < 8)
+    if (currentPassword.length < 8)
       return alert("A senha deve ter no mínimo 8 caracteres."); // RF01
+    const erroSenha = erroDeSenha(newPassword); // RF07: mesma política do cadastro (RF01)
+    if (erroSenha) return alert(erroSenha);
     if (newPassword !== confirmPassword)
       return alert("As senhas não coincidem.");
 
@@ -1618,6 +1745,25 @@ const Perfil: React.FC = () => {
                             </button>
                             <button
                               type="button"
+                              className="icon-action"
+                              onClick={() => handleExportarDados(user.id, user.name)}
+                              aria-label={`Exportar dados de ${user.name}`}
+                              title="Exportar dados pessoais (LGPD)"
+                            >
+                              <Download size={16} aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-action danger"
+                              onClick={() => handleAnonimizar(user)}
+                              disabled={!user.isActive && user.email.endsWith("@anonimizado.invalid")}
+                              aria-label={`Anonimizar ${user.name}`}
+                              title="Anonimizar (remove dados pessoais e mantém o histórico)"
+                            >
+                              <UserX size={16} aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
                               className="icon-action danger"
                               onClick={() => handleDeleteUser(user)}
                               disabled={user.role === "ADMIN"}
@@ -1790,6 +1936,21 @@ const Perfil: React.FC = () => {
                   accept=".pdf,.docx,.md,.txt"
                   onChange={handleFileChange}
                 />
+                <label className="sleek-label" htmlFor="acesso-upload">QUEM PODE CONSULTAR</label>
+                <select
+                  id="acesso-upload"
+                  className="sleek-input"
+                  value={acessoUpload}
+                  onChange={(e) => setAcessoUpload(e.target.value as NivelAcesso)}
+                >
+                  {(Object.keys(ROTULOS_ACESSO) as NivelAcesso[]).map((n) => (
+                    <option key={n} value={n}>{ROTULOS_ACESSO[n]}</option>
+                  ))}
+                </select>
+                <p className="treino-ajuda">
+                  Enviar um arquivo com o mesmo nome de um que já está na base cria uma nova versão
+                  e retira a anterior do índice. Tamanho máximo: 50 MB.
+                </p>
                 <button
                   type="button"
                   className="save-btn"
@@ -1817,16 +1978,27 @@ const Perfil: React.FC = () => {
                     {documentos.map((doc) => (
                       <li key={doc.nome} className="doc-item">
                         <div className="doc-info">
-                          <strong>{doc.nome}</strong>
+                          <strong>{doc.original || doc.nome}</strong>
                           <span>
+                            {doc.versao && doc.versao > 1 ? `versão ${doc.versao} · ` : ""}
                             {formatarTamanho(doc.tamanho)} &middot; {doc.blocos} bloco(s) &middot;{" "}
                             {new Date(doc.modificadoEm).toLocaleDateString("pt-BR")}
                           </span>
                         </div>
+                        <select
+                          className="sleek-input doc-acesso"
+                          value={doc.acesso || "todos"}
+                          onChange={(e) => handleAcessoDocumento(doc.nome, e.target.value as NivelAcesso)}
+                          aria-label={`Quem pode consultar ${doc.original || doc.nome}`}
+                        >
+                          {(Object.keys(ROTULOS_ACESSO) as NivelAcesso[]).map((n) => (
+                            <option key={n} value={n}>{ROTULOS_ACESSO[n]}</option>
+                          ))}
+                        </select>
                         <button
                           type="button"
                           className="ghost-btn small danger"
-                          onClick={() => handleDeleteDocumento(doc.nome)}
+                          onClick={() => handleDeleteDocumento(doc.nome, doc.original || doc.nome)}
                           title="Remover da base de conhecimento"
                         >
                           Remover
@@ -2060,6 +2232,52 @@ const Perfil: React.FC = () => {
               {isAdmin && (
                 <div className="settings-card">
                   <div className="settings-header">
+                    <h3>Regras de reserva</h3>
+                    <span>Valem para o formulário e para o chat</span>
+                  </div>
+                  <form onSubmit={handleSalvarRegras} className="password-form">
+                    {CAMPOS_REGRAS.map(({ chave, rotulo, unidade }) => (
+                      <React.Fragment key={chave}>
+                        <label htmlFor={`regra-${chave}`}>{rotulo} ({unidade})</label>
+                        <input
+                          id={`regra-${chave}`}
+                          type="number"
+                          min={0}
+                          step={1}
+                          required
+                          value={regrasForm[chave]}
+                          onChange={(e) => setRegrasForm((r) => ({ ...r, [chave]: Number(e.target.value) }))}
+                        />
+                      </React.Fragment>
+                    ))}
+                    <button type="submit" className="secondary-btn" disabled={salvandoRegras}>
+                      {salvandoRegras ? "Salvando..." : "Salvar regras"}
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              <div className="settings-card">
+                <div className="settings-header">
+                  <h3>Meus dados</h3>
+                  <span>LGPD</span>
+                </div>
+                <p className="treino-ajuda">
+                  Baixe uma cópia dos seus dados pessoais, reservas e notificações. Para corrigir ou
+                  eliminar dados, procure o administrador do laboratório.
+                </p>
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => handleExportarDados(localStorage.getItem("userId") || "", userData.name)}
+                >
+                  <Download size={16} aria-hidden="true" /> Baixar meus dados
+                </button>
+              </div>
+
+              {isAdmin && (
+                <div className="settings-card">
+                  <div className="settings-header">
                     <h3>Feriados e Recessos</h3>
                     <span>Bloqueio de Agenda</span>
                   </div>
@@ -2129,6 +2347,10 @@ const Perfil: React.FC = () => {
       />
 
       <EditUserModal
+        mostrarEscopo={editingUser?.role === "PROFESSOR"}
+        modelos={equipmentItems.map((eq) => eq.name)}
+        editEscopo={editEscopo}
+        setEditEscopo={setEditEscopo}
         open={isEditModalOpen}
         editingUser={editingUser}
         editName={editName}

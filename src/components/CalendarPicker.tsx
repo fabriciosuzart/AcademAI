@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import api from '../api/axios';
 import './CalendarPicker.css';
 import {
-    DURACOES,
     HORA_ABERTURA,
     HORA_FECHAMENTO,
     PASSO_SLOT,
@@ -14,6 +13,7 @@ import {
 } from '../utils/horarios';
 import type { DataBloqueada } from '../utils/bloqueios';
 import { bloqueioDoDia, motivoDoBloqueio } from '../utils/bloqueios';
+import { duracoesPermitidas, useRegrasReserva } from '../utils/regras';
 
 interface CalendarPickerProps {
     equipmentId: string;
@@ -47,6 +47,12 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [selectedTime, setSelectedTime] = useState<string>('');
     const [duracao, setDuracao] = useState<number>(60);
+    // RF08: durações conforme as regras do administrador (GET /api/config/reservas).
+    const regras = useRegrasReserva();
+    const duracoes = useMemo(() => duracoesPermitidas(regras), [regras]);
+    useEffect(() => {
+        if (!duracoes.includes(duracao)) setDuracao(duracoes.includes(60) ? 60 : duracoes[0]);
+    }, [duracoes, duracao]);
     const [bookedSlots, setBookedSlots] = useState<{ date: string, time: string, endTime: string | null }[]>([]);
     const [blockedDates, setBlockedDates] = useState<DataBloqueada[]>([]);
     const [carregado, setCarregado] = useState(false);
@@ -303,7 +309,7 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({
                     <div className="duration-picker">
                         <span className="duration-label" id="duration-label">Duração da reserva</span>
                         <div className="duration-options" role="group" aria-labelledby="duration-label">
-                            {DURACOES.map(minutos => (
+                            {duracoes.map(minutos => (
                                 <button
                                     key={minutos}
                                     type="button"

@@ -2026,3 +2026,18 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Nível de acesso do documento (RN12) e ajuda do escopo do professor (RN02) */
+.doc-acesso {
+  width: auto;
+  max-width: 240px;
+  margin: 0 8px;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+}
+
+.escopo-ajuda {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #555);
+}

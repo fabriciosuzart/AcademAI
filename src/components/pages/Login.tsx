@@ -8,6 +8,7 @@ import { mensagemDeErro } from '../../utils/erros';
 import { setAccessToken } from '../../api/session';
 import { useAuth } from '../../context/useAuth';
 import type { RespostaLogin } from '../../types/api';
+import { erroDeSenha } from '../../utils/senha';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -133,11 +134,7 @@ const Login: React.FC = () => {
         login(data);
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
-        localStorage.setItem('userName', data.name);
-        localStorage.setItem('userId', String(data.id));
-        localStorage.setItem('userEmail', data.email);
-        localStorage.setItem('userRA', data.ra ?? '');
-        localStorage.setItem('userRole', data.role);
+        // login() já grava id, nome e perfil; e-mail e R.A. ficam só na memória (RNF26).
 
         if (data.isTempPassword === 1) {
           setShowChangePasswordModal(true);
@@ -167,7 +164,8 @@ const Login: React.FC = () => {
 
   const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) return alert("As senhas não coincidem.");
-    if (newPassword.length < 6) return alert("A senha deve ter no mínimo 6 caracteres.");
+    const erroSenha = erroDeSenha(newPassword); // RF07: mesma política do cadastro (RF01)
+    if (erroSenha) return alert(erroSenha);
 
     try {
       // O login (mesmo com senha temporaria) ja gravou o token; api o injeta.

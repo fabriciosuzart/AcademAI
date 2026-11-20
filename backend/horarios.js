@@ -54,3 +54,25 @@ export function clausulaDeConflito(inicio, fim) {
         { endTime: null, time: { gt: somarMinutos(inicio, -DURACAO_PADRAO), lt: fim } },
     ];
 }
+
+/**
+ * RN07 — horários livres de um dia, calculados pelo backend (nunca pelo LLM).
+ *
+ * `ocupadas`: intervalos [{ time, endTime }] das reservas ativas do dia
+ * (endTime nulo vale DURACAO_PADRAO). Devolve os inícios "HH:MM", na grade de
+ * `passo` minutos, em que [início, início + duracao) cabe no horário de
+ * funcionamento sem invadir nenhuma reserva.
+ */
+export function sugerirHorarios(ocupadas, duracao, { abertura = HORA_ABERTURA, fechamento = HORA_FECHAMENTO, passo = 30 } = {}) {
+    const blocos = ocupadas.map((o) => {
+        const ini = paraMinutos(o.time);
+        const fim = o.endTime ? paraMinutos(o.endTime) : ini + DURACAO_PADRAO;
+        return [ini, fim];
+    }).filter(([a, b]) => !Number.isNaN(a) && !Number.isNaN(b));
+    const livres = [];
+    for (let ini = paraMinutos(abertura); ini + duracao <= paraMinutos(fechamento); ini += passo) {
+        const fim = ini + duracao;
+        if (!blocos.some(([a, b]) => ini < b && a < fim)) livres.push(paraHorario(ini));
+    }
+    return livres;
+}

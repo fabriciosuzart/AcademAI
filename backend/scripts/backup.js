@@ -7,7 +7,9 @@
  * O que é copiado:
  *   - banco SQLite (prisma/academai.db), com VACUUM INTO: cópia consistente
  *     mesmo com o servidor rodando, sem copiar o arquivo no meio de uma escrita;
- *   - vector_cache.json (índice do RAG) e a pasta documents/ (acervo).
+ *   - vector_cache.json (índice do RAG), a pasta documents/ (acervo) e, quando
+ *     existirem, acervo.json (versões e acesso dos documentos) e
+ *     regras-reservas.json (regras definidas pelo administrador).
  *
  * Política (pode ser mudada pelas variáveis abaixo):
  *   - uma cópia por dia em <destino>/diario, mantendo as 7 mais recentes;
@@ -40,6 +42,8 @@ const MANTER_SEMANAIS = Math.max(1, parseInt(args.semanais, 10) || 4);
 const BANCO = path.join(BACKEND_DIR, 'prisma', 'academai.db');
 const CACHE = path.join(BACKEND_DIR, 'vector_cache.json');
 const DOCUMENTOS = path.join(BACKEND_DIR, 'documents');
+// Metadados do acervo (versão e nível de acesso, RN11/RN12) e regras de reserva do administrador (RF08).
+const EXTRAS = ['acervo.json', 'regras-reservas.json'].map((nome) => path.join(BACKEND_DIR, nome));
 
 const doisDigitos = (n) => String(n).padStart(2, '0');
 
@@ -114,6 +118,9 @@ async function main() {
     if (integridade !== 'ok') throw new Error(`Cópia do banco falhou no integrity_check: ${integridade}`);
     if (fs.existsSync(CACHE)) fs.copyFileSync(CACHE, path.join(pastaDiaria, 'vector_cache.json'));
     if (fs.existsSync(DOCUMENTOS)) fs.cpSync(DOCUMENTOS, path.join(pastaDiaria, 'documents'), { recursive: true });
+    for (const extra of EXTRAS) {
+        if (fs.existsSync(extra)) fs.copyFileSync(extra, path.join(pastaDiaria, path.basename(extra)));
+    }
 
     const arquivos = listarArquivos(pastaDiaria).map((rel) => ({
         arquivo: rel.split(path.sep).join('/'),

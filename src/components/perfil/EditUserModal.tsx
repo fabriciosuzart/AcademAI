@@ -22,6 +22,12 @@ interface EditUserModalProps {
   editTrainings: string[];
   setEditTrainings: React.Dispatch<React.SetStateAction<string[]>>;
   trainingModules: string[];
+  /** RN02: mostra o escopo de aprovação (só para professores). */
+  mostrarEscopo?: boolean;
+  /** Modelos de equipamento cadastrados, para o escopo. */
+  modelos?: string[];
+  editEscopo?: string[];
+  setEditEscopo?: React.Dispatch<React.SetStateAction<string[]>>;
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
   onDelete: () => void;
@@ -39,6 +45,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   editTrainings,
   setEditTrainings,
   trainingModules,
+  mostrarEscopo = false,
+  modelos = [],
+  editEscopo = [],
+  setEditEscopo,
   onClose,
   onSubmit,
   onDelete,
@@ -102,6 +112,36 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               })}
             </div>
           </div>
+
+          {mostrarEscopo && setEditEscopo && (
+            <div className="form-group">
+              <label className="sleek-label" id="escopo-label">ESCOPO DE APROVAÇÃO (EQUIPAMENTOS)</label>
+              <p className="escopo-ajuda">
+                Sem nenhum selecionado, o professor aprova reservas de todos os equipamentos.
+              </p>
+              <div className="training-tags-container" role="group" aria-labelledby="escopo-label">
+                {modelos.map((modelo) => {
+                  const isSelected = editEscopo.includes(modelo);
+                  return (
+                    <button
+                      type="button"
+                      key={modelo}
+                      aria-pressed={isSelected}
+                      className={`training-tag-btn ${isSelected ? "selected" : ""}`}
+                      onClick={() =>
+                        setEditEscopo((prev) =>
+                          isSelected ? prev.filter((m) => m !== modelo) : [...prev, modelo],
+                        )
+                      }
+                    >
+                      {isSelected && <span className="check-icon"><Check size={14} aria-hidden="true" /></span>}
+                      {modelo}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <hr className="divider pf-s31" />
 

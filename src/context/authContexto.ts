@@ -8,6 +8,7 @@ export interface UsuarioSessao {
   id: string;
   name: string;
   email: string;
+  ra: string | null;
   role: string;
 }
 

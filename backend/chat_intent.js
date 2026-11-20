@@ -372,6 +372,9 @@ export function textoLista(equipamentos, filtro = 'todos') {
     return `Encontrei ${n} ${n === 1 ? 'equipamento' : 'equipamentos'}: ${juntar(partes)}.`;
 }
 
+/** "20/11/2026 (sexta-feira), das 10:00 às 11:00" — um horário livre sugerido pelo backend. */
+export const textoHorarioLivre = ({ date, time, endTime }) => `${dataPorExtenso(date)}, das ${time} às ${endTime}`;
+
 /** Texto do resultado de executarSolicitacaoReserva (acoes_chat.js), por código. */
 export function textoReserva(resultado) {
     if (resultado.ok) {
@@ -392,7 +395,14 @@ export function textoReserva(resultado) {
         case 'FALTA_FINALIDADE': return 'Para reservar, informe a finalidade do uso (ex.: "protótipo do projeto integrador").';
         case 'FORA_DO_HORARIO': return `O laboratório funciona das ${detalhe}. Escolha um horário nesse intervalo:`;
         case 'REGRA_TEMPORAL': return `Não deu para reservar: ${detalhe}`;
-        case 'CONFLITO': return `Já existe uma reserva de ${equipamento} em ${dataPorExtenso(date)} nesse horário. Escolha outro horário:`;
+        case 'CONFLITO': {
+            const base = `Já existe uma reserva de ${equipamento} em ${dataPorExtenso(date)} nesse horário.`;
+            const livres = resultado.alternativas ?? [];
+            // RN07: os horários vêm prontos do backend (reservas.js); aqui só viram texto.
+            return livres.length
+                ? `${base} Horários livres com a mesma duração: ${livres.map(textoHorarioLivre).join('; ')}. Peça um deles ou escolha outro:`
+                : `${base} Escolha outro horário:`;
+        }
         case 'LIMITE': return `Você já tem ${detalhe} reservas ativas, que é o limite. Cancele uma no seu Perfil antes de pedir outra.`;
         default: return 'Não consegui registrar a reserva agora. Tente de novo em instantes.';
     }

@@ -7,20 +7,28 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { authMiddleware, optionalAuthMiddleware, roleMiddleware } from './middlewares/auth.js';
 import { STATUS, ehManutencao } from './status.js';
-import { HORA_ABERTURA, HORA_FECHAMENTO, clausulaDeConflito, horarioValido, paraMinutos } from './horarios.js';
+import { HORA_ABERTURA, HORA_FECHAMENTO, horarioValido, paraMinutos } from './horarios.js';
 import { buscarBloqueioQueImpede, criarBloqueioSeNovo, motivoDoBloqueio, normalizarEquipmentId } from './bloqueios.js';
-import { validarRegrasTemporais, contarReservasAtivas, sujeitoAoLimite, podeCancelar, REGRAS_RESERVA } from './config-reservas.js';
+import { validarRegrasTemporais, podeCancelar, REGRAS_RESERVA, REGRAS_PADRAO, FAIXAS_REGRAS, salvarRegras } from './config-reservas.js';
 import { JWT_SECRET } from './config-jwt.js';
-import { contaBloqueada, aposSenhaErrada } from './auth-regras.js';
+import { contaBloqueada, aposSenhaErrada, senhaTemporariaExpirada, validadeSenhaTemporaria, gerarSenhaTemporaria } from './auth-regras.js';
 import { validarEmailInstitucional, validarSenha } from './validacao-cadastro.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { executarConsultaEquipamentos, executarConsultaReservas, executarSolicitacaoReserva } from './acoes_chat.js';
+import { registrarAuditoria as gravarAuditoria, detalhe, ACOES } from './auditoria.js';
+import { notificar, enviarEmail, escaparHtml } from './notificacoes.js';
+import { gravarReserva, horariosAlternativos, notificarAvaliadores, textoAlternativas } from './reservas.js';
+import { podeAvaliar, gravarEscopo } from './escopo.js';
+import {
+    lerAcervo, salvarAcervo, normalizarAcesso, filtrarPorAcesso, rotuloDoArquivo, versaoVigente, acessoDoArquivo,
+    NIVEIS_ACESSO, ROTULOS_ACESSO,
+} from './acervo.js';
 import {
     precisaDeFerramentas, promptClassificador, schemaClassificador, sanitizar, classificarLocal,
-    validarEntrada, hojeISO, TEXTOS, textoFaltamDados, textoLista, listarParaCard, textoReserva, resumoParaHistorico,
+    validarEntrada, hojeISO, dataValida, TEXTOS, textoFaltamDados, textoLista, listarParaCard, textoReserva, resumoParaHistorico,
     textoPrevia, textoReservas,
 } from './chat_intent.js';
 import {
@@ -38,6 +46,10 @@ const VECTOR_CACHE_PATH = path.join(__dirname, 'vector_cache.json');
 const app = express();
 const PORT = 3000;
 const JWT_EXPIRATION = '15m'; // RNF04 — access token 15 min (política definitiva)
+// Hash de uma senha qualquer, só para o login de e-mail inexistente gastar o mesmo tempo.
+const HASH_FICTICIO = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 12);
+// RF14 — únicas decisões que professor/admin podem gravar numa reserva pendente.
+const DECISOES_DE_AVALIACAO = ['APROVADA', 'REJEITADA'];
 
 async function invalidarSessoesDoUsuario(userId) {
     await prisma.$transaction([
@@ -96,76 +108,13 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 const prisma = new PrismaClient();
 console.log('✅ Prisma ORM conectado ao banco SQLite.');
 
-// --- E-MAIL (OPCIONAL - nodemailer) ---
-let emailTransporter = null;
-try {
-    const nodemailer = await import('nodemailer');
-    if (process.env.SMTP_HOST) {
-        emailTransporter = nodemailer.default.createTransport({
-            host: process.env.SMTP_HOST,
-            port: parseInt(process.env.SMTP_PORT || '587'),
-            secure: process.env.SMTP_SECURE === 'true',
-            auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-        });
-        console.log('📧 Transporte de e-mail configurado.');
-    } else {
-        console.log('⚠️ SMTP não configurado. E-mails serão apenas logados no console.');
-    }
-} catch {
-    console.log('⚠️ nodemailer não instalado. Execute: npm install nodemailer');
-}
+// --- NOTIFICAÇÕES (RF12/RF13) ---
+// Tela + e-mail opcional, no módulo notificacoes.js (o chat usa o mesmo caminho).
+const createNotification = (userId, type, message, relatedId = null) => notificar(prisma, userId, type, message, relatedId);
 
-async function sendEmailNotification(to, subject, message) {
-    if (!emailTransporter) {
-        console.log(`📧 [LOG] Email para ${to} | Assunto: ${subject} | ${message}`);
-        return;
-    }
-    try {
-        await emailTransporter.sendMail({
-            from: process.env.SMTP_FROM || 'noreply@academai.local',
-            to, subject,
-            html: `<div style="font-family:sans-serif;padding:20px;"><h2>${subject}</h2><p>${message}</p><hr><small>AcademAI - Sistema de Reservas</small></div>`
-        });
-        console.log(`📧 Email enviado para ${to}`);
-    } catch (e) {
-        console.error('❌ Erro ao enviar e-mail:', e.message);
-    }
-}
-
-// --- HELPER: CRIAR NOTIFICAÇÃO + E-MAIL ---
-async function createNotification(userId, type, message, relatedId = null) {
-    try {
-        const notification = await prisma.notification.create({
-            data: { userId: parseInt(userId), type, message, relatedId }
-        });
-        // Tenta enviar e-mail também
-        const user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
-        if (user) {
-            const subjectMap = {
-                'RESERVA_APROVADA': '✅ Reserva Aprovada',
-                'RESERVA_REJEITADA': '❌ Reserva Rejeitada',
-                'NOVA_PENDENTE': '⏳ Nova Reserva Pendente',
-                'RESERVA_CANCELADA': '🚫 Reserva Cancelada',
-            };
-            await sendEmailNotification(user.email, subjectMap[type] || type, message);
-        }
-        return notification;
-    } catch (e) {
-        console.error('❌ Erro ao criar notificação:', e.message);
-    }
-}
-
-// Registro de auditoria (RF07). Nunca deve derrubar a operação principal:
-// falha ao logar vira apenas um aviso no console.
-async function registrarAuditoria({ action, actorUserId = null, targetUserId = null, detail = null, ip = null }) {
-    try {
-        await prisma.auditLog.create({
-            data: { action, actorUserId, targetUserId, detail, ip },
-        });
-    } catch (e) {
-        console.error('⚠️ Falha ao registrar auditoria:', e.message);
-    }
-}
+// Registro de auditoria (RF07, RF17, RNF17, RNF30) — módulo auditoria.js.
+// Nunca derruba a operação principal: falha ao logar vira aviso no console.
+const registrarAuditoria = (evento) => gravarAuditoria(prisma, evento);
 
 /** IP da requisição, para a trilha de auditoria. */
 function ipDaRequisicao(req) {
@@ -471,20 +420,30 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
-        const user = await prisma.user.findUnique({ where: { email } });
+        const user = typeof email === 'string' ? await prisma.user.findUnique({ where: { email } }) : null;
         const credenciaisInvalidas = "E-mail ou senha inválidos.";
-        if (!user) return res.status(401).json({ error: credenciaisInvalidas });
-        if (!user.isActive) return res.status(403).json({ error: "Conta desativada. Contate o administrador." });
+        if (!user) {
+            // RF02: mesmo custo de bcrypt para e-mail inexistente, para o tempo de
+            // resposta não revelar quais e-mails têm conta.
+            await bcrypt.compare(String(password ?? ''), HASH_FICTICIO);
+            return res.status(401).json({ error: credenciaisInvalidas });
+        }
         // Regras do bloqueio em auth-regras.js (testadas sem servidor).
         if (contaBloqueada(user)) {
             return res.status(429).json({ error: "Muitas tentativas inválidas. Tente novamente mais tarde." });
         }
-        if (!(await bcrypt.compare(password, user.password))) {
+        if (!(await bcrypt.compare(String(password ?? ''), user.password))) {
             await prisma.user.update({
                 where: { id: user.id },
                 data: aposSenhaErrada(user),
             });
             return res.status(401).json({ error: credenciaisInvalidas });
+        }
+        // Só depois da senha certa: "conta desativada" não serve para descobrir e-mails.
+        if (!user.isActive) return res.status(403).json({ error: "Conta desativada. Contate o administrador." });
+        // RF07: senha temporária vale 60 min.
+        if (senhaTemporariaExpirada(user)) {
+            return res.status(401).json({ error: "A senha temporária expirou. Solicite uma nova recuperação de senha ou procure um administrador." });
         }
         await prisma.user.update({
             where: { id: user.id },
@@ -580,7 +539,11 @@ app.post('/api/change-password', authMiddleware, async (req, res) => {
         // a senha de qualquer conta (inclusive admin) sem estar logado.
         const userId = req.userId;
         if (!newPassword) return res.status(400).json({ error: "Informe a nova senha." });
-        if (newPassword.length < 8) return res.status(400).json({ error: "A nova senha deve ter no mínimo 8 caracteres." });
+        // RF07: a nova senha segue a mesma política do cadastro (RF01) —
+        // mínimo de 8 caracteres, com letras e números. Antes só o tamanho
+        // era conferido e "abcdefgh" era aceita.
+        const erroNovaSenha = validarSenha(newPassword);
+        if (erroNovaSenha) return res.status(400).json({ error: erroNovaSenha });
 
         const user = await prisma.user.findUnique({ where: { id: userId } });
         if (!user) return res.status(404).json({ error: "Usuário não encontrado." });
@@ -597,7 +560,7 @@ app.post('/api/change-password', authMiddleware, async (req, res) => {
         const hashedNew = await bcrypt.hash(newPassword, 12); // RNF03
         await prisma.user.update({
             where: { id: userId },
-            data: { password: hashedNew, isTempPassword: 0 }
+            data: { password: hashedNew, isTempPassword: 0, tempPasswordExpiresAt: null }
         });
         await invalidarSessoesDoUsuario(userId);
         clearRefreshCookie(res);
@@ -627,13 +590,13 @@ app.post('/api/reset-password', async (req, res) => {
         // qualquer um com um e-mail assumia a conta lendo a resposta.
         const mensagemGenerica = "Se existir uma conta com esse e-mail, enviamos as instruções de recuperação. Em ambiente sem e-mail, procure um administrador.";
 
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (user) {
-            const tempPassword = Math.random().toString(36).slice(-8);
+        const user = typeof email === 'string' ? await prisma.user.findUnique({ where: { email } }) : null;
+        if (user && user.isActive) {
+            const tempPassword = gerarSenhaTemporaria();
             const hashedTemp = await bcrypt.hash(tempPassword, 12); // RNF03
             await prisma.user.update({
                 where: { id: user.id },
-                data: { password: hashedTemp, isTempPassword: 1 }
+                data: { password: hashedTemp, isTempPassword: 1, tempPasswordExpiresAt: validadeSenhaTemporaria() }
             });
             await invalidarSessoesDoUsuario(user.id);
             await registrarAuditoria({
@@ -644,10 +607,10 @@ app.post('/api/reset-password', async (req, res) => {
             });
             // Entrega SO por e-mail. Sem SMTP, a senha fica apenas no log do
             // servidor; a recuperacao offline e feita pelo admin (rota abaixo).
-            await sendEmailNotification(
-                email,
+            await enviarEmail(
+                user.email,
                 'AcademAI - Recuperação de Senha',
-                `Sua senha temporária é: <strong>${tempPassword}</strong><br>Ao fazer login, você será solicitado a criar uma nova senha.`
+                `Sua senha temporária é: <strong>${escaparHtml(tempPassword)}</strong><br>Ela vale por 60 minutos. Ao fazer login, você será solicitado a criar uma nova senha.`
             );
         }
         res.json({ message: mensagemGenerica });
@@ -667,11 +630,11 @@ app.post('/api/users/:id/reset-password', authMiddleware, roleMiddleware(['ADMIN
         const alvo = await prisma.user.findUnique({ where: { id: alvoId } });
         if (!alvo) return res.status(404).json({ error: "Usuário não encontrado." });
 
-        const tempPassword = Math.random().toString(36).slice(-8);
+        const tempPassword = gerarSenhaTemporaria();
         const hashedTemp = await bcrypt.hash(tempPassword, 12); // RNF03
         await prisma.user.update({
             where: { id: alvoId },
-            data: { password: hashedTemp, isTempPassword: 1 }
+            data: { password: hashedTemp, isTempPassword: 1, tempPasswordExpiresAt: validadeSenhaTemporaria() }
         });
         await invalidarSessoesDoUsuario(alvoId);
         await registrarAuditoria({
@@ -682,7 +645,7 @@ app.post('/api/users/:id/reset-password', authMiddleware, roleMiddleware(['ADMIN
             ip: ipDaRequisicao(req),
         });
         res.json({
-            message: `Senha temporária de ${alvo.name} gerada. Repasse ao usuário: ele trocará no próximo login.`,
+            message: `Senha temporária de ${alvo.name} gerada. Ela vale por 60 minutos; repasse ao usuário, que a trocará no próximo login.`,
             tempPassword,
         });
     } catch (error) {
@@ -693,23 +656,27 @@ app.post('/api/users/:id/reset-password', authMiddleware, roleMiddleware(['ADMIN
 
 // --- GESTÃO DE USUÁRIOS (RF04) ---
 
+// Campos de usuário que podem sair da API (nunca hash de senha nem dados de sessão).
+const CAMPOS_PUBLICOS_USUARIO = {
+    id: true, name: true, email: true, ra: true, role: true, trainings: true, isActive: true, escopoAprovacao: true,
+};
+const semSegredos = (u) => u && Object.fromEntries(Object.keys(CAMPOS_PUBLICOS_USUARIO).map((k) => [k, u[k]]));
+
 // GET /api/users (RNF05 - protegido)
 app.get('/api/users', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
     try {
-        const users = await prisma.user.findMany({
-            select: { id: true, name: true, email: true, ra: true, role: true, trainings: true, isActive: true }
-        });
+        const users = await prisma.user.findMany({ select: CAMPOS_PUBLICOS_USUARIO });
         res.json(users);
     } catch {
         res.status(500).json({ error: "Erro ao buscar usuários." });
     }
 });
 
-// PUT /api/users/:id (RF04 - protegido, permite alterar perfil)
+// PUT /api/users/:id (RF04 - protegido, permite alterar perfil e escopo do professor)
 app.put('/api/users/:id', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
     try {
         const userId = parseInt(req.params.id);
-        const { name, email, ra, trainings, role } = req.body;
+        const { name, email, ra, trainings, role, escopoAprovacao } = req.body;
         const existingUser = await prisma.user.findUnique({ where: { id: userId } });
         if (!existingUser) return res.status(404).json({ error: "Usuário não encontrado." });
 
@@ -727,23 +694,43 @@ app.put('/api/users/:id', authMiddleware, roleMiddleware(['ADMIN']), async (req,
                 }
             }
         }
+        if (email !== undefined && email !== existingUser.email) {
+            const erroEmail = validarEmailInstitucional(email);
+            if (erroEmail) return res.status(400).json({ error: erroEmail });
+        }
 
         const updateData = {
-            name, email,
+            name: typeof name === 'string' && name.trim() ? name.trim() : existingUser.name,
+            email: email ?? existingUser.email,
             ra: ra || null,
             trainings: trainings !== undefined ? trainings : existingUser.trainings
         };
         if (role) updateData.role = role; // RF04 — admin pode alterar perfil do usuário
+        // RN02 — escopo de aprovação do professor (lista de modelos; vazio = todos)
+        if (escopoAprovacao !== undefined) updateData.escopoAprovacao = gravarEscopo(escopoAprovacao);
 
         const updatedUser = await prisma.user.update({ where: { id: userId }, data: updateData });
-        res.json({ message: "Usuário atualizado com sucesso!", user: updatedUser });
-    } catch {
+        const mudou = Object.keys(updateData).filter((k) => String(updateData[k] ?? '') !== String(existingUser[k] ?? ''));
+        if (mudou.length) {
+            await registrarAuditoria({
+                action: ACOES.USUARIO_ALTERADO,
+                actorUserId: req.userId,
+                targetUserId: userId,
+                detail: detalhe({ campos: mudou.join(','), perfil: updateData.role, escopo: updateData.escopoAprovacao }),
+                ip: ipDaRequisicao(req),
+            });
+        }
+        res.json({ message: "Usuário atualizado com sucesso!", user: semSegredos(updatedUser) });
+    } catch (error) {
+        if (error?.code === 'P2002') return res.status(400).json({ error: "E-mail ou RA já cadastrados para outro usuário." });
         res.status(500).json({ error: "Erro ao atualizar usuário." });
     }
 });
 
 
 // DELETE /api/users/:id (RNF05 - protegido)
+// RF17: o histórico de reservas é imutável. Usuário que já reservou não é
+// excluído (isso apagaria o histórico); o caminho é anonimizar (RNF28).
 app.delete('/api/users/:id', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
     try {
         const userId = parseInt(req.params.id);
@@ -751,12 +738,106 @@ app.delete('/api/users/:id', authMiddleware, roleMiddleware(['ADMIN']), async (r
         if (!existingUser) return res.status(404).json({ error: "Usuário não encontrado." });
         if (existingUser.role === 'ADMIN') return res.status(403).json({ error: "Perfis de administrador não podem ser excluídos." });
 
+        const reservas = await prisma.appointment.count({ where: { userId } });
+        if (reservas > 0) {
+            return res.status(409).json({
+                error: `Este usuário tem ${reservas} reserva(s) no histórico, que é imutável. Use "Anonimizar" para remover os dados pessoais e manter o histórico.`,
+                podeAnonimizar: true,
+            });
+        }
+
         await prisma.notification.deleteMany({ where: { userId } });
-        await prisma.appointment.deleteMany({ where: { userId } });
         await prisma.user.delete({ where: { id: userId } });
+        await registrarAuditoria({
+            action: ACOES.USUARIO_EXCLUIDO, actorUserId: req.userId, targetUserId: userId,
+            detail: detalhe({ perfil: existingUser.role }), ip: ipDaRequisicao(req),
+        });
         res.json({ message: "Usuário excluído com sucesso!" });
     } catch {
         res.status(500).json({ error: "Erro ao excluir usuário." });
+    }
+});
+
+// POST /api/users/:id/anonimizar (RNF28 — eliminação de dados pessoais a pedido do titular)
+// Troca nome, e-mail e RA por marcadores, desativa a conta, encerra as sessões,
+// apaga as notificações e cancela as reservas futuras. O histórico de reservas
+// fica, mas sem identificar a pessoa (RF17 + LGPD).
+app.post('/api/users/:id/anonimizar', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id);
+        const alvo = await prisma.user.findUnique({ where: { id: userId } });
+        if (!alvo) return res.status(404).json({ error: "Usuário não encontrado." });
+        if (userId === req.userId) return res.status(400).json({ error: "Você não pode anonimizar a própria conta." });
+        if (alvo.role === 'ADMIN' && alvo.isActive) {
+            const ativos = await prisma.user.count({ where: { role: 'ADMIN', isActive: true } });
+            if (ativos <= 1) return res.status(400).json({ error: "Não é possível anonimizar o único administrador ativo." });
+        }
+
+        const hoje = hojeISO();
+        const senhaAleatoria = await bcrypt.hash(crypto.randomBytes(24).toString('hex'), 12);
+        const [, canceladas] = await prisma.$transaction([
+            prisma.user.update({
+                where: { id: userId },
+                data: {
+                    name: `Usuário anonimizado #${userId}`,
+                    email: `anonimizado-${userId}@anonimizado.invalid`,
+                    ra: null,
+                    trainings: '',
+                    escopoAprovacao: '',
+                    password: senhaAleatoria,
+                    isActive: false,
+                    isTempPassword: 0,
+                    tempPasswordExpiresAt: null,
+                    sessionVersion: { increment: 1 },
+                },
+            }),
+            prisma.appointment.updateMany({
+                where: { userId, status: { in: ['PENDENTE', 'APROVADA'] }, date: { gte: hoje } },
+                data: { status: 'CANCELADA' },
+            }),
+            prisma.notification.deleteMany({ where: { userId } }),
+            prisma.refreshToken.deleteMany({ where: { userId } }),
+        ]);
+        await registrarAuditoria({
+            action: ACOES.USUARIO_ANONIMIZADO, actorUserId: req.userId, targetUserId: userId,
+            detail: detalhe({ reservas_futuras_canceladas: canceladas.count }), ip: ipDaRequisicao(req),
+        });
+        res.json({ message: `Dados pessoais removidos. ${canceladas.count} reserva(s) futura(s) cancelada(s); o histórico foi mantido sem identificação.` });
+    } catch (error) {
+        console.error("Erro ao anonimizar usuário:", error);
+        res.status(500).json({ error: "Erro ao anonimizar usuário." });
+    }
+});
+
+// GET /api/users/:id/dados (RNF28 — acesso do titular aos próprios dados)
+// O próprio usuário ou um administrador baixam, em JSON, os dados pessoais, as
+// reservas e as notificações. A exportação fica registrada (RNF30).
+app.get('/api/users/:id/dados', authMiddleware, async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id);
+        if (isNaN(userId)) return res.status(400).json({ error: "ID inválido" });
+        const solicitante = await prisma.user.findUnique({ where: { id: req.userId } });
+        if (userId !== req.userId && solicitante?.role !== 'ADMIN') {
+            return res.status(403).json({ error: "Você só pode exportar os seus próprios dados." });
+        }
+        const usuario = await prisma.user.findUnique({ where: { id: userId }, select: CAMPOS_PUBLICOS_USUARIO });
+        if (!usuario) return res.status(404).json({ error: "Usuário não encontrado." });
+        const [reservas, notificacoes] = await Promise.all([
+            prisma.appointment.findMany({
+                where: { userId },
+                select: { id: true, date: true, time: true, endTime: true, status: true, justification: true, rejectionReason: true, createdAt: true, equipment: { select: { name: true } } },
+                orderBy: { id: 'asc' },
+            }),
+            prisma.notification.findMany({ where: { userId }, select: { type: true, message: true, isRead: true, createdAt: true }, orderBy: { id: 'asc' } }),
+        ]);
+        await registrarAuditoria({
+            action: ACOES.DADOS_EXPORTADOS, actorUserId: req.userId, targetUserId: userId, ip: ipDaRequisicao(req),
+        });
+        res.setHeader('Content-Disposition', `attachment; filename="academai-dados-usuario-${userId}.json"`);
+        res.json({ geradoEm: new Date().toISOString(), usuario, reservas, notificacoes });
+    } catch (error) {
+        console.error("Erro ao exportar dados:", error);
+        res.status(500).json({ error: "Erro ao exportar dados." });
     }
 });
 
@@ -767,7 +848,7 @@ app.put('/api/users/:id/toggle-active', authMiddleware, roleMiddleware(['ADMIN']
         const user = await prisma.user.findUnique({ where: { id: userId } });
         if (!user) return res.status(404).json({ error: "Usuário não encontrado." });
 
-        // Não permitir desativar o próprio admin
+        // RN05: não permitir desativar o único administrador ativo
         if (user.role === 'ADMIN') {
             const activeAdmins = await prisma.user.count({ where: { role: 'ADMIN', isActive: true } });
             if (activeAdmins <= 1 && user.isActive) {
@@ -779,7 +860,11 @@ app.put('/api/users/:id/toggle-active', authMiddleware, roleMiddleware(['ADMIN']
             where: { id: userId },
             data: { isActive: !user.isActive }
         });
-        res.json({ message: `Conta ${updated.isActive ? 'ativada' : 'desativada'} com sucesso!`, user: updated });
+        await registrarAuditoria({
+            action: updated.isActive ? ACOES.USUARIO_ATIVADO : ACOES.USUARIO_DESATIVADO,
+            actorUserId: req.userId, targetUserId: userId, ip: ipDaRequisicao(req),
+        });
+        res.json({ message: `Conta ${updated.isActive ? 'ativada' : 'desativada'} com sucesso!`, user: semSegredos(updated) });
     } catch {
         res.status(500).json({ error: "Erro ao alterar status da conta." });
     }
@@ -789,6 +874,15 @@ app.put('/api/users/:id/toggle-active', authMiddleware, roleMiddleware(['ADMIN']
 app.get('/api/users/:id/stats', authMiddleware, async (req, res) => {
     try {
         const userId = parseInt(req.params.id);
+        if (isNaN(userId)) return res.status(400).json({ error: "ID inválido" });
+
+        // RNF30: só o dono ou um ADMIN veem as estatísticas de um usuário, como
+        // em GET /api/appointments/:userId. Antes qualquer pessoa logada lia as
+        // horas de uso e os treinamentos de qualquer id (IDOR).
+        const solicitante = await prisma.user.findUnique({ where: { id: req.userId } });
+        if (userId !== req.userId && solicitante?.role !== 'ADMIN') {
+            return res.status(403).json({ error: "Você só pode ver as suas próprias estatísticas." });
+        }
 
         // Semestre atual: Jan-Jun ou Jul-Dez
         const now = new Date();
@@ -892,6 +986,10 @@ app.post('/api/equipment', authMiddleware, roleMiddleware(['ADMIN']), upload.sin
             });
             created.push(unit);
         }
+        await registrarAuditoria({
+            action: ACOES.EQUIPAMENTO_CRIADO, actorUserId: req.userId,
+            detail: detalhe({ modelo, unidades: created.length, status: status || STATUS.DISPONIVEL }), ip: ipDaRequisicao(req),
+        });
         res.status(201).json({ message: "Equipamento(s) salvo(s)!", equipment: created });
     } catch (error) {
         console.error("Erro ao criar equipamento:", error);
@@ -937,13 +1035,14 @@ app.put('/api/equipment/:id', authMiddleware, roleMiddleware(['ADMIN']), upload.
                 });
             }
         } else {
-            // RN06 - Verificar se unidades a remover possuem reservas ativas
+            // RF05/RN06/RF17 - unidades com reservas (ativas ou no histórico) não são
+            // removidas: apagar a unidade apagaria o histórico. Use o status Manutenção.
             const idsToDelete = groupItems.slice(newQuantity).map(item => item.id);
-            const activeReservations = await prisma.appointment.count({
-                where: { equipmentId: { in: idsToDelete }, status: { in: ['PENDENTE', 'APROVADA'] } }
+            const reservasDasUnidades = await prisma.appointment.count({
+                where: { equipmentId: { in: idsToDelete } }
             });
-            if (activeReservations > 0) {
-                return res.status(400).json({ error: `Não é possível reduzir a quantidade. ${activeReservations} unidade(s) possuem reservas ativas (pendentes ou aprovadas).` });
+            if (reservasDasUnidades > 0) {
+                return res.status(400).json({ error: `Não é possível reduzir a quantidade: as unidades que seriam removidas têm ${reservasDasUnidades} reserva(s) no histórico. Para tirá-las de uso, altere o status para Manutenção.` });
             }
 
             for (let i = 0; i < newQuantity; i++) {
@@ -952,9 +1051,12 @@ app.put('/api/equipment/:id', authMiddleware, roleMiddleware(['ADMIN']), upload.
                     data: { name: nomeDaUnidade(novoModelo, i, newQuantity), modelo: novoModelo, description: fullDescription, status: status || groupItems[i].status, imagePath: newImagePath }
                 });
             }
-            await prisma.appointment.deleteMany({ where: { equipmentId: { in: idsToDelete } } });
             await prisma.equipment.deleteMany({ where: { id: { in: idsToDelete } } });
         }
+        await registrarAuditoria({
+            action: ACOES.EQUIPAMENTO_ALTERADO, actorUserId: req.userId,
+            detail: detalhe({ modelo: novoModelo, unidades: newQuantity, status: status || target.status }), ip: ipDaRequisicao(req),
+        });
         res.json({ message: "Equipamento atualizado com sucesso!" });
     } catch (error) {
         console.error("Erro ao atualizar equipamento:", error);
@@ -968,17 +1070,26 @@ app.delete('/api/equipment/:id', authMiddleware, roleMiddleware(['ADMIN']), asyn
         const target = await prisma.equipment.findUnique({ where: { id: equipmentId } });
         if (!target) return res.status(404).json({ error: "Equipamento não encontrado." });
         
+        // RF05/RN06: com reservas ativas a exclusão é bloqueada; RF17: com reservas
+        // no histórico também, porque excluir o recurso apagaria esse histórico.
+        // Nos dois casos o caminho é desativar o recurso (status Manutenção).
         const activeReservations = await prisma.appointment.count({
             where: { equipmentId, status: { in: ['PENDENTE', 'APROVADA'] } }
         });
-        
         if (activeReservations > 0) {
-            return res.status(400).json({ error: `Não é possível excluir. Existem ${activeReservations} reserva(s) ativa(s) para este equipamento.` });
+            return res.status(400).json({ error: `Não é possível excluir. Existem ${activeReservations} reserva(s) ativa(s) para este equipamento. Para tirá-lo de uso, altere o status para Manutenção.` });
         }
-        
-        await prisma.appointment.deleteMany({ where: { equipmentId } });
+        const historico = await prisma.appointment.count({ where: { equipmentId } });
+        if (historico > 0) {
+            return res.status(400).json({ error: `Não é possível excluir: o equipamento tem ${historico} reserva(s) no histórico, que é imutável. Para tirá-lo de uso, altere o status para Manutenção.` });
+        }
+
         await prisma.equipment.delete({ where: { id: equipmentId } });
-        
+        await registrarAuditoria({
+            action: ACOES.EQUIPAMENTO_EXCLUIDO, actorUserId: req.userId,
+            detail: detalhe({ equipamento: target.name }), ip: ipDaRequisicao(req),
+        });
+
         res.json({ message: "Equipamento excluído com sucesso!" });
     } catch (error) {
         console.error("Erro ao excluir equipamento:", error);
@@ -997,6 +1108,7 @@ app.post('/api/schedule', authMiddleware, async (req, res) => {
         if (!equipmentId || !date || !time) {
             return res.status(400).json({ error: "Equipamento, data e horário são obrigatórios." });
         }
+        if (!dataValida(date)) return res.status(400).json({ error: "Data inválida. Use o formato AAAA-MM-DD." });
         // RF08: a finalidade é obrigatória (o formulário já exigia; a API não).
         if (typeof justification !== 'string' || !justification.trim()) {
             return res.status(400).json({ error: "Informe a finalidade do uso." });
@@ -1034,68 +1146,32 @@ app.post('/api/schedule', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: regras.erro });
         }
 
-        // RF16 - Verificar conflito de horário
-        const conflicting = await prisma.appointment.findFirst({
-            where: {
-                equipmentId: eqId,
-                date: date,
-                status: { in: ['PENDENTE', 'APROVADA'] },
-                OR: clausulaDeConflito(time, endTime)
-            }
-        });
-        if (conflicting) {
-            return res.status(409).json({ error: "Conflito de horário! Já existe uma reserva para este equipamento neste período." });
-        }
-
-        // RF11 - Aprovação automática para PROFESSOR e ADMIN
         const user = await prisma.user.findUnique({ where: { id: uId } });
+        if (!user) return res.status(401).json({ error: "Usuário não autenticado." });
 
-        // RF08 - Limite de reservas ativas simultâneas (só ALUNO; staff isento).
-        if (user && sujeitoAoLimite(user.role)) {
-            const hojeISO = new Date().toISOString().slice(0, 10);
-            const ativas = await contarReservasAtivas(prisma, uId, hojeISO);
-            if (ativas >= REGRAS_RESERVA.limiteReservasAtivas) {
-                return res.status(409).json({
-                    error: `Você atingiu o limite de ${REGRAS_RESERVA.limiteReservasAtivas} reservas ativas. Cancele ou aguarde a conclusão de uma antes de solicitar outra.`,
-                });
-            }
-        }
-
-        const autoApprove = user && (user.role === 'PROFESSOR' || user.role === 'ADMIN');
-        const reservaStatus = autoApprove ? 'APROVADA' : 'PENDENTE';
-
-        const newAppointment = await prisma.appointment.create({
-            data: {
-                date, time,
-                endTime,
-                justification: justification.trim().slice(0, 500),
-                status: reservaStatus,
-                userId: uId,
-                equipmentId: eqId,
-                approvedById: autoApprove ? uId : null
-            }
+        // RF16/RN03 + RF08: conflito, limite de reservas ativas e gravação numa
+        // transação, sob trava (reservas.js) — o mesmo caminho do chat.
+        // RF11: PROFESSOR e ADMIN são aprovados automaticamente; ALUNO fica PENDENTE.
+        // RF12/RF13: notificações (tela + e-mail) e auditoria saem de lá.
+        const gravada = await gravarReserva(prisma, {
+            usuario: user, equipamento: equipment, date, time, endTime, justification, origem: 'formulario',
         });
-
-        // RF12 - Notificar o próprio usuário
-        if (autoApprove) {
-            await createNotification(uId, 'RESERVA_APROVADA',
-                `Sua reserva foi aprovada automaticamente para ${date} às ${time}.`, newAppointment.id);
-        } else {
-            await createNotification(uId, 'NOVA_PENDENTE',
-                `Sua reserva para ${date} às ${time} foi enviada e aguarda aprovação.`, newAppointment.id);
-
-            // RF13 - Notificar professores e admins sobre nova pendente
-            const approvers = await prisma.user.findMany({
-                where: { role: { in: ['PROFESSOR', 'ADMIN'] }, isActive: true }
+        if (!gravada.ok && gravada.codigo === 'CONFLITO') {
+            // RN07: horários livres calculados pelo backend.
+            const alternativas = await horariosAlternativos(prisma, { equipmentId: eqId, date, time, endTime });
+            const sugestao = alternativas.length ? ` Horários livres com a mesma duração: ${textoAlternativas(alternativas)}.` : '';
+            return res.status(409).json({
+                error: `Conflito de horário! Já existe uma reserva para este equipamento neste período.${sugestao}`,
+                alternativas,
             });
-            for (const approver of approvers) {
-                await createNotification(approver.id, 'NOVA_PENDENTE',
-                    `${user.name} solicitou reserva de equipamento para ${date} às ${time}. Aguarda sua aprovação.`,
-                    newAppointment.id);
-            }
         }
-
-        const msg = autoApprove
+        if (!gravada.ok) {
+            return res.status(409).json({
+                error: `Você atingiu o limite de ${gravada.detalhe} reservas ativas. Cancele ou aguarde a conclusão de uma antes de solicitar outra.`,
+            });
+        }
+        const newAppointment = gravada.reserva;
+        const msg = newAppointment.status === 'APROVADA'
             ? "Reserva aprovada automaticamente!"
             : "Reserva solicitada com sucesso! Aguarde aprovação.";
         res.status(201).json({ message: msg, appointment: newAppointment });
@@ -1129,12 +1205,15 @@ app.get('/api/appointments/pending', authMiddleware, roleMiddleware(['ADMIN', 'P
         const pendingAppointments = await prisma.appointment.findMany({
             where: { status: "PENDENTE" },
             include: {
-                user: { select: { name: true, ra: true, email: true } },
-                equipment: { select: { name: true } }
+                user: { select: { name: true, ra: true, email: true, role: true } },
+                equipment: { select: { name: true, modelo: true } }
             },
             orderBy: { createdAt: 'desc' }
         });
-        res.json(pendingAppointments);
+        // RN02: o professor só vê o que pode avaliar (reservas de estudantes, no seu escopo).
+        const avaliador = await prisma.user.findUnique({ where: { id: req.userId } });
+        res.json(pendingAppointments.filter((a) =>
+            podeAvaliar(avaliador, { papelSolicitante: a.user.role, modelo: a.equipment.modelo })));
     } catch (error) {
         console.error("❌ Erro ao buscar pendentes:", error);
         res.status(500).json({ error: "Erro interno." });
@@ -1147,6 +1226,13 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
         const { status, rejectionReason } = req.body;
         const appointmentId = parseInt(req.params.id);
 
+        // RF09/RF14: a decisão do avaliador só pode ser APROVADA ou REJEITADA.
+        // Antes qualquer texto era gravado como status (ex.: "QUALQUER"), o que
+        // tirava a reserva do enum e a fazia sumir de pendentes e de conflitos.
+        if (!DECISOES_DE_AVALIACAO.includes(status)) {
+            return res.status(400).json({ error: "Status inválido. Use APROVADA ou REJEITADA." });
+        }
+
         // RF14 — justificativa OBRIGATORIA para rejeicao, opcional para aprovacao.
         // Antes o motivo era guardado so "se viesse"; uma rejeicao sem motivo
         // passava direto e o aluno nao sabia o porque.
@@ -1157,16 +1243,22 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
 
         const appointment = await prisma.appointment.findUnique({
             where: { id: appointmentId },
-            include: { user: { select: { role: true } } }
+            include: { user: { select: { role: true } }, equipment: { select: { name: true, modelo: true } } }
         });
         if (!appointment) return res.status(404).json({ error: "Reserva não encontrada." });
         if (appointment.status !== 'PENDENTE') {
             return res.status(400).json({ error: "Esta reserva já foi processada." });
         }
 
-        // RN02 - Professor só aprova reservas de ALUNOS
-        if (req.userRole === 'PROFESSOR' && appointment.user.role !== 'ALUNO') {
-            return res.status(403).json({ error: "Professores só podem aprovar ou rejeitar reservas de estudantes." });
+        // RN02 - Professor só aprova reservas de ALUNOS, dentro do escopo definido pelo administrador
+        if (req.userRole === 'PROFESSOR') {
+            const avaliador = await prisma.user.findUnique({ where: { id: req.userId } });
+            if (appointment.user.role !== 'ALUNO') {
+                return res.status(403).json({ error: "Professores só podem aprovar ou rejeitar reservas de estudantes." });
+            }
+            if (!podeAvaliar(avaliador, { papelSolicitante: 'ALUNO', modelo: appointment.equipment?.modelo })) {
+                return res.status(403).json({ error: "Este equipamento está fora do seu escopo de aprovação." });
+            }
         }
 
         // Aprovar so e permitido se o dia continuar livre. O bloqueio e checado
@@ -1198,9 +1290,22 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
             updateData.rejectionReason = motivoRejeicao;
         }
 
-        const updated = await prisma.appointment.update({
-            where: { id: appointmentId },
+        // RN02: a decisão só vale se a reserva ainda estiver PENDENTE no momento da
+        // gravação — dois avaliadores ao mesmo tempo não sobrescrevem um ao outro.
+        const gravou = await prisma.appointment.updateMany({
+            where: { id: appointmentId, status: 'PENDENTE' },
             data: updateData
+        });
+        if (gravou.count === 0) {
+            return res.status(400).json({ error: "Esta reserva já foi processada." });
+        }
+        const updated = await prisma.appointment.findUnique({ where: { id: appointmentId } });
+        await registrarAuditoria({
+            action: status === 'APROVADA' ? ACOES.RESERVA_APROVADA : ACOES.RESERVA_REJEITADA,
+            actorUserId: req.userId,
+            targetUserId: appointment.userId,
+            detail: detalhe({ reserva: appointmentId, equipamento: appointment.equipment?.name, data: appointment.date, inicio: appointment.time, motivo: motivoRejeicao }),
+            ip: ipDaRequisicao(req),
         });
 
         // RF12 - Notificar o solicitante
@@ -1395,16 +1500,23 @@ app.put('/api/appointments/:id/cancel', authMiddleware, async (req, res) => {
             data: { status: 'CANCELADA' }
         });
 
-        // Notifica admins/professores sobre o cancelamento
-        const approvers = await prisma.user.findMany({
-            where: { role: { in: ['PROFESSOR', 'ADMIN'] }, isActive: true }
+        await registrarAuditoria({
+            action: ACOES.RESERVA_CANCELADA,
+            actorUserId: userId,
+            targetUserId: userId,
+            detail: detalhe({ reserva: appointmentId, data: appointment.date, inicio: appointment.time, status_anterior: appointment.status }),
+            ip: ipDaRequisicao(req),
         });
-        const user = await prisma.user.findUnique({ where: { id: userId } });
-        for (const approver of approvers) {
-            await createNotification(approver.id, 'RESERVA_CANCELADA',
-                `${user?.name || 'Usuário'} cancelou a reserva para ${appointment.date} às ${appointment.time}.`,
-                appointmentId);
-        }
+
+        // Notifica administradores e os professores do escopo sobre o cancelamento
+        const equipamento = await prisma.equipment.findUnique({ where: { id: appointment.equipmentId } });
+        await notificarAvaliadores(prisma, {
+            papelSolicitante: requester?.role,
+            modelo: equipamento?.modelo,
+            tipo: 'RESERVA_CANCELADA',
+            mensagem: `${requester?.name || 'Usuário'} cancelou a reserva de ${equipamento?.name ?? 'equipamento'} para ${appointment.date} às ${appointment.time}.`,
+            relatedId: appointmentId,
+        });
 
         res.json({ message: "Reserva cancelada com sucesso!", appointment: updated });
     } catch (error) {
@@ -1527,8 +1639,13 @@ app.post('/api/train', authMiddleware, roleMiddleware(['ADMIN']), receberDocumen
     }
     if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado." });
 
-    const original = req.file.originalname;
+    // multer entrega o nome em latin1; converte para não estragar acentos ("Manual_Impressão.pdf").
+    const convertido = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    const original = convertido.includes('\uFFFD') ? req.file.originalname : convertido;
     const inputPath = req.file.path;
+    // RN12: nível de acesso escolhido no envio (padrão: todos).
+    const acesso = normalizarAcesso(req.body?.acesso);
+    const hashArquivo = crypto.createHash('sha256').update(fs.readFileSync(inputPath)).digest('hex');
     const ext = path.extname(original).toLowerCase();
     const formato = ext.slice(1).toUpperCase();
     // PDF/DOCX viram "<nome>.pdf.md"; MD/TXT são guardados como vieram.
@@ -1569,8 +1686,38 @@ app.post('/api/train', authMiddleware, roleMiddleware(['ADMIN']), receberDocumen
             return await recusar(422, 'nenhum fragmento pôde ser indexado.');
         }
 
+        // RN11: enviar um documento com o mesmo nome substitui o anterior — nova
+        // versão indexada e fragmentos da versão antiga retirados do índice.
+        const meta = lerAcervo();
+        let anterior = versaoVigente(meta, original);
+        if (!anterior && original !== nomeFinal && caminhoSeguroDoDocumento(original) && fs.existsSync(path.join(DOCUMENTS_PATH, original))) {
+            anterior = [original, { original, versao: 1 }]; // documento da base inicial, sem metadados
+        }
+        const versao = anterior ? (anterior[1].versao || 1) + 1 : 1;
+        if (anterior) {
+            const [nomeAntigo] = anterior;
+            const alvoAntigo = caminhoSeguroDoDocumento(nomeAntigo);
+            if (alvoAntigo) apagarSeExiste(alvoAntigo.caminho);
+            const sourceAntigo = sourceDoArquivo(nomeAntigo);
+            knowledgeBase = knowledgeBase.filter((b) => b.source !== sourceAntigo);
+            vectorStore = vectorStore.filter((v) => v.source !== sourceAntigo);
+            delete meta[nomeAntigo];
+            salvarCache();
+            await registrarAuditoria({
+                action: ACOES.DOCUMENTO_SUBSTITUIDO, actorUserId: req.userId,
+                detail: detalhe({ documento: original, versao_anterior: versao - 1, versao_nova: versao, arquivo_antigo: nomeAntigo, arquivo_novo: nomeFinal }),
+                ip: ipDaRequisicao(req),
+            });
+        }
+        meta[nomeFinal] = {
+            original, versao, acesso, hash: hashArquivo, enviadoPor: req.userId, enviadoEm: new Date().toISOString(),
+        };
+        salvarAcervo(meta);
+
         await logIngestao(req, true, original, {
             salvo_como: nomeFinal,
+            versao,
+            acesso,
             formato,
             paginas: conversao.paginas,
             tabelas: conversao.tabelas,
@@ -1582,8 +1729,10 @@ app.post('/api/train', authMiddleware, roleMiddleware(['ADMIN']), receberDocumen
             tempo_total_s: ((Date.now() - inicio) / 1000).toFixed(2),
         });
         res.json({
-            message: "IA Treinada com sucesso!",
+            message: versao > 1 ? `Documento atualizado para a versão ${versao}.` : "IA Treinada com sucesso!",
             file: nomeFinal,
+            versao,
+            acesso,
             blocosIndexados: novos,
             totalVetores: vectorStore.length
         });
@@ -1613,6 +1762,7 @@ app.get('/api/train/documents', authMiddleware, roleMiddleware(['ADMIN']), (req,
             blocosPorArquivo[nome] = (blocosPorArquivo[nome] || 0) + 1;
         }
 
+        const meta = lerAcervo();
         const documentos = fs.readdirSync(DOCUMENTS_PATH)
             .filter(nome => {
                 const alvo = caminhoSeguroDoDocumento(nome);
@@ -1622,24 +1772,49 @@ app.get('/api/train/documents', authMiddleware, roleMiddleware(['ADMIN']), (req,
                 const info = fs.statSync(path.join(DOCUMENTS_PATH, nome));
                 return {
                     nome,
+                    original: rotuloDoArquivo(meta, nome),
+                    versao: meta[nome]?.versao ?? 1,
+                    acesso: acessoDoArquivo(meta, nome),
                     tamanho: info.size,
                     modificadoEm: info.mtime,
                     blocos: blocosPorArquivo[nome] || 0
                 };
             })
-            .sort((a, b) => a.nome.localeCompare(b.nome));
+            .sort((a, b) => a.original.localeCompare(b.original));
 
-        res.json({ documentos, totalVetores: vectorStore.length });
+        res.json({ documentos, totalVetores: vectorStore.length, niveisAcesso: NIVEIS_ACESSO.map((n) => ({ valor: n, rotulo: ROTULOS_ACESSO[n] })) });
     } catch (error) {
         console.error('❌ Erro ao listar documentos:', error);
         res.status(500).json({ error: 'Erro ao listar documentos.' });
     }
 });
 
+// RN12: muda quem pode ler um documento do acervo (todos, professores ou administradores).
+app.put('/api/train/documents/:nome/acesso', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
+    try {
+        const alvo = caminhoSeguroDoDocumento(req.params.nome);
+        if (!alvo || !fs.existsSync(alvo.caminho)) return res.status(404).json({ error: 'Documento não encontrado.' });
+        if (!NIVEIS_ACESSO.includes(req.body?.acesso)) {
+            return res.status(400).json({ error: `Acesso inválido. Use: ${NIVEIS_ACESSO.join(', ')}.` });
+        }
+        const meta = lerAcervo();
+        meta[alvo.nome] = { original: alvo.nome, versao: 1, ...meta[alvo.nome], acesso: req.body.acesso };
+        salvarAcervo(meta);
+        await registrarAuditoria({
+            action: 'DOCUMENTO_ACESSO_ALTERADO', actorUserId: req.userId,
+            detail: detalhe({ documento: meta[alvo.nome].original, acesso: req.body.acesso }), ip: ipDaRequisicao(req),
+        });
+        res.json({ message: `Acesso atualizado: ${ROTULOS_ACESSO[req.body.acesso]}.`, acesso: req.body.acesso });
+    } catch (error) {
+        console.error('❌ Erro ao alterar acesso do documento:', error);
+        res.status(500).json({ error: 'Erro ao alterar acesso do documento.' });
+    }
+});
+
 // Remove um documento da base. Precisa tirar das TRES pontas: do disco, da
 // memoria (knowledgeBase e vectorStore) e do cache em disco — senao o
 // documento volta a valer no proximo restart.
-app.delete('/api/train/documents/:nome', authMiddleware, roleMiddleware(['ADMIN']), (req, res) => {
+app.delete('/api/train/documents/:nome', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
     try {
         const alvo = caminhoSeguroDoDocumento(req.params.nome);
         if (!alvo) {
@@ -1657,6 +1832,14 @@ app.delete('/api/train/documents/:nome', authMiddleware, roleMiddleware(['ADMIN'
         vectorStore = vectorStore.filter(v => v.source !== source);
         const removidos = antes - vectorStore.length;
         salvarCache();
+
+        const meta = lerAcervo();
+        const original = rotuloDoArquivo(meta, alvo.nome);
+        if (meta[alvo.nome]) { delete meta[alvo.nome]; salvarAcervo(meta); }
+        await registrarAuditoria({
+            action: ACOES.DOCUMENTO_REMOVIDO, actorUserId: req.userId,
+            detail: detalhe({ documento: original, arquivo: alvo.nome, fragmentos: removidos }), ip: ipDaRequisicao(req),
+        });
 
         console.log(`🗑️ Documento removido: ${alvo.nome} (-${removidos} vetores)`);
         res.json({
@@ -1763,6 +1946,10 @@ async function responderAcao(res, pedido, { userId, equipamentos, fonte }) {
 function cardDaFalha(resultado, sugestao) {
     if (resultado.codigo === 'SEM_LOGIN') return { tipo: 'login' };
     if (!FALHAS_COM_AGENDAMENTO.includes(resultado.codigo)) return null;
+    // RN07: horários livres calculados pelo backend viram botões no card.
+    if (resultado.codigo === 'CONFLITO' && resultado.alternativas?.length) {
+        return { tipo: 'agendar', sugestao, alternativas: resultado.alternativas };
+    }
     // Em manutenção, o que muda é o equipamento: o card abre o agendamento sem ele.
     return resultado.codigo === 'MANUTENCAO'
         ? { tipo: 'agendar', sugestao: { ...sugestao, equipamento: null, equipmentId: null } }
@@ -1776,6 +1963,10 @@ app.post('/api/chat/confirmar-reserva', optionalAuthMiddleware, async (req, res)
     const userId = req.userId || null; // identidade só do token, como no /api/chat
     try {
         const resultado = await executarSolicitacaoReserva({ equipmentId, date, time, endTime, justification }, userId);
+        await auditarChat(req, {
+            intent: 'confirmar_reserva', equipamento: resultado.reserva?.equipamento ?? equipmentId, data: date, inicio: time, fim: endTime,
+            resultado: resultado.ok ? `OK reserva=${resultado.reserva.id} status=${resultado.reserva.status}` : resultado.codigo,
+        });
         const enviar = (texto, card = null) =>
             res.json({ tipo: 'reservar', texto, card, resumo: resumoParaHistorico(card), fonte: 'ia', codigo: resultado.codigo ?? null });
         if (resultado.ok) return enviar(textoReserva(resultado), { tipo: 'reserva', reserva: resultado.reserva });
@@ -1792,6 +1983,23 @@ app.post('/api/chat/confirmar-reserva', optionalAuthMiddleware, async (req, res)
     }
 });
 
+/**
+ * RNF17 — registra cada interação com o assistente: usuário, intenção classificada,
+ * parâmetros e resultado. A mensagem entra cortada em 200 caracteres (minimização,
+ * RNF26) e segue a retenção da trilha de auditoria (scripts/retencao.js).
+ */
+function auditarChat(req, { intent, fonte, equipamento, data, inicio, fim, resultado, message }) {
+    return registrarAuditoria({
+        action: ACOES.CHAT_INTERACAO,
+        actorUserId: req.userId || null,
+        detail: detalhe({
+            intencao: intent, classificador: fonte, equipamento, data, inicio, fim, resultado,
+            mensagem: message ? String(message).replace(/\s+/g, ' ').slice(0, 200) : null,
+        }),
+        ip: ipDaRequisicao(req),
+    });
+}
+
 /** Dúvida sobre o laboratório: RAG com texto livre em stream e as fontes anexadas pelo servidor. */
 async function responderComRag(res, { message, history, userId }) {
     // Sem o modelo de embeddings não há como consultar os documentos: avisa em vez
@@ -1804,20 +2012,26 @@ async function responderComRag(res, { message, history, userId }) {
         );
     }
 
+    const user = userId ? await prisma.user.findUnique({ where: { id: parseInt(userId) } }) : null;
+
     // RF19: top-4 fragmentos, com a fonte de cada um no contexto.
+    // RN12/RNF16: só entram fragmentos de documentos que o perfil pode ler.
     let contextText = '';
     let fontes = [];
-    if (vectorStore.length > 0) {
+    const meta = lerAcervo();
+    const permitidos = filtrarPorAcesso(vectorStore, meta, user?.role ?? null, nomeDoSource);
+    if (permitidos.length > 0) {
         const queryVector = await embedding(embedder, message);
-        const topResults = buscar(queryVector, vectorStore, TOP_K);
-        fontes = [...new Set(topResults.map((r) => nomeDoSource(r.item.source)))];
-        contextText = topResults.map((r) => `[Fonte: ${r.item.source}]\n${r.item.text}`).join('\n\n');
+        const topResults = buscar(queryVector, permitidos, TOP_K);
+        fontes = [...new Set(topResults.map((r) => rotuloDoArquivo(meta, nomeDoSource(r.item.source))))];
+        contextText = topResults
+            .map((r) => `[Fonte: ${rotuloDoArquivo(meta, nomeDoSource(r.item.source))}]\n${r.item.text}`)
+            .join('\n\n');
     }
 
     // Perfil do usuário (RF23): muda a resposta de dúvidas como "minha reserva precisa de aprovação?".
     let perfil = 'O usuário é um visitante que não entrou na conta.';
     if (userId) {
-        const user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
         if (user) {
             perfil = user.role === 'PROFESSOR' || user.role === 'ADMIN'
                 ? `O usuário é ${user.role}: as reservas dele são aprovadas automaticamente.`
@@ -1873,6 +2087,7 @@ app.post('/api/chat', optionalAuthMiddleware, async (req, res) => {
         // sem gastar uma chamada de classificação.
         if (!precisaDeFerramentas(message)) {
             console.log('💬 MODO RAG (sem classificação)');
+            await auditarChat(req, { intent: 'duvida', fonte: 'pre-filtro', message });
             return await responderComRag(res, { message, history, userId });
         }
 
@@ -1890,6 +2105,7 @@ app.post('/api/chat', optionalAuthMiddleware, async (req, res) => {
             fonte = 'local';
         }
         console.log(`🧭 Intenção (${fonte}):`, pedido);
+        await auditarChat(req, { ...pedido, fonte, message });
 
         if (pedido.intent === 'duvida') return await responderComRag(res, { message, history, userId });
         return await responderAcao(res, pedido, { userId, equipamentos, fonte });
@@ -1951,6 +2167,30 @@ app.delete('/api/blocked-dates/:id', authMiddleware, roleMiddleware(['ADMIN']), 
         res.json({ message: "Bloqueio removido com sucesso." });
     } catch {
         res.status(500).json({ error: "Erro ao remover bloqueio." });
+    }
+});
+
+// --- REGRAS DE RESERVA (RF08/RF15 — configuráveis pelo administrador) ---
+// GET é público: as telas de agendamento usam os valores para montar as opções.
+app.get('/api/config/reservas', (req, res) => {
+    res.json({ regras: REGRAS_RESERVA, padrao: REGRAS_PADRAO, faixas: FAIXAS_REGRAS, funcionamento: { abertura: HORA_ABERTURA, fechamento: HORA_FECHAMENTO } });
+});
+
+app.put('/api/config/reservas', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
+    try {
+        const antes = { ...REGRAS_RESERVA };
+        const resultado = salvarRegras(req.body ?? {});
+        if (!resultado.ok) return res.status(400).json({ error: resultado.erro });
+        const mudou = Object.keys(resultado.regras).filter((k) => resultado.regras[k] !== antes[k]);
+        await registrarAuditoria({
+            action: ACOES.REGRAS_ALTERADAS, actorUserId: req.userId,
+            detail: detalhe(Object.fromEntries(mudou.map((k) => [k, `${antes[k]}→${resultado.regras[k]}`]))) || 'sem alterações',
+            ip: ipDaRequisicao(req),
+        });
+        res.json({ message: 'Regras de reserva atualizadas.', regras: REGRAS_RESERVA });
+    } catch (error) {
+        console.error('❌ Erro ao salvar regras:', error);
+        res.status(500).json({ error: 'Erro ao salvar as regras de reserva.' });
     }
 });
 
