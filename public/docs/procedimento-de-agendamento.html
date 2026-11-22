@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Procedimento de Agendamento - AcademAI</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 0 auto; padding: 32px 16px; line-height: 1.6; color: #1e293b; background: #fff; }
+  h1 { color: #0f172a; border-bottom: 2px solid #38bdf8; padding-bottom: 8px; }
+  h2 { color: #0369a1; margin-top: 32px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; }
+  .nota { background: #f1f5f9; border-left: 4px solid #38bdf8; padding: 10px 14px; font-size: 0.95rem; }
+  footer { margin-top: 40px; font-size: 0.85rem; color: #64748b; }
+  @media print { .nota { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<h1>Procedimento de Agendamento</h1>
+
+<h2>Passo a passo</h2>
+<ol>
+  <li><strong>Escolha o equipamento</strong> na página de Equipamentos. O catálogo mostra um card por modelo, com a quantidade de unidades quando há mais de uma.</li>
+  <li><strong>Abra os detalhes</strong> e, se o modelo tiver várias máquinas, <strong>escolha a unidade</strong>. Cada unidade tem agenda própria, e a reserva sempre aponta para uma máquina concreta.</li>
+  <li><strong>Escolha a data e o horário.</strong> Os horários vão das <strong>08:00 às 18:00</strong>, em blocos de uma hora. Horários já ocupados aparecem marcados e não podem ser selecionados.</li>
+  <li><strong>Confirme.</strong> A reserva é criada e você recebe uma notificação com o resultado.</li>
+</ol>
+
+<h2>O que acontece depois de confirmar</h2>
+<ul>
+  <li><strong>Aluno</strong> — a reserva fica com status <strong>Pendente</strong> e aguarda aprovação. Um professor ou administrador recebe a notificação e decide.</li>
+  <li><strong>Professor</strong> ou <strong>Administrador</strong> — a reserva é <strong>aprovada automaticamente</strong>.</li>
+</ul>
+<p>Em qualquer caso você é notificado dentro do sistema e por e-mail, quando o envio estiver configurado.</p>
+
+<h2>Status possíveis de uma reserva</h2>
+<ul>
+  <li><strong>Pendente</strong> — criada, aguardando decisão.</li>
+  <li><strong>Aprovada</strong> — confirmada, o horário é seu.</li>
+  <li><strong>Rejeitada</strong> — recusada, sempre com justificativa.</li>
+  <li><strong>Cancelada</strong> — desmarcada por você.</li>
+  <li><strong>Concluída</strong> — já aconteceu.</li>
+</ul>
+
+<h2>Regras que o sistema aplica sozinho</h2>
+<ul>
+  <li><strong>Conflito de horário.</strong> Duas reservas não podem ocupar a mesma unidade no mesmo intervalo. Reservas pendentes também bloqueiam o horário.</li>
+  <li><strong>Equipamento em manutenção.</strong> Máquinas nesse estado não aceitam reserva alguma, nem pelo catálogo nem pela assistente.</li>
+  <li><strong>Datas bloqueadas.</strong> O administrador pode bloquear dias específicos, por manutenção programada ou feriado.</li>
+</ul>
+
+<h2>Cancelar uma reserva</h2>
+<p>Reservas pendentes ou aprovadas podem ser canceladas pelo próprio usuário, na aba Agendamentos do perfil. Depois de concluída, não há cancelamento.</p>
+
+<h2>Reservar conversando com a assistente</h2>
+<p>A assistente virtual também cria reservas. Basta pedir em linguagem natural, citando o equipamento pelo nome — por exemplo, "quero reservar a cortadora a laser amanhã às 14h". As mesmas regras valem: conflito, manutenção e aprovação por perfil.</p>
+<footer>AcademAI - Sistema de Reservas. Para salvar em PDF, use Imprimir (Ctrl+P) → Salvar como PDF.</footer>
+</body>
+</html>

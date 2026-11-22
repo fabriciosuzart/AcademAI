@@ -14,10 +14,11 @@ import EditEquipmentModal from "../perfil/EditEquipmentModal";
 import { API_URL, urlDoArquivo } from '../../api/config';
 import { mensagemDeErro } from '../../utils/erros';
 import type {
-  Bloqueio, LogAuditoria, ReservaComRelacoes, ReservaHistorico, ResumoRelatorio, VisaoGeral,
+  Bloqueio, LogAuditoria, ReservaComRelacoes, ReservaHistorico, ResumoRelatorio, VisaoGeral, RespostaSessao,
 } from '../../types/api';
 import { escolherVoz, rotuloDaVoz } from '../../utils/voz';
 import { erroDeSenha } from '../../utils/senha';
+import { getAccessToken } from '../../api/session';
 import { buscarRegras, REGRAS_PADRAO, type RegrasReserva } from '../../utils/regras';
 
 const trainingModules = [
@@ -126,9 +127,17 @@ type AbaPerfil =
 const Perfil: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, user: usuarioSessao } = useAuth();
+  const { logout, login, user: usuarioSessao } = useAuth();
   // Estado para guardar os dados do usuário
   const [userData, setUserData] = useState({ name: "", email: "", ra: "" });
+  // Formulário de Configurações → Dados pessoais (o próprio usuário edita nome e e-mail).
+  const [meuNome, setMeuNome] = useState("");
+  const [meuEmail, setMeuEmail] = useState("");
+  const [salvandoDados, setSalvandoDados] = useState(false);
+  useEffect(() => {
+    setMeuNome(userData.name);
+    setMeuEmail(userData.email === "Não informado" ? "" : userData.email);
+  }, [userData.name, userData.email]);
   const [userRole, setUserRole] = useState("ALUNO");
 
   // Estado para guardar o histórico de agendamentos
@@ -960,6 +969,26 @@ const Perfil: React.FC = () => {
       && s !== "concluida" && s !== "concluido";
     return ativa && (appt.date || "") >= hojeISO;
   });
+
+  // O próprio usuário altera nome e e-mail (Configurações → Dados pessoais).
+  const handleMeusDadosSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSalvandoDados(true);
+    try {
+      const { data } = await api.put<{ user: RespostaSessao }>("/users/me", {
+        name: meuNome,
+        email: meuEmail,
+      });
+      // Atualiza a sessão (navbar e localStorage) com o nome e o e-mail novos.
+      login({ ...data.user, token: getAccessToken() || "" });
+      setUserData((prev) => ({ ...prev, name: data.user.name, email: data.user.email }));
+      alert("Dados atualizados com sucesso.");
+    } catch (error) {
+      alert("Erro ao salvar seus dados: " + mensagemDeErro(error, "falha de conexão com o servidor."));
+    } finally {
+      setSalvandoDados(false);
+    }
+  };
 
   const handlePasswordUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2127,17 +2156,24 @@ const Perfil: React.FC = () => {
                   <div className="profile-photo">
                     <span>{userData.name.charAt(0).toUpperCase()}</span>
                   </div>
-                  <div className="settings-fields">
+                  <form className="settings-fields" onSubmit={handleMeusDadosSubmit}>
                     <label>Nome completo</label>
-                    <input type="text" value={userData.name} readOnly />
+                    <input type="text" value={meuNome} onChange={(e) => setMeuNome(e.target.value)} required />
                     <label>E-mail</label>
-                    <input type="email" value={userData.email} readOnly />
+                    <input type="email" value={meuEmail} onChange={(e) => setMeuEmail(e.target.value)} required />
                     <label>R.A. (somente leitura)</label>
                     <input type="text" value={userData.ra} readOnly />
-                  </div>
+                    <button
+                      type="submit"
+                      className="secondary-btn"
+                      disabled={salvandoDados || (meuNome.trim() === userData.name && meuEmail.trim() === userData.email)}
+                    >
+                      {salvandoDados ? "Salvando..." : "Salvar dados"}
+                    </button>
+                  </form>
                 </div>
                 <p className="settings-nota">
-                  Para corrigir nome, e-mail ou R.A., procure um administrador.
+                  Para corrigir o R.A., procure um administrador.
                 </p>
               </div>
 

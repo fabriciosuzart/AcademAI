@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Bot, User, Brain, Volume2, VolumeX, Mic, Square, Send } from 'lucide-react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { Bot, User, Brain, Volume2, VolumeX, Mic, Square, Send, RotateCcw } from 'lucide-react';
 import './Assistente.css';
 import CardChat, { type CardChatDados, type EstadoConfirmacao } from '../chat/CardChat';
 import api from '../../api/axios';
@@ -52,16 +52,96 @@ function camposDaResposta(data: RespostaAcao): Omit<Message, 'id' | 'sender'> {
   };
 }
 
+const MENSAGEM_INICIAL: Message = { id: 1, sender: 'ai', text: 'Olá! 👋 Sou o assistente do Laboratório Inteligente. Como posso ajudar?' };
+
+// A conversa fica no localStorage, por usuário, para não sumir ao trocar de página.
+// O logout (e a sessão expirada) fazem localStorage.clear(), que a apaga junto.
+const chaveConversa = () => {
+  const userId = localStorage.getItem('userId');
+  return userId ? `chat_conversa_${userId}` : null;
+};
+
+function lerConversaSalva(): Message[] | null {
+  try {
+    const chave = chaveConversa();
+    const salvo = chave ? localStorage.getItem(chave) : null;
+    return salvo ? (JSON.parse(salvo) as Message[]) : null;
+  } catch {
+    return null; // conversa salva ilegível: começa uma nova
+  }
+}
+
+function carregarConversa(): Message[] {
+  const lista = (lerConversaSalva() ?? [])
+    // Balão vazio de uma resposta que já não está sendo gerada (ex.: página recarregada).
+    .filter(m => segundoPlano.carregando || !(m.sender === 'ai' && m.text === ''))
+    .map(m => (m.confirmacao === 'enviando' && !segundoPlano.carregando ? { ...m, confirmacao: 'pendente' as const } : m));
+  return lista.length ? lista : [MENSAGEM_INICIAL];
+}
+
+// A resposta da IA continua chegando mesmo se o usuário sair da página. Estes
+// valores ficam fora do componente para sobreviver à desmontagem: com a tela
+// aberta, as atualizações vão para o estado dela; fechada, vão direto para a
+// conversa salva, e a tela mostra tudo quando o usuário voltar.
+const abortControllerRef: { current: AbortController | null } = { current: null };
+const segundoPlano: {
+  carregando: boolean;
+  setMensagens: React.Dispatch<React.SetStateAction<Message[]>> | null;
+  setCarregando: ((v: boolean) => void) | null;
+} = { carregando: false, setMensagens: null, setCarregando: null };
+
+function atualizarConversa(fn: (prev: Message[]) => Message[]) {
+  if (segundoPlano.setMensagens) {
+    segundoPlano.setMensagens(fn);
+    return;
+  }
+  const chave = chaveConversa();
+  const salva = lerConversaSalva();
+  if (!chave || !salva) return; // logout no meio da resposta: não grava nada
+  try {
+    localStorage.setItem(chave, JSON.stringify(fn(salva)));
+  } catch {
+    // sem espaço ou bloqueado
+  }
+}
+
 const Assistente: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 1, sender: 'ai', text: 'Olá! 👋 Sou o assistente do Laboratório Inteligente. Como posso ajudar?' }
-  ]);
+  const [messages, setMessagesDaTela] = useState<Message[]>(carregarConversa);
+  const setMessages = atualizarConversa;
+  const [isLoading, setIsLoadingDaTela] = useState(segundoPlano.carregando);
+  const setIsLoading = (v: boolean) => {
+    segundoPlano.carregando = v;
+    segundoPlano.setCarregando?.(v);
+  };
+
+  useLayoutEffect(() => {
+    segundoPlano.setMensagens = setMessagesDaTela;
+    segundoPlano.setCarregando = setIsLoadingDaTela;
+    return () => {
+      segundoPlano.setMensagens = null;
+      segundoPlano.setCarregando = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const chave = chaveConversa();
+    if (!chave) return;
+    try {
+      localStorage.setItem(chave, JSON.stringify(messages));
+    } catch {
+      // sem espaço ou bloqueado: a conversa só não fica salva
+    }
+  }, [messages]);
+
+  const novaConversa = () => {
+    if (!window.confirm('Apagar esta conversa e começar uma nova?')) return;
+    window.speechSynthesis?.cancel();
+    setMessagesDaTela([MENSAGEM_INICIAL]);
+  };
 
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [isSpeechEnabled, setIsSpeechEnabled] = useState(false);
 
-  const abortControllerRef = useRef<AbortController | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -94,6 +174,7 @@ const Assistente: React.FC = () => {
   // --- TEXT TO SPEECH (IA Fala) ---
   const speak = (text: string) => {
     if (!window.speechSynthesis) return;
+    if (!segundoPlano.setMensagens) return; // resposta chegou com o usuário em outra página
     window.speechSynthesis.cancel(); // Para falas anteriores
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'pt-BR';
@@ -384,6 +465,17 @@ const Assistente: React.FC = () => {
                 aria-label={isSpeechEnabled ? "Desativar leitura em voz alta automática" : "Ativar leitura em voz alta automática das mensagens da Inteligência Artificial"}
               >
                 {isSpeechEnabled ? <Volume2 size={20} aria-hidden="true" /> : <VolumeX size={20} aria-hidden="true" />}
+              </button>
+
+              <button
+                type="button"
+                className="icon-button"
+                onClick={novaConversa}
+                disabled={isLoading || messages.length <= 1}
+                title="Nova conversa"
+                aria-label="Apagar a conversa atual e começar uma nova"
+              >
+                <RotateCcw size={20} aria-hidden="true" />
               </button>
 
               <button

@@ -4,6 +4,20 @@
 // e-mail) e as feitas pelo chat gravavam a notificação direto no banco, sem
 // e-mail. Agora as duas pontas usam `notificar`.
 
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Carrega as variáveis SMTP de backend/.env (veja backend/.env.example).
+// Sem isso o SMTP_HOST nunca chegava ao processo e nenhum e-mail saía.
+// Nos testes (Jest define NODE_ENV=test) não carrega, para não enviar e-mail real.
+if (process.env.NODE_ENV !== 'test') {
+    try {
+        process.loadEnvFile(path.join(path.dirname(fileURLToPath(import.meta.url)), '.env'));
+    } catch {
+        // sem backend/.env: segue sem SMTP
+    }
+}
+
 let transporte = null;
 
 if (process.env.SMTP_HOST) {

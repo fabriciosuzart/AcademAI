@@ -679,6 +679,44 @@ app.get('/api/users', authMiddleware, roleMiddleware(['ADMIN']), async (req, res
     }
 });
 
+// PUT /api/users/me — o próprio usuário altera o nome e o e-mail, sem depender
+// do admin. Perfil, R.A., treinamentos e escopo continuam só com o admin (rota
+// abaixo). Fica antes de /api/users/:id para o "me" não cair naquela rota.
+app.put('/api/users/me', authMiddleware, async (req, res) => {
+    try {
+        const { name, email } = req.body;
+        const existingUser = await prisma.user.findUnique({ where: { id: req.userId } });
+        if (!existingUser || !existingUser.isActive) return res.status(404).json({ error: "Usuário não encontrado." });
+
+        const novoNome = typeof name === 'string' ? name.trim() : '';
+        if (!novoNome) return res.status(400).json({ error: "Informe o nome." });
+        const novoEmail = typeof email === 'string' ? email.trim() : '';
+        if (novoEmail !== existingUser.email) {
+            const erroEmail = validarEmailInstitucional(novoEmail);
+            if (erroEmail) return res.status(400).json({ error: erroEmail });
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: existingUser.id },
+            data: { name: novoNome, email: novoEmail },
+        });
+        const mudou = ['name', 'email'].filter((k) => updatedUser[k] !== existingUser[k]);
+        if (mudou.length) {
+            await registrarAuditoria({
+                action: ACOES.USUARIO_ALTERADO,
+                actorUserId: req.userId,
+                targetUserId: existingUser.id,
+                detail: detalhe({ campos: mudou.join(','), origem: 'proprio usuario' }),
+                ip: ipDaRequisicao(req),
+            });
+        }
+        res.json({ message: "Dados atualizados com sucesso!", user: semSegredos(updatedUser) });
+    } catch (error) {
+        if (error?.code === 'P2002') return res.status(400).json({ error: "Este e-mail já está cadastrado para outro usuário." });
+        res.status(500).json({ error: "Erro ao atualizar seus dados." });
+    }
+});
+
 // PUT /api/users/:id (RF04 - protegido, permite alterar perfil e escopo do professor)
 app.put('/api/users/:id', authMiddleware, roleMiddleware(['ADMIN']), async (req, res) => {
     try {
@@ -1318,11 +1356,11 @@ app.put('/api/appointments/:id/status', authMiddleware, roleMiddleware(['ADMIN',
         // RF12 - Notificar o solicitante
         if (status === 'APROVADA') {
             await createNotification(appointment.userId, 'RESERVA_APROVADA',
-                `Sua reserva para ${appointment.date} às ${appointment.time} foi aprovada!`, appointmentId);
+                `Sua reserva de ${appointment.equipment?.name ?? 'equipamento'} para ${appointment.date} às ${appointment.time} foi aprovada!`, appointmentId);
         } else if (status === 'REJEITADA') {
             const reason = motivoRejeicao ? ` Motivo: ${motivoRejeicao}` : '';
             await createNotification(appointment.userId, 'RESERVA_REJEITADA',
-                `Sua reserva para ${appointment.date} às ${appointment.time} foi rejeitada.${reason}`, appointmentId);
+                `Sua reserva de ${appointment.equipment?.name ?? 'equipamento'} para ${appointment.date} às ${appointment.time} foi rejeitada.${reason}`, appointmentId);
         }
 
         res.json({ message: `Reserva ${status.toLowerCase()}!`, appointment: updated });

@@ -52,6 +52,25 @@
   padding: 0 10px;
 }
 
+/* Bolinha com a quantidade de notificações não lidas sobre o sino. */
+.nav-icon-link { position: relative; }
+.notif-badge {
+  position: absolute;
+  top: -6px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  pointer-events: none;
+}
+
 .navbar-logo span {
   font-size: 1.6rem;
   font-weight: 800;

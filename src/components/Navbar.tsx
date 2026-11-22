@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import api from '../api/axios';
 import './Navbar.css';
 import { GraduationCap, Bell } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
@@ -10,6 +11,30 @@ const Navbar: React.FC = () => {
   const { logout, isLoggedIn, user } = useAuth();
 
   const closeMobileMenu = () => setIsMenuOpen(false);
+
+  // Quantidade de notificações não lidas para a bolinha do sino. Atualiza ao
+  // trocar de página, a cada 30 s e quando a página de Notificações marca como lida.
+  const location = useLocation();
+  const [contagem, setContagem] = useState(0);
+  const userId = isLoggedIn ? user?.id : undefined;
+  useEffect(() => {
+    if (!userId) return;
+    let ativo = true;
+    const buscar = () => {
+      api.get<{ unreadCount?: number }>(`/notifications/${userId}`)
+        .then(({ data }) => { if (ativo) setContagem(data.unreadCount ?? 0); })
+        .catch(() => { /* sem conexão: mantém o último valor */ });
+    };
+    buscar();
+    const timer = setInterval(buscar, 30000);
+    window.addEventListener('notificacoes-atualizadas', buscar);
+    return () => {
+      ativo = false;
+      clearInterval(timer);
+      window.removeEventListener('notificacoes-atualizadas', buscar);
+    };
+  }, [userId, location.pathname]);
+  const naoLidas = userId ? contagem : 0;
 
   // Função para limpar o acesso e deslogar
   const handleLogout = async () => {
@@ -55,6 +80,11 @@ const Navbar: React.FC = () => {
                 </Link>
                 <Link to="/notificacoes" className="nav-link nav-icon-link" onClick={closeMobileMenu} aria-label="Ver Notificações" title="Notificações">
                   <Bell size={20} aria-hidden="true" />
+                  {naoLidas > 0 && (
+                    <span className="notif-badge" aria-label={`${naoLidas} notificações não lidas`}>
+                      {naoLidas > 9 ? '9+' : naoLidas}
+                    </span>
+                  )}
                 </Link>
                 <button className="logout-btn" onClick={handleLogout} aria-label="Sair da conta">Sair</button>
               </div>

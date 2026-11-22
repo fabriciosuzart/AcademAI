@@ -16,9 +16,9 @@ const Documentacao: React.FC = () => {
                     <li style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '15px 0'}}>
                         <div>
                             <strong style={{color: '#f8fafc', fontSize: '1.1rem'}}>Manual da Impressora 3D Finder</strong>
-                            <p style={{margin: '5px 0 0 0', fontSize: '0.9rem'}}>Guia completo de operação e troca de filamento.</p>
+                            <p style={{margin: '5px 0 0 0', fontSize: '0.9rem'}}>Unidades, treinamento obrigatório e regras de uso.</p>
                         </div>
-                        <a href="#" target="_blank" rel="noopener noreferrer" style={{background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '8px 16px', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold'}}>Baixar PDF</a>
+                        <a href="/docs/manual-impressora-3d-finder.html" target="_blank" rel="noopener noreferrer" style={{background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '8px 16px', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold'}}>Ler Online</a>
                     </li>
                 </ul>
             </div>
@@ -29,9 +29,9 @@ const Documentacao: React.FC = () => {
                     <li style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '15px 0'}}>
                         <div>
                             <strong style={{color: '#f8fafc', fontSize: '1.1rem'}}>Guia de Segurança da Cortadora a Laser</strong>
-                            <p style={{margin: '5px 0 0 0', fontSize: '0.9rem'}}>Normas de segurança e materiais permitidos para corte.</p>
+                            <p style={{margin: '5px 0 0 0', fontSize: '0.9rem'}}>Treinamento obrigatório e normas de segurança do laboratório.</p>
                         </div>
-                        <a href="#" target="_blank" rel="noopener noreferrer" style={{background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '8px 16px', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold'}}>Baixar PDF</a>
+                        <a href="/docs/guia-seguranca-cortadora-laser.html" target="_blank" rel="noopener noreferrer" style={{background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '8px 16px', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold'}}>Ler Online</a>
                     </li>
                 </ul>
             </div>
@@ -51,7 +51,7 @@ const Documentacao: React.FC = () => {
                             <strong style={{color: '#f8fafc', fontSize: '1.1rem'}}>Procedimento de Agendamento</strong>
                             <p style={{margin: '5px 0 0 0', fontSize: '0.9rem'}}>Passo a passo de como reservar os equipamentos.</p>
                         </div>
-                        <a href="#" target="_blank" rel="noopener noreferrer" style={{background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '8px 16px', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold'}}>Ler Online</a>
+                        <a href="/docs/procedimento-de-agendamento.html" target="_blank" rel="noopener noreferrer" style={{background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', padding: '8px 16px', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold'}}>Ler Online</a>
                     </li>
                 </ul>
             </div>
